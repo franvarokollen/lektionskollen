@@ -228,7 +228,9 @@ window.useFillerVersion = function useFillerVersion() {
 };
 
 // ── Translate activity fields SV→EN on the fly ────────────────────────────
-const TRANSLATE_CACHE_KEY = "lp-filler-translations";
+// v2: stronger translation prompt + nested-array validation. Bumping invalidates
+// stale partials cached under the old prompt (which left arrays untranslated).
+const TRANSLATE_CACHE_KEY = "lp-filler-translations-v2";
 
 function loadTranslateCache() {
   try { return JSON.parse(localStorage.getItem(TRANSLATE_CACHE_KEY) || "{}"); }
@@ -241,7 +243,9 @@ function saveTranslateCache(cache) {
 
 async function translateActivity(act, config) {
   if (!act || !act.title) return act;
-  const cacheKey = act.title.slice(0, 30); // use title as cache key (good enough)
+  // Cache key: prefer stable filler_id-style hash; fall back to full title.
+  // (Old slice(0,30) caused collisions and stale-translation bleed-through.)
+  const cacheKey = act._cacheKey || act.title;
   const cache = loadTranslateCache();
   if (cache[cacheKey]) return cache[cacheKey];
 
@@ -250,15 +254,29 @@ async function translateActivity(act, config) {
     format: act.format,
     summary: act.summary,
     teacherIntro: act.teacherIntro,
-    instructions: act.instructions,
+    instructions: Array.isArray(act.instructions) ? act.instructions : [],
     boardText: act.boardText,
     wrapUp: act.wrapUp,
     funFact: act.funFact,
-    content: act.content,
+    content: act.content && typeof act.content === "object"
+      ? { items: Array.isArray(act.content.items) ? act.content.items : [] }
+      : { items: [] },
   };
 
-  const prompt = `Translate the following JSON from Swedish to English. Return ONLY valid JSON with the same structure, all string values translated to English. Do not translate keys. Do not add markdown.
+  const prompt = `You are translating a Swedish classroom activity JSON to natural, fluent English for a substitute teacher.
 
+CRITICAL RULES:
+1. Output ONLY valid JSON — no markdown, no \`\`\` fences, no commentary.
+2. Preserve the EXACT structure and keys. Do NOT translate keys.
+3. Translate EVERY string VALUE, including nested ones:
+   - "instructions" is an ARRAY of strings — translate each element.
+   - "content.items" is an ARRAY of objects with "q", "a", and optional "note" — translate q, a, AND note for every item.
+   - "boardText" may contain \\n line breaks — preserve them, translate the text around them.
+4. For "format" field, translate Swedish format names: "quiz"→"quiz", "pussel"→"puzzle", "ordspel"→"word game", "diskussion"→"discussion", "kreativt"→"creative", "tävling"→"competition".
+5. Translate naturally — full sentences, not word-for-word. Keep the same tone (enthusiastic, kid-friendly).
+6. Numbers, names, and proper nouns stay unchanged.
+
+JSON TO TRANSLATE:
 ${JSON.stringify(fields, null, 2)}`;
 
   try {
@@ -267,12 +285,25 @@ ${JSON.stringify(fields, null, 2)}`;
       ? raw.replace(/^\`\`\`json\s*/i, "").replace(/^\`\`\`\s*/i, "").replace(/\`\`\`\s*$/, "").trim()
       : raw;
     const translated = typeof clean === "string" ? JSON.parse(clean) : clean;
+
+    // Validate: did the LLM actually translate the nested arrays?
+    const instructionsOk = !fields.instructions.length
+      || (Array.isArray(translated.instructions) && translated.instructions.length === fields.instructions.length);
+    const contentOk = !fields.content.items.length
+      || (translated.content?.items?.length === fields.content.items.length);
+    if (!instructionsOk || !contentOk) {
+      console.warn("Filler translation incomplete — nested arrays missing items", {
+        expected: { instructions: fields.instructions.length, items: fields.content.items.length },
+        got: { instructions: translated.instructions?.length, items: translated.content?.items?.length },
+      });
+    }
+
     const result = { ...act, ...translated };
     cache[cacheKey] = result;
     saveTranslateCache(cache);
     return result;
   } catch(e) {
-    console.warn("Filler translation failed:", e.message);
+    console.warn("Filler translation failed:", e.message, e);
     return act; // fall back to Swedish
   }
 }

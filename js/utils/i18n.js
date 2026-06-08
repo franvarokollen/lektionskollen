@@ -19,8 +19,8 @@ window.providerDisplayName = function providerDisplayName(provider, language) {
 
 window.LANG = {
   sv: {
-    title: "Lektionsplaneraren",
-    subtitle: "För LGR22 och Gy22",
+    title: "Lektionkollen",
+    subtitle: "Från Frånvarokollen · För LGR22 och Gy22",
     apiSettings: "API-inställningar",
     apiKeyMissing: "Lägg till en API-nyckel för att börja",
     apiKeyMissingDesc: "Klicka på inställningar och välj Gemini, Anthropic eller en lokal modell. Nyckeln sparas endast i din webbläsare.",
@@ -273,8 +273,8 @@ window.LANG = {
     ],
   },
   en: {
-    title: "Lesson Planner",
-    subtitle: "For LGR22 and Gy22",
+    title: "Lektionkollen",
+    subtitle: "By Frånvarokollen · For LGR22 and Gy22",
     apiSettings: "API settings",
     apiKeyMissing: "Add an API key to get started",
     apiKeyMissingDesc: "Click settings and choose Gemini, Anthropic, or a local model. The key is saved only in your browser.",

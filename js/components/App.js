@@ -462,7 +462,7 @@ function App() {
         <header className="no-print" style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 38, height: 38, background: "var(--accent)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}><Icon name="book" size={20} /></div>
-            <div><h1 style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2 }}>☕ {config.language === "sv" ? "Vikarieplaneringen" : "Sub Planner"}</h1><p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{config.language === "sv" ? "AI-stöd för vikarier — inga förberedelser, allt inbäddat." : "AI-powered substitute planning — no prep required."}</p></div>
+            <div><h1 style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2 }}>☕ Lektionkollen</h1><p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{config.language === "sv" ? "Från Frånvarokollen · AI-stöd för vikarier — inga förberedelser, allt inbäddat." : "By Frånvarokollen · AI-powered substitute planning — no prep required."}</p></div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div style={{ fontSize: 12, color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: 6 }}>

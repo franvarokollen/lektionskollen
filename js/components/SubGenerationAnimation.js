@@ -64,7 +64,7 @@ window.SubGenerationAnimation = function SubGenerationAnimation({ language = "sv
     const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const bg      = isDark ? "#1A1A1A" : "#FFFFFF";
     const line    = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)";
-    const accent  = "#2B5F8B";
+    const accent  = "#1E7BFF";
     const yellow  = "#F5C518";
     const text    = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)";
 
