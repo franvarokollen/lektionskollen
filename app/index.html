@@ -12,29 +12,8 @@
 </head>
 <body>
 
-<!-- ── LOGIN ──────────────────────────────────────── -->
-<div id="login" class="loginwrap" hidden>
-  <div class="logincard">
-    <div class="brand brand-dark">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect width="24" height="24" rx="6" fill="#0F71F6"/>
-        <path d="M6 12.5l3.5 3.5L18 7.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      Lektionskollen
-    </div>
-    <p class="muted" style="margin:6px 0 18px">Tillägg till Frånvarokollen. Logga in med din e-post — du får en länk, inget lösenord.</p>
-    <form id="loginform">
-      <label class="f">E-post
-        <input id="email" type="email" required autocomplete="email" placeholder="du@skola.se">
-      </label>
-      <button class="btn btn-primary" style="width:100%;margin-top:12px" id="loginbtn">Skicka inloggningslänk</button>
-    </form>
-    <p id="loginmsg" class="hint" style="margin-top:12px"></p>
-  </div>
-</div>
-
 <!-- ── APP ────────────────────────────────────────── -->
-<div class="shell" id="app" hidden>
+<div class="shell" id="app">
   <aside class="sidebar">
     <div class="brand">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -51,7 +30,7 @@
     <div class="sb-foot">
       <strong id="schoolname">—</strong>
       <span id="username">—</span>
-      <button class="linkbtn" id="signout">Logga ut</button>
+      <button class="linkbtn" id="signout">Ladda om</button>
     </div>
   </aside>
 
@@ -69,7 +48,7 @@
       <section id="screen-cover">
         <div class="demo-tip">
           <span>▶</span>
-          <div><b>Prototyp med riktig databas.</b> Frånvaroraderna är påhittade — FVK:s schema är inte kopplat ännu. Allt annat är skarpt: inloggning, planer, bank, betyg och vikarielänk sparas i Supabase.</div>
+          <div><b>Delad testmiljö — ingen inloggning.</b> Frånvaroraderna är påhittade; FVK:s schema är inte kopplat ännu. Allt annat är skarpt och sparas i Supabase: planer, bank, betyg och vikarielänkar. Ni tre delar samma data.</div>
         </div>
         <div class="tabs">
           <button class="on">Daglig vikarie</button>
