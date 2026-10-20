@@ -85,8 +85,18 @@
     cursor:pointer;color:var(--ink)}
   .bigpick button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 
+  .note{margin-top:14px}
+  .note label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:6px}
+  .noterow{display:flex;gap:7px}
+  .noterow input{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;
+    padding:9px 11px;font:inherit;font-size:14px;background:#fff;color:var(--ink)}
+  .noterow input:focus{outline:2px solid #0F71F6;outline-offset:-1px;border-color:transparent}
+  .noterow button{border:1px solid var(--navy-deep);background:var(--navy-deep);color:#fff;
+    border-radius:9px;padding:9px 15px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+  .noterow button:disabled{opacity:.45;cursor:default}
+
   @media print{
-    .ratebox,.noprint,.assist,.assistbar,.sheet{display:none!important}
+    .ratebox,.noprint,.assist,.assistbar,.sheet,.note{display:none!important}
     .subhead{background:#fff;color:#000;border:1px solid #000}
     .subwrap{padding-bottom:20px}
   }
@@ -154,6 +164,13 @@ const SV_LABELS = {
   saved: 'Sparat i planen — markerat för granskning.',
   quota: 'Dagens gräns för lektionshjälp är nådd för den här planen.',
   closeS: 'Stäng', genTag: 'Genererat under lektionen',
+  onlyOther: 'Finns bara på svenska', onlyOtherEn: 'Finns bara på engelska',
+  whatHappened: 'Vad hände? (frivilligt, en rad)',
+  whatHappenedPh: 't.ex. de fastnade på nämnaren',
+  noteSaved: 'Tack — sparat med planen.',
+  commentTitle: 'Vad funkade, vad funkade inte? (frivilligt)',
+  commentPh: 'En rad räcker. Det är det här ordinarie lärare och vi har mest nytta av.',
+  send: 'Skicka',
   reasons: {
     easy: 'För lätt', hard: 'För svårt', short: 'Tog för kort tid', long: 'Tog för lång tid',
     materials: 'Materialet funkade inte', unclear: 'Otydliga instruktioner',
@@ -182,6 +199,13 @@ const EN_LABELS = {
   saved: 'Saved to the plan — flagged for review.',
   quota: 'The daily limit for in-lesson help has been reached for this plan.',
   closeS: 'Close', genTag: 'Generated during the lesson',
+  onlyOther: 'Only available in Swedish', onlyOtherEn: 'Only available in English',
+  whatHappened: 'What happened? (optional, one line)',
+  whatHappenedPh: 'e.g. they got stuck on the denominator',
+  noteSaved: 'Thank you — saved with the plan.',
+  commentTitle: 'What worked, what did not? (optional)',
+  commentPh: 'One line is enough. This is the part the class teacher and we get most out of.',
+  send: 'Send',
   reasons: {
     easy: 'Too easy', hard: 'Too hard', short: 'Ran short', long: 'Ran long',
     materials: 'Materials did not work', unclear: 'Instructions unclear',
@@ -233,17 +257,32 @@ function assistRow(ref, label) {
     a('level', 'easier', l.aEasier) + a('level', 'harder', l.aHarder) + '</div>';
 }
 
-function extrasFor(ref) {
-  const l = L();
-  return EXTRAS.filter((x) => x.section_ref === ref).map((x) =>
-    '<div class="extra"><span class="tag">' + esc(l.genTag) + '</span>' +
-    '<b>' + esc(x.body?.title || '') + '</b>' +
-    '<ul style="margin:4px 0 0;padding-left:16px">' +
-      (x.body?.lines || []).map((li) => '<li>' + esc(li) + '</li>').join('') +
-    '</ul></div>').join('');
+// An extra carries both languages. Show the reader's; if only the other
+// exists (an older row, or a model that skipped the translation), show it
+// and say so rather than silently serving the wrong language.
+function extraBody(x) {
+  if (x.language === LANG) return { body: x.body, exact: true };
+  if (x.language_alt === LANG && x.body_alt) return { body: x.body_alt, exact: true };
+  return { body: x.body, exact: false, lang: x.language };
 }
 
-function sheetHtml(extra, source, saveNote) {
+function extrasFor(ref) {
+  const l = L();
+  return EXTRAS.filter((x) => x.section_ref === ref).map((x) => {
+    const { body, exact, lang } = extraBody(x);
+    const note = exact ? ''
+      : ' · ' + esc(lang === 'sv' ? l.onlyOther : l.onlyOtherEn);
+    return '<div class="extra"><span class="tag">' + esc(l.genTag) + note + '</span>' +
+      '<b>' + esc(body?.title || '') + '</b>' +
+      '<ul style="margin:4px 0 0;padding-left:16px">' +
+        (body?.lines || []).map((li) => '<li>' + esc(li) + '</li>').join('') +
+      '</ul>' +
+      (body?.board ? '<div class="board" style="margin-top:7px">' + esc(body.board) + '</div>' : '') +
+      '</div>';
+  }).join('');
+}
+
+function sheetHtml(extra, source, saveNote, extraId, opts) {
   const l = L();
   const srcTxt = source === 'model' ? l.srcModel : source === 'fallback' ? l.srcFallback : l.srcLibrary;
   let h = '<h3>' + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) +
@@ -257,6 +296,16 @@ function sheetHtml(extra, source, saveNote) {
            '<li>' + esc(x.q) + ' <span class="ans">' + esc(x.a) + '</span></li>').join('') + '</ol>';
   }
   h += '<div class="sheetfoot"><span class="hint">' + esc(saveNote) + '</span></div>';
+  // Asked HERE, not at the end of the lesson: a substitute who just pressed
+  // "explain another way" on phase 2 knows exactly what confused the class.
+  // Ask an hour later and you get "it was ok".
+  if (extraId) {
+    h += '<div class="note"><label for="noteq">' + esc(l.whatHappened) + '</label>' +
+         '<div class="noterow">' +
+           '<input id="noteq" type="text" maxlength="240" placeholder="' + esc(l.whatHappenedPh) + '">' +
+           '<button data-note="' + extraId + '" data-noteref="' + esc(opts?.ref || '') + '">' + esc(l.send) + '</button>' +
+         '</div><p id="notemsg" class="hint" style="margin:7px 0 0"></p></div>';
+  }
   return h;
 }
 
@@ -302,19 +351,25 @@ async function runAssist(opts) {
     p_section_label: opts.label || null,
     p_kind: opts.kind,
     p_variant: opts.variant || null,
-    p_language: LANG,
+    p_language: data.language || LANG,
     p_body: data.extra,
     p_model: data.model || null,
+    p_body_alt: data.extra_alt || null,
+    p_language_alt: data.extra_alt ? data.language_alt : null,
   });
 
   const ok = saved.data?.ok;
   const note = ok ? l.saved : saved.data?.error === 'quota' ? l.quota : '';
-  $('sheetbody').innerHTML = sheetHtml(data.extra, data.source, note);
+  $('sheetbody').innerHTML = sheetHtml(data.extra, data.source, note, ok ? saved.data.id : null, opts);
 
   if (ok) {
     EXTRAS.push({
+      id: saved.data.id,
       section_ref: opts.ref, section_label: opts.label, kind: opts.kind,
-      variant: opts.variant, language: LANG, body: data.extra,
+      variant: opts.variant,
+      language: data.language || LANG, body: data.extra,
+      language_alt: data.extra_alt ? data.language_alt : null,
+      body_alt: data.extra_alt || null,
     });
     render(DATA, true);
   }
@@ -396,6 +451,14 @@ function render(d, keepScroll) {
        '<div id="why" hidden><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p>' +
          '<div class="reasons">' + Object.keys(l.reasons).map((k) =>
            '<button data-reason="' + k + '">' + esc(l.reasons[k]) + '</button>').join('') + '</div></div>' +
+       // Low response rate expected, and nothing is gated on it - but it is
+       // the only signal that says WHY, so it is worth the space.
+       '<div id="saybox" hidden class="note" style="margin-top:14px">' +
+         '<label for="say">' + esc(l.commentTitle) + '</label>' +
+         '<div class="noterow">' +
+           '<input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '">' +
+           '<button data-comment>' + esc(l.send) + '</button>' +
+         '</div></div>' +
        '<p id="ratemsg" class="hint" style="margin-top:10px"></p></div>';
 
   $('out').innerHTML = h;
@@ -441,6 +504,28 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  const noteBtn = e.target.closest('[data-note]');
+  if (noteBtn) {
+    const val = $('noteq')?.value || '';
+    if (!val.trim()) return;
+    noteBtn.disabled = true;
+    const { data, error } = await sb.rpc('lk_extra_note', {
+      p_token: token, p_extra_id: Number(noteBtn.getAttribute('data-note')), p_note: val,
+    });
+    $('notemsg').textContent = (error || !data) ? l.saveFail + (error?.message || '') : l.noteSaved;
+    return;
+  }
+
+  const sayBtn = e.target.closest('[data-comment]');
+  if (sayBtn) {
+    const val = $('say')?.value || '';
+    if (!val.trim()) return;
+    sayBtn.disabled = true;
+    const { error } = await sb.rpc('lk_rate_comment_by_token', { p_token: token, p_comment: val });
+    $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
+    return;
+  }
+
   const reason = e.target.closest('[data-reason]');
   if (reason) {
     const k = reason.getAttribute('data-reason');
@@ -459,6 +544,7 @@ document.addEventListener('click', async (e) => {
     [...document.querySelectorAll('#verdict button')].forEach((b) => b.classList.remove('on'));
     v.classList.add('on');
     $('why').hidden = reuse;              // only ask why when something was off
+    $('saybox').hidden = false;           // but always offer the sentence
     REASONS = new Set();
     const { error } = await sb.rpc('lk_rate_by_token_v2', {
       p_token: token, p_reuse: reuse, p_reasons: [],

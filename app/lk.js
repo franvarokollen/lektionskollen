@@ -522,7 +522,11 @@ async function previewAssist(opts) {
     bodyEl.innerHTML = '<h3>—</h3><p class="muted">' + esc(error?.message || 'error') + '</p>';
     return;
   }
-  bodyEl.innerHTML = assistSheetHtml(data.extra, data.source);
+  // The response carries both languages; show the one being read.
+  const shown = data.language === LANG ? data.extra
+              : (data.language_alt === LANG && data.extra_alt) ? data.extra_alt
+              : data.extra;
+  bodyEl.innerHTML = assistSheetHtml(shown, data.source);
 }
 
 function vikarieView(p, r) {

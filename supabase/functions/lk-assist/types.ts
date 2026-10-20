@@ -14,6 +14,14 @@ export type Extra = {
 
 export type AssistKind = 'explain' | 'exercise' | 'level' | 'filler'
 
+/** Both languages of one extra, so the reader picks, not the generator. */
+export type ExtraPair = {
+  language: 'sv' | 'en'
+  extra: Extra
+  language_alt: 'sv' | 'en'
+  extra_alt: Extra | null
+}
+
 export type AssistReq = {
   kind: AssistKind
   // 'phase:2' | 'task:3' | 'lesson'

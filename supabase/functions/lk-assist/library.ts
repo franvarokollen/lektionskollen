@@ -6,7 +6,7 @@
 // executable with no subject knowledge, rather than fake subject detail.
 // The UI badges these as written so nobody mistakes one for generated content.
 
-import type { AssistReq, Extra } from './types.ts'
+import type { AssistReq, Extra, ExtraPair } from './types.ts'
 
 type Pair = { sv: Extra; en: Extra }
 
@@ -216,14 +216,23 @@ function filler(minutes: number): Pair {
   }
 }
 
-export function writtenExtra(r: AssistReq): Extra {
-  const lang = r.language === 'en' ? 'en' : 'sv'
-  let pair: Pair
+function pickPair(r: AssistReq): Pair {
   switch (r.kind) {
-    case 'exercise': pair = EXERCISE; break
-    case 'level':    pair = r.variant === 'harder' ? HARDER : EASIER; break
-    case 'filler':   pair = filler(Math.max(2, Math.min(30, r.minutes_left ?? 10))); break
-    default:         pair = EXPLAIN
+    case 'exercise': return EXERCISE
+    case 'level':    return r.variant === 'harder' ? HARDER : EASIER
+    case 'filler':   return filler(Math.max(2, Math.min(30, r.minutes_left ?? 10)))
+    default:         return EXPLAIN
   }
-  return pair[lang]
+}
+
+export function writtenExtra(r: AssistReq): Extra {
+  return pickPair(r)[r.language === 'en' ? 'en' : 'sv']
+}
+
+/** Both languages. Free here - the library already holds the pair. */
+export function writtenPair(r: AssistReq): ExtraPair {
+  const lang = r.language === 'en' ? 'en' : 'sv'
+  const alt = lang === 'en' ? 'sv' : 'en'
+  const pair = pickPair(r)
+  return { language: lang, extra: pair[lang], language_alt: alt, extra_alt: pair[alt] }
 }

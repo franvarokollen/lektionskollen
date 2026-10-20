@@ -5,16 +5,21 @@
 import type { AssistReq } from './types.ts'
 
 const ANCHOR: Record<string, string> = {
-  sv: 'OUTPUT LANGUAGE: SWEDISH. Every string value in the JSON MUST be in Swedish. JSON keys stay in English exactly as specified.',
-  en: 'OUTPUT LANGUAGE: ENGLISH. Every string value in the JSON MUST be in English. JSON keys stay in English exactly as specified.',
+  sv: 'OUTPUT LANGUAGE: SWEDISH. Every string value in the JSON MUST be in Swedish, EXCEPT inside "alt", which is the same content in English. JSON keys stay in English exactly as specified.',
+  en: 'OUTPUT LANGUAGE: ENGLISH. Every string value in the JSON MUST be in English, EXCEPT inside "alt", which is the same content in Swedish. JSON keys stay in English exactly as specified.',
 }
 
+// Both languages in ONE response. Two calls would double the cost of a
+// feature pressed repeatedly mid-lesson; asking for a translation of what
+// the model just wrote costs a fraction of a second call.
 export const SCHEMA = `{
   "title": string,
   "lines": string[],
   "board": string,
   "tasks": [ { "q": string, "a": string } ],
-  "minutes": number
+  "minutes": number,
+  "alt": { "title": string, "lines": string[], "board": string,
+           "tasks": [ { "q": string, "a": string } ] }
 }`
 
 const COMMON = [
@@ -30,6 +35,7 @@ const COMMON = [
   '6. Assume whiteboard, paper and pens only.',
   '7. Swedish schools mostly have no bells. Never write "before the bell" or "innan det ringer" - say before the lesson starts or when the lesson ends.',
   '8. Do not re-teach the whole lesson. Answer only what was asked.',
+  '9. "alt" is the SAME content in the other language, not a different activity. A substitute reading either language must get the same lesson help. Translate the scripted speech naturally, as a teacher in that language would actually say it - do not translate word for word.',
 ]
 
 function context(r: AssistReq): string {
