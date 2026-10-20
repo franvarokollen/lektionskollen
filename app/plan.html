@@ -47,7 +47,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'
 
 const SV_LABELS = {
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
-  board: 'Skriv på tavlan innan det ringer', need: 'Du behöver:',
+  board: 'Skriv på tavlan innan lektionen börjar', need: 'Du behöver:',
   clock: 'Lektionen, på klockan', say: 'Säg', pupils: 'Eleverna:', expect: 'Förväntat:',
   check: 'Kontrollfråga:', answer: 'Svar:', handouts: 'Allt du delar ut',
   tasks: 'Uppgifter med facit', earlyStuck: 'Om de blir klara tidigt, om de fastnar',
@@ -58,7 +58,7 @@ const SV_LABELS = {
 };
 const EN_LABELS = {
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
-  board: 'Write on the board before the bell', need: 'You need:',
+  board: 'Write on the board before the lesson starts', need: 'You need:',
   clock: 'The lesson, on the clock', say: 'Say', pupils: 'Pupils:', expect: 'Expected:',
   check: 'Check question:', answer: 'Answer:', handouts: 'Everything you hand out',
   tasks: 'Tasks with answers', earlyStuck: 'If they finish early, if they get stuck',

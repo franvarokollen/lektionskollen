@@ -61,7 +61,7 @@ window.LK_T = {
     copyLink: 'Kopiera vikarielänk', copied: 'Vikarielänk kopierad', back: 'Tillbaka', open: 'Öppna',
 
     first90: 'De första 90 sekunderna', overview: 'Översikt', goalShort: 'Mål:',
-    boardTitle: 'Skriv på tavlan innan det ringer', youNeed: 'Du behöver:',
+    boardTitle: 'Skriv på tavlan innan lektionen börjar', youNeed: 'Du behöver:',
     lessonClock: 'Lektionen, på klockan', say: 'Säg', pupils: 'Eleverna:',
     expected: 'Förväntat:', checkQ: 'Kontrollfråga:', answer: 'Svar:',
     handouts: 'Allt du delar ut', tasksTitle: 'Uppgifter med facit',
@@ -146,7 +146,7 @@ window.LK_T = {
     copyLink: 'Copy substitute link', copied: 'Substitute link copied', back: 'Back', open: 'Open',
 
     first90: 'The first ninety seconds', overview: 'Overview', goalShort: 'Goal:',
-    boardTitle: 'Write on the board before the bell', youNeed: 'You need:',
+    boardTitle: 'Write on the board before the lesson starts', youNeed: 'You need:',
     lessonClock: 'The lesson, on the clock', say: 'Say', pupils: 'Pupils:',
     expected: 'Expected:', checkQ: 'Check question:', answer: 'Answer:',
     handouts: 'Everything you hand out', tasksTitle: 'Tasks with answers',

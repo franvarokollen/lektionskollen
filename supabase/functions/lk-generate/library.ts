@@ -261,13 +261,13 @@ function pick(subject: string, lessonType?: string): Pair {
 const FIRST90 = {
   sv: (subject: string) => [
     'Stå vid dörren. Säg god morgon till varje elev som kommer in.',
-    'Skriv ditt namn på tavlan innan det ringer.',
+    'Skriv ditt namn på tavlan innan lektionen börjar.',
     `Säg: "Jag heter [ditt namn] och jag är här idag. Vi ska jobba med ${subject}. Ni sitter där ni brukar sitta."`,
     'Ta närvaro högt från listan. Det tar 60 sekunder och sätter tonen.',
   ],
   en: (subject: string) => [
     'Stand at the door. Say good morning to every pupil who comes in.',
-    'Write your name on the board before the bell.',
+    'Write your name on the board before the lesson starts.',
     `Say: "My name is [your name] and I am here today. We are working on ${subject}. Sit where you normally sit."`,
     'Take the register out loud from the list. It takes 60 seconds and sets the tone.',
   ],
