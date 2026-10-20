@@ -33,6 +33,9 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
       # Keep the old app reachable at /legacy/
       - run: cp -r legacy dist/legacy
+      # The live prototype: served at /app/ and at the site root, so the
+      # root is the app rather than an unbuilt page.
+      - run: cp -r app dist/app && cp app/* dist/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
