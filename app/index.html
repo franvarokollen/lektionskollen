@@ -5,6 +5,7 @@
 <meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lektionskollen</title>
+<link rel="icon" href="./logo-white.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
@@ -12,25 +13,33 @@
 </head>
 <body>
 
-<!-- ── APP ────────────────────────────────────────── -->
 <div class="shell" id="app">
   <aside class="sidebar">
-    <div class="brand">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect width="24" height="24" rx="6" fill="#0F71F6"/>
-        <path d="M6 12.5l3.5 3.5L18 7.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      Frånvarokollen
+    <div class="sb-top">
+      <img src="./logo-white.svg" alt="FrånvaroKollen" class="sb-logo">
+      <p class="sb-school" id="schoolname">…</p>
     </div>
-    <p class="navlabel">Navigering</p>
-    <nav class="nav">
-      <button class="on" id="nav-cover">Daglig vikarie</button>
-      <button id="nav-bank">Lektionsbank <span class="chip chip-blue" style="margin-left:auto;font-size:10px;padding:1px 6px">Tillägg</span></button>
-    </nav>
-    <div class="sb-foot">
-      <strong id="schoolname">—</strong>
-      <span id="username">—</span>
-      <button class="linkbtn" id="signout">Ladda om</button>
+
+    <div class="sb-nav-wrap">
+      <p class="navlabel" data-t="navSection">Navigering</p>
+      <nav class="nav" id="nav"></nav>
+    </div>
+
+    <div class="sb-divider"></div>
+
+    <div class="sb-lang">
+      <div class="langbox">
+        <button class="langbtn" data-lang="sv">SV</button>
+        <button class="langbtn" data-lang="en">EN</button>
+      </div>
+    </div>
+
+    <div class="sb-user">
+      <div class="userrow">
+        <div class="avatar" id="avatar">TS</div>
+        <div class="userinfo"><p id="username">…</p></div>
+        <button class="signout" id="signout" data-t="signOut">Logga ut</button>
+      </div>
     </div>
   </aside>
 
@@ -41,23 +50,27 @@
         <div class="sub mono" id="pagesub">—</div>
       </div>
       <div class="spacer"></div>
-      <span class="chip chip-neutral" id="modechip">—</span>
     </header>
 
     <div class="wrap">
       <section id="screen-cover">
         <div class="demo-tip">
           <span>▶</span>
-          <div><b>Delad testmiljö — ingen inloggning.</b> Frånvaroraderna är påhittade; FVK:s schema är inte kopplat ännu. Allt annat är skarpt och sparas i Supabase: planer, bank, betyg och vikarielänkar. Ni tre delar samma data.</div>
+          <div><b data-t="demoTipTitle">Delad testmiljö — ingen inloggning.</b> <span data-t="demoTipBody"></span></div>
         </div>
         <div class="tabs">
-          <button class="on">Daglig vikarie</button>
-          <button disabled>Vikarier</button>
-          <button disabled>Långtidsfrånvaro</button>
+          <button class="on" data-t="tabDaily">Daglig vikarie</button>
+          <button disabled data-t="tabSubs">Vikarier</button>
+          <button disabled data-t="tabLongTerm">Långtidsfrånvaro</button>
         </div>
         <div class="panel"><div class="tablewrap">
           <table>
-            <thead><tr><th>Tid</th><th>Frånvarande</th><th>Grupp</th><th>Ämne</th><th>Rum</th><th>Vikarie</th><th style="text-align:right">Lektionsplan</th></tr></thead>
+            <thead><tr>
+              <th data-t="thTime">Tid</th><th data-t="thAbsent">Frånvarande</th>
+              <th data-t="thGroup">Grupp</th><th data-t="thSubject">Ämne</th>
+              <th data-t="thRoom">Rum</th><th data-t="thCover">Vikarie</th>
+              <th style="text-align:right" data-t="thPlan">Lektionsplan</th>
+            </tr></thead>
             <tbody id="rows"></tbody>
           </table>
         </div></div>
@@ -65,14 +78,14 @@
 
       <section id="screen-bank" hidden>
         <div class="filters">
-          <select id="f-subject"><option value="">Alla ämnen</option></select>
-          <select id="f-year"><option value="">Alla årskurser</option></select>
-          <select id="f-scope"><option value="all">Alla källor</option><option value="mine">Skolans egna</option><option value="shared">Delade</option></select>
+          <select id="f-subject"></select>
+          <select id="f-year"></select>
+          <select id="f-scope"></select>
           <span class="spacer"></span>
-          <button class="btn btn-ghost btn-sm" id="refreshbank">Uppdatera</button>
+          <button class="btn btn-ghost btn-sm" id="refreshbank" data-t="refresh">Uppdatera</button>
         </div>
         <div class="grid" id="bankgrid"></div>
-        <p class="note">En plan når den delade banken vid minst 3 betyg med snitt 4,0 eller bättre. Tröskeln sitter i databasen (<span class="mono">apply_threshold</span>) och går att ändra.</p>
+        <p class="note" data-t="thresholdNote"></p>
       </section>
     </div>
   </div>
@@ -82,7 +95,7 @@
   <div class="addin" role="dialog" aria-modal="true" aria-labelledby="addin-title">
     <div class="seam">
       <span class="tag">Lektionskollen</span>
-      <span>samma kod som körs i iframe inuti FVK</span>
+      <span data-t="seam"></span>
       <span class="spacer"></span>
       <span id="seam-state">—</span>
     </div>
@@ -93,6 +106,7 @@
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="./i18n.js"></script>
 <script src="./lk.js"></script>
 </body>
 </html>
