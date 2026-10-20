@@ -228,7 +228,7 @@ function renderBank() {
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
         '<button class="btn btn-soft btn-sm" data-viewplan="' + b.id + '">' + esc(t('open')) + '</button>' +
-        (b.approved ? '<button class="btn btn-ghost btn-sm" data-copylink="' + esc(b.share_token) + '">' + esc(t('copyLink')) + '</button>' : '') +
+        (b.approved ? '<button class="btn btn-ghost btn-sm" data-copylink="' + esc(b.share_token) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '') +
       '</div>' +
     '</div>').join('');
 }
@@ -436,6 +436,8 @@ function minDiff(a, b) {
   return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
 
+const CHK = '<svg class="cl-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path class="cl-link" d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path class="cl-link" d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/><path class="cl-tick" d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
 function coordView(p, r) {
   const phases = p.phases || [];
   const sum = phases.reduce((a, ph) => { const m = String(ph.t || '').split('–'); return a + (m.length === 2 ? minDiff(m[0], m[1]) : 0); }, 0);
@@ -455,12 +457,12 @@ function coordView(p, r) {
     '</ul></div>' +
     (state.approved
       ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>✓</span><div><b>' + esc(t('approvedTitle')) + '</b> ' +
-        (link ? esc(t('subLink')) + ' <span class="mono" style="font-size:12px">' + esc(link) + '</span>' : '') + '</div></div>'
+        (link ? esc(t('subLink')) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(state.shareToken) + '" title="' + esc(t('copyLink')) + '">' + CHK + '<span class="cl-label">' + esc(link) + '</span></button>' : '') + '</div></div>'
       : '') +
     '<div class="foot">' +
       (state.approved
         ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t('seeSubView')) + '</button>' +
-          (link ? '<button class="btn btn-primary" data-copylink="' + esc(state.shareToken) + '">' + esc(t('copyLink')) + '</button>' : '')
+          (link ? '<button class="btn btn-primary" data-copylink="' + esc(state.shareToken) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '')
         : '<span class="hint">' + esc(t('nothingBefore')) + '</span><span class="spacer"></span>' +
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
           '<button class="btn btn-ok" data-approve>' + esc(t('approve')) + '</button>') +
@@ -626,8 +628,20 @@ document.addEventListener('click', async (e) => {
 
   if (t2.hasAttribute('data-copylink')) {
     const url = location.href.replace(/[^/]*$/, '') + 'plan.html?t=' + t2.getAttribute('data-copylink');
-    try { await navigator.clipboard.writeText(url); toast(t('copied')); }
-    catch { toast(url, 12000); }
+    const label = t2.querySelector('.cl-label') || t2;
+    const orig = label.dataset.orig || label.textContent;
+    label.dataset.orig = orig;
+    let ok = true;
+    try { await navigator.clipboard.writeText(url); }
+    catch {
+      try { const ta = document.createElement('textarea'); ta.value = url; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); }
+      catch { ok = false; }
+    }
+    if (!ok) { toast(url, 12000); return; }
+    clearTimeout(t2._cl);
+    t2.classList.remove('copied'); void t2.offsetWidth; t2.classList.add('copied');
+    label.textContent = t('copiedShort');
+    t2._cl = setTimeout(() => { t2.classList.remove('copied'); label.textContent = orig; }, 1800);
     return;
   }
 

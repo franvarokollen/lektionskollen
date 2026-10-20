@@ -58,7 +58,7 @@ window.LK_T = {
     approvedTitle: 'Godkänd.', subLink: 'Vikarielänk:',
     nothingBefore: 'Inget går till vikarien innan du godkänt.',
     regen: 'Skapa ny', approve: 'Godkänn', seeSubView: 'Se vikariens vy',
-    copyLink: 'Kopiera vikarielänk', copied: 'Vikarielänk kopierad', back: 'Tillbaka', open: 'Öppna',
+    copyLink: 'Kopiera vikarielänk', copied: 'Vikarielänk kopierad', copiedShort: 'Kopierad', back: 'Tillbaka', open: 'Öppna',
 
     first90: 'De första 90 sekunderna', overview: 'Översikt', goalShort: 'Mål:',
     boardTitle: 'Skriv på tavlan innan lektionen börjar', youNeed: 'Du behöver:',
@@ -153,7 +153,7 @@ window.LK_T = {
     approvedTitle: 'Approved.', subLink: 'Substitute link:',
     nothingBefore: 'Nothing reaches the substitute until you approve it.',
     regen: 'Generate another', approve: 'Approve', seeSubView: "See the substitute's view",
-    copyLink: 'Copy substitute link', copied: 'Substitute link copied', back: 'Back', open: 'Open',
+    copyLink: 'Copy substitute link', copied: 'Substitute link copied', copiedShort: 'Copied', back: 'Back', open: 'Open',
 
     first90: 'The first ninety seconds', overview: 'Overview', goalShort: 'Goal:',
     boardTitle: 'Write on the board before the lesson starts', youNeed: 'You need:',
