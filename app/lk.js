@@ -25,6 +25,7 @@ function setLang(l) {
   if (state.me) $('username').textContent = state.me.role === 'demo' ? t('demoRole') : state.me.role;
   renderRows();
   renderBank();
+  renderFeedback();
   fillFilterOptions();
   setTitles();
   if (state.bodies) state.plan = pickBody();
@@ -39,8 +40,11 @@ function applyStatic() {
 
 function setTitles() {
   const onBank = !$('screen-bank').hidden;
-  $('pagetitle').textContent = onBank ? t('titleBank') : t('titleCover');
-  $('pagesub').textContent = onBank
+  const onFb = !$('screen-feedback').hidden;
+  $('pagetitle').textContent = onFb ? t('titleFeedback') : onBank ? t('titleBank') : t('titleCover');
+  $('pagesub').textContent = onFb
+    ? state.pending + ' ' + t('toReview') + ' · ' + state.fb.length + ' ' + t('plansCount')
+    : onBank
     ? state.bank.length + ' ' + t('plansCount') + ' · ' + state.bank.filter((b) => b.shared).length + ' ' + t('sharedBetween')
     : new Date().toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB',
         { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -60,6 +64,7 @@ const ICONS = {
 const NAV = [
   { id: 'cover', icon: 'users',     key: 'navCover',     real: true },
   { id: 'bank',  icon: 'clipboard', key: 'navBank',      real: true, addon: true },
+  { id: 'feedback', icon: 'radar', key: 'navFeedback', real: true, addon: true, badge: true },
   { id: 'hub',   icon: 'clipboard', key: 'navHub' },
   { id: 'radar', icon: 'radar',     key: 'navRadar' },
   { id: 'dash',  icon: 'grid',      key: 'navDashboard' },
@@ -74,7 +79,8 @@ function renderNav() {
       '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="' + stroke +
       '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       ICONS[n.icon] + '</svg><span class="lbl">' + esc(t(n.key)) + '</span>' +
-      (n.addon ? '<span class="chip chip-blue" style="font-size:10px;padding:1px 6px">' + esc(t('addon')) + '</span>' : '') +
+      (n.badge && state.pending ? '<span class="chip chip-warn" style="font-size:10px;padding:1px 6px">' + state.pending + '</span>' : '') +
+      (n.addon && !(n.badge && state.pending) ? '<span class="chip chip-blue" style="font-size:10px;padding:1px 6px">' + esc(t('addon')) + '</span>' : '') +
       '</button>';
   }).join('');
 }
@@ -110,7 +116,7 @@ const ROWS = [
     cover: 'Mats Ek', plannable: true, practical: true },
 ];
 
-const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover' };
+const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [] };
 
 /* ── No login in the test env ───────────────────────
    The lk_* functions fall back to the shared demo school for anonymous
@@ -120,7 +126,7 @@ function boot() {
   document.documentElement.lang = LANG;
   applyStatic();
   renderNav();
-  enterApp();
+  enterApp().then(() => loadFeedback()).catch(() => {});
 }
 
 $('signout').addEventListener('click', () => location.reload());
@@ -605,7 +611,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-nav],[data-lang],#refreshbank');
+  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el;
 
@@ -617,6 +623,14 @@ document.addEventListener('click', async (e) => {
     return showScreen(id);
   }
   if (t2.id === 'refreshbank') return loadBank();
+  if (t2.hasAttribute('data-review')) {
+    const [id, keep] = t2.getAttribute('data-review').split(':');
+    t2.disabled = true;
+    const { error } = await sb.rpc('lk_review_extra', { p_extra_id: Number(id), p_kept: keep === '1' });
+    if (error) { t2.disabled = false; toast(error.message); return; }
+    toast(t(keep === '1' ? 'keptToast' : 'hiddenToast'));
+    return loadFeedback();
+  }
   if (t2.hasAttribute('data-res')) return t2.classList.toggle('on');
   if (t2.hasAttribute('data-open')) return openAddin(t2.getAttribute('data-open'));
   if (t2.hasAttribute('data-close')) return closeAddin();
@@ -679,12 +693,82 @@ document.addEventListener('keydown', (e) => {
 $('overlay').addEventListener('mousedown', (e) => { if (e.target.id === 'overlay') closeAddin(); });
 ['f-subject', 'f-year', 'f-scope'].forEach((id) => $(id).addEventListener('change', loadBank));
 
+/* ── Feedback tab: what substitutes did and said ───── */
+const KIND_KEY = { explain: 'aExplain', exercise: 'aExercise', filler: 'aFill' };
+function kindLabel(kind, variant) {
+  if (kind === 'level') return t(variant === 'easier' ? 'aEasier' : 'aHarder');
+  return t(KIND_KEY[kind] || 'aExplain');
+}
+
+function extraText(x) {
+  let body = x.body, note = '';
+  if (x.language !== LANG && x.language_alt === LANG && x.body_alt) body = x.body_alt;
+  else if (x.language !== LANG) note = '<span class="chip chip-neutral">' + esc(t('onlyOther')) + '</span>';
+  body = body || {};
+  let h = '<div class="fx-title">' + esc(body.title || '') + ' ' + note + '</div>';
+  if ((body.lines || []).length) h += '<ol>' + body.lines.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ol>';
+  if (body.board) h += '<div class="board">' + esc(body.board) + '</div>';
+  if ((body.tasks || []).length) h += '<ol>' + body.tasks.map((q) => '<li>' + esc(q.q) + ' <span class="ans">' + esc(q.a) + '</span></li>').join('') + '</ol>';
+  return h;
+}
+
+async function loadFeedback() {
+  const [ex, ov] = await Promise.all([sb.rpc('lk_extras', { p_id: null }), sb.rpc('lk_feedback_overview')]);
+  if (ex.error || ov.error) {
+    $('fbqueue').innerHTML = '<p class="note">' + esc((ex.error || ov.error).message) + '</p>';
+    return;
+  }
+  state.queue = (ex.data || []).filter((x) => !x.reviewed && x.created_by_kind === 'vikarie');
+  state.fb = ov.data || [];
+  state.pending = state.queue.length;
+  renderFeedback();
+  renderNav();
+  setTitles();
+}
+
+function renderFeedback() {
+  const q = state.queue;
+  $('fbqueue').innerHTML = q.length
+    ? q.map((x) =>
+      '<div class="bcard fx">' +
+        '<div class="tags"><span class="chip chip-neutral">' + esc(x.subject) + '</span>' +
+          '<span class="chip chip-neutral">' + esc(x.year_group) + '</span>' +
+          '<span class="chip chip-blue">' + esc(kindLabel(x.kind, x.variant)) + '</span>' +
+          (x.section_label ? '<span class="chip chip-neutral">' + esc(x.section_label) + '</span>' : '') + '</div>' +
+        '<div class="plan-meta">' + esc(x.title || '') + ' · ' + new Date(x.created_at).toLocaleString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) + '</div>' +
+        extraText(x) +
+        '<div style="display:flex;gap:6px"><button class="btn btn-ok btn-sm" data-review="' + x.id + ':1">' + esc(t('keep')) + '</button>' +
+        '<button class="btn btn-ghost btn-sm" data-review="' + x.id + ':0">' + esc(t('hide')) + '</button></div>' +
+      '</div>').join('')
+    : '<p class="note">' + esc(t('queueEmpty')) + '</p>';
+
+  $('fbplans').innerHTML = state.fb.length
+    ? state.fb.map((p) => {
+      const max = Math.max(1, ...p.heat.map((h) => h.n));
+      const fbk = p.feedback || { notes: [], comments: [] };
+      return '<div class="bcard fx">' +
+        '<h4>' + esc(p.title || p.subject) + '</h4>' +
+        '<div class="tags"><span class="chip chip-neutral">' + esc(p.subject) + '</span><span class="chip chip-neutral">' + esc(p.year_group) + '</span>' +
+          (p.ratings ? '<span class="chip ' + (p.yes / p.ratings >= 2 / 3 ? 'chip-ok' : 'chip-warn') + '">' + p.yes + '/' + p.ratings + ' ' + esc(t('wouldReuse')) + '</span>' : '') + '</div>' +
+        (p.heat.length ? '<div class="sect-h">' + esc(t('heatTitle')) + '</div>' + p.heat.map((h) =>
+          '<div class="heat"><span class="hl">' + esc(h.section_label || t('wholeLesson')) + ' · ' + esc(kindLabel(h.kind, '')) + '</span>' +
+          '<span class="hb"><i style="width:' + Math.round(h.n / max * 100) + '%"></i></span><b>' + h.n + '</b></div>').join('') : '') +
+        ((fbk.notes.length || fbk.comments.length) ? '<div class="sect-h">' + esc(t('subSaid')) + '</div>' +
+          fbk.comments.map((c) => '<blockquote>' + esc(c.comment) + (c.reasons && c.reasons.length ? ' <span class="muted">(' + esc(c.reasons.join(', ')) + ')</span>' : '') + '</blockquote>').join('') +
+          fbk.notes.map((n) => '<blockquote><b>' + esc(n.section_label || '') + ':</b> ' + esc(n.note) + '</blockquote>').join('') : '') +
+      '</div>';
+    }).join('')
+    : '<p class="note">' + esc(t('fbEmpty')) + '</p>';
+}
+
 function showScreen(which) {
   state.screen = which;
   $('screen-cover').hidden = which !== 'cover';
   $('screen-bank').hidden = which !== 'bank';
+  $('screen-feedback').hidden = which !== 'feedback';
   renderNav();
   if (which === 'bank') loadBank();
+  if (which === 'feedback') loadFeedback();
   setTitles();
   window.scrollTo(0, 0);
 }
