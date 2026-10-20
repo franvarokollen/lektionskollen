@@ -754,7 +754,10 @@ function renderFeedback() {
           '<div class="heat"><span class="hl">' + esc(h.section_label || t('wholeLesson')) + ' · ' + esc(kindLabel(h.kind, '')) + '</span>' +
           '<span class="hb"><i style="width:' + Math.round(h.n / max * 100) + '%"></i></span><b>' + h.n + '</b></div>').join('') : '') +
         ((fbk.notes.length || fbk.comments.length) ? '<div class="sect-h">' + esc(t('subSaid')) + '</div>' +
-          fbk.comments.map((c) => '<blockquote>' + esc(c.comment) + (c.reasons && c.reasons.length ? ' <span class="muted">(' + esc(c.reasons.join(', ')) + ')</span>' : '') + '</blockquote>').join('') +
+          fbk.comments.map((c) => '<blockquote>' +
+            (c.coverage ? '<span class="chip ' + (c.coverage === 'all' ? 'chip-ok' : 'chip-warn') + '">' + esc(t('cov_' + c.coverage)) + '</span> ' : '') +
+            (c.left_off ? esc(t('stoppedAt')) + ' ' + esc(c.left_off) + '. ' : '') +
+            esc(c.comment || '') + (c.reasons && c.reasons.length ? ' <span class="muted">(' + esc(c.reasons.join(', ')) + ')</span>' : '') + '</blockquote>').join('') +
           fbk.notes.map((n) => '<blockquote><b>' + esc(n.section_label || '') + ':</b> ' + esc(n.note) + '</blockquote>').join('') : '') +
       '</div>';
     }).join('')
