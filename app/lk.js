@@ -467,6 +467,64 @@ function coordView(p, r) {
     '</div></div>';
 }
 
+/* ── Live assist (coordinator preview) ──────────────────
+   The coordinator sees exactly what the substitute gets, and can judge the
+   quality of it, but nothing here is saved: the heat map that tells us which
+   sections are weak must be substitute presses only, not curiosity. */
+function assistRow(ref, label) {
+  const a = (k, v, txt) =>
+    '<button data-assist="' + k + '" data-ref="' + esc(ref) + '"' +
+    (v ? ' data-variant="' + v + '"' : '') +
+    ' data-alabel="' + esc(label) + '">' + esc(txt) + '</button>';
+  return '<div class="assist noprint">' +
+    a('explain', '', t('aExplain')) + a('exercise', '', t('aExercise')) +
+    a('level', 'easier', t('aEasier')) + a('level', 'harder', t('aHarder')) + '</div>';
+}
+
+function assistSheetHtml(extra, source) {
+  const srcTxt = source === 'model' ? t('srcModel') : source === 'fallback' ? t('srcFallback') : t('srcLibrary');
+  let h = '<h3>' + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) +
+          (extra.minutes ? ' · ' + extra.minutes + ' min' : '') + ' · ' + esc(t('assistPreview')) + '</div>';
+  h += '<ol>' + (extra.lines || []).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>';
+  if (extra.board) {
+    h += '<h4 style="font-size:13px;margin-bottom:5px">' + esc(t('boardNow')) + '</h4>' +
+         '<div class="board">' + esc(extra.board) + '</div>';
+  }
+  if ((extra.tasks || []).length) {
+    h += '<h4 style="font-size:13px;margin:14px 0 5px">' + esc(t('tasksNow')) + '</h4>' +
+         '<ol style="font-size:13.5px">' + extra.tasks.map((x) =>
+           '<li>' + esc(x.q) + ' <span class="ans">' + esc(x.a) + '</span></li>').join('') + '</ol>';
+  }
+  return h;
+}
+
+async function previewAssist(opts) {
+  const sheet = $('assist-sheet'), bodyEl = $('assist-sheet-body');
+  bodyEl.innerHTML = '<h3><span class="spin"></span> ' + esc(t('working')) + '</h3>';
+  sheet.hidden = false;
+
+  const r = state.row, p = state.plan;
+  const { data, error } = await sb.functions.invoke('lk-assist', {
+    body: {
+      kind: opts.kind,
+      section_ref: opts.ref,
+      section_label: opts.label,
+      section_text: opts.text || '',
+      variant: opts.variant || '',
+      language: LANG,
+      subject: r?.subject,
+      year_group: r?.year,
+      topic: p?.title,
+      minutes_left: opts.minutes || undefined,
+    },
+  });
+  if (error || !data?.extra) {
+    bodyEl.innerHTML = '<h3>—</h3><p class="muted">' + esc(error?.message || 'error') + '</p>';
+    return;
+  }
+  bodyEl.innerHTML = assistSheetHtml(data.extra, data.source);
+}
+
 function vikarieView(p, r) {
   const L = (x) => esc(x);
   let h = '<div class="plan">';
@@ -479,7 +537,7 @@ function vikarieView(p, r) {
        '<span style="color:var(--ink-soft)">' + L(p.equipment?.fallback) + '</span></p></div>';
 
   h += '<div class="ps"><h4>' + esc(t('lessonClock')) + '</h4>';
-  (p.phases || []).forEach((ph) => {
+  (p.phases || []).forEach((ph, i) => {
     h += '<div class="phase"><div class="phase-h"><span class="clock">' + L(ph.t) + '</span><strong>' + L(ph.n) + '</strong></div>' +
       '<div class="say"><em>' + esc(t('say')) + '</em>' + L(ph.say) + '</div>' +
       '<p style="font-size:13px"><b>' + esc(t('pupils')) + '</b> ' + L(ph.pupils) + '</p>' +
@@ -487,14 +545,15 @@ function vikarieView(p, r) {
       ((ph.checks || []).length
         ? '<p style="font-size:13px;margin-bottom:3px"><b>' + esc(t('checkQ')) + '</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
           ph.checks.map((c) => '<li>' + L(c.q) + '<br><span class="ans">' + esc(t('answer')) + ' ' + L(c.a) + '</span></li>').join('') + '</ul>'
-        : '') + '</div>';
+        : '') + assistRow('phase:' + i, ph.n) + '</div>';
   });
   h += '</div>';
 
   h += '<div class="ps"><h4>' + esc(t('handouts')) + '</h4>' +
     (p.materials || []).map((m) => '<div class="mat"><h5>' + L(m.h) + '</h5><div>' + L(m.body) + '</div></div>').join('') + '</div>';
   h += '<div class="ps"><h4>' + esc(t('tasksTitle')) + '</h4><ol style="font-size:13.5px">' +
-    (p.tasks || []).map((x) => '<li>' + L(x.q) + ' <span class="ans">' + L(x.a) + '</span></li>').join('') + '</ol></div>';
+    (p.tasks || []).map((x) => '<li>' + L(x.q) + ' <span class="ans">' + L(x.a) + '</span></li>').join('') + '</ol>' +
+    assistRow('tasks', t('tasksTitle')) + '</div>';
   h += '<div class="ps"><h4>' + esc(t('earlyStuck')) + '</h4><div class="twocol">' +
     '<div class="callout"><strong>' + esc(t('stuckL')) + '</strong>' + L(p.stuck) + '</div>' +
     '<div class="callout"><strong>' + esc(t('aheadL')) + '</strong>' + L(p.ahead) + '</div></div></div>';
@@ -503,6 +562,11 @@ function vikarieView(p, r) {
   h += '<div class="ps"><h4>' + esc(t('whoToCall')) + '</h4><p><b>' + esc(t('coordinator')) + '</b> · ' + esc(state.me?.school || '') +
        '<br><span style="color:var(--ink-soft);font-size:13px">' + esc(t('phoneNote')) + '</span></p></div>';
   h += '<div class="ps"><h4>' + esc(t('handoverT')) + '</h4><p style="white-space:pre-wrap">' + L(p.handover) + '</p></div>';
+  h += '<div class="ps"><h4>' + esc(t('assistTitle')) + '</h4>' +
+       '<p class="hint" style="margin:0 0 9px">' + esc(t('assistNote')) + '</p>' +
+       '<div class="assist noprint"><span class="hint" style="align-self:center">' + esc(t('minLeft')) + '</span>' +
+       [5, 10, 15, 20].map((m) => '<button data-fill="' + m + '">' + m + '</button>').join('') +
+       '</div></div>';
   h += '<div class="foot"><span class="hint">' + esc(t('subSeesThis')) + '</span><span class="spacer"></span>' +
        '<button class="btn btn-ghost" data-view="coordinator">' + esc(t('back')) + '</button></div></div>';
   return h;
@@ -510,6 +574,30 @@ function vikarieView(p, r) {
 
 /* ── Events ────────────────────────────────────────── */
 document.addEventListener('click', async (e) => {
+  // Live assist, handled first: the delegation guard below does not list
+  // these attributes and would drop them.
+  const a = e.target.closest('[data-assist]');
+  if (a) {
+    return previewAssist({
+      kind: a.getAttribute('data-assist'),
+      ref: a.getAttribute('data-ref'),
+      label: a.getAttribute('data-alabel'),
+      variant: a.getAttribute('data-variant') || '',
+      text: a.closest('.phase, .ps')?.innerText?.slice(0, 1200) || '',
+    });
+  }
+  const fill = e.target.closest('[data-fill]');
+  if (fill) {
+    return previewAssist({
+      kind: 'filler', ref: 'lesson', label: t('aFill'),
+      minutes: Number(fill.getAttribute('data-fill')),
+    });
+  }
+  if (e.target.closest('[data-assistclose]') || e.target.id === 'assist-sheet') {
+    $('assist-sheet').hidden = true;
+    return;
+  }
+
   const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el;
@@ -542,7 +630,7 @@ document.addEventListener('click', async (e) => {
   if (t2.hasAttribute('data-approve')) {
     const { error } = await sb.rpc('lk_approve', { p_id: state.planId });
     if (error) { toast('Kunde inte godkänna: ' + error.message); return; }
-    await sb.rpc('lk_rate', { p_id: state.planId, p_score: 5, p_comment: 'Godkänd av samordnare' });
+    await sb.rpc('lk_rate_v2', { p_id: state.planId, p_reuse: true, p_reasons: [] });
     const { data } = await sb.rpc('lk_plan', { p_id: state.planId });
     state.approved = true;
     state.shareToken = data?.share_token || null;
@@ -553,7 +641,15 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('overlay').hidden) closeAddin(); });
+// Escape closes the assist sheet first; only if nothing is over the plan
+// does it close the add-in. Listeners on the same target fire in
+// registration order, so this has to be one handler, not two.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const sheet = $('assist-sheet');
+  if (sheet && !sheet.hidden) { sheet.hidden = true; return; }
+  if (!$('overlay').hidden) closeAddin();
+});
 $('overlay').addEventListener('mousedown', (e) => { if (e.target.id === 'overlay') closeAddin(); });
 ['f-subject', 'f-year', 'f-scope'].forEach((id) => $(id).addEventListener('change', loadBank));
 

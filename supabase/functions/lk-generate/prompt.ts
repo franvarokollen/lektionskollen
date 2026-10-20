@@ -47,6 +47,7 @@ export function buildMessages(r: Record<string, unknown>) {
     '10. "first90" is what the substitute does in the first ninety seconds: greeting, register, seating, expectations.',
     '11. "wrong" is the fallback when the activity fails or the room will not settle. Be concrete.',
     '12. Align to Skolverket LGR22 (grundskola) or Gy22 (gymnasiet) for this subject and year.',
+    '13. Swedish schools mostly have no bells. Never write "before the bell" or "innan det ringer" - say before the lesson starts.',
     '',
     'Respond with ONE JSON object only. No markdown, no code fences, no commentary:',
     SCHEMA, '',

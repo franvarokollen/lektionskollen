@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="./lk.css">
 <style>
   /* The vikarie's page: no app chrome, no login, reads on a phone. */
-  .subwrap{max-width:720px;margin:0 auto;padding-block:20px 60px;
+  .subwrap{max-width:720px;margin:0 auto;padding-block:20px 120px;
     padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
   .subhead{background:var(--navy-deep);color:#e8edf2;border-radius:12px;padding:16px 18px;margin-bottom:18px}
   .subhead h1{font-size:20px;letter-spacing:-.015em}
@@ -24,12 +24,94 @@
   .subhead-row{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
   .subhead-row > div:first-child{flex:1;min-width:0}
   .ratebox h3{font-size:15px;margin-bottom:4px}
-  @media print{.ratebox,.noprint{display:none!important}.subhead{background:#fff;color:#000;border:1px solid #000}}
+
+  /* ── Live assist ───────────────────────────────────────────
+     Buttons sit ON the thing they act on, because the hard part
+     mid-lesson is saying WHICH bit you mean. Placement answers it. */
+  .assist{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .assist button{border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+    border-radius:999px;padding:5px 11px;font:inherit;font-size:12px;font-weight:500;
+    cursor:pointer;line-height:1.5;-webkit-tap-highlight-color:transparent}
+  .assist button:hover{border-color:#9fb3c8;color:var(--ink)}
+  .assist button:active{transform:translateY(1px)}
+  .assist button:disabled{opacity:.5;cursor:default}
+
+  /* Whole-lesson asks aren't about a section, so they get their own bar,
+     findable one-handed without scrolling. */
+  .assistbar{position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:rgba(255,255,255,.96);backdrop-filter:blur(8px);
+    border-top:1px solid var(--line);
+    padding:10px max(14px,env(safe-area-inset-left,0px))
+            max(10px,env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-right,0px))}
+  .assistbar .in{max-width:720px;margin:0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .assistbar .lbl{font-size:12.5px;color:var(--ink-soft);font-weight:500}
+  .assistbar button{border:1px solid var(--line);background:#fff;border-radius:999px;
+    padding:7px 14px;font:inherit;font-size:13px;font-weight:600;color:var(--navy-deep);cursor:pointer}
+  .assistbar button:active{transform:translateY(1px)}
+
+  /* Results open OVER the plan, never inline — you must not lose your
+     place in a document you are reading live. */
+  .sheet{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;
+    background:rgba(10,24,41,.45)}
+  .sheet[hidden]{display:none!important}
+  .sheet .card{background:#fff;width:100%;max-width:720px;max-height:88vh;overflow:auto;
+    border-radius:16px 16px 0 0;padding:18px 18px max(22px,env(safe-area-inset-bottom,0px))}
+  @media(min-width:600px){.sheet{align-items:center}.sheet .card{border-radius:16px;max-height:84vh}}
+  .sheet h3{font-size:17px;letter-spacing:-.01em;margin-bottom:2px;padding-right:34px}
+  .sheet .src{font-size:11.5px;color:var(--ink-soft);margin-bottom:12px}
+  .sheet ol{margin:0 0 14px;padding-left:20px;font-size:14px;line-height:1.65}
+  .sheet ol li{margin-bottom:7px}
+  .sheet .x{position:absolute;top:14px;right:16px;border:0;background:transparent;
+    font-size:19px;cursor:pointer;color:var(--ink-soft);line-height:1}
+  .sheet .card{position:relative}
+  .sheetfoot{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);
+    border-top-color:var(--navy-deep);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* What was generated earlier in this lesson, kept with its section. */
+  .extra{border-left:3px solid #c9a227;background:#fffbf0;border-radius:0 8px 8px 0;
+    padding:9px 12px;margin-top:9px;font-size:13px}
+  .extra b{display:block;font-size:12.5px;margin-bottom:2px}
+  .extra .tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#8a6d12;font-weight:600}
+
+  .reasons{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .reasons button{border:1px solid var(--line);background:#fff;border-radius:999px;
+    padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--ink-soft)}
+  .reasons button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
+  .bigpick{display:flex;gap:10px;margin-top:4px;flex-wrap:wrap}
+  .bigpick button{flex:1;min-width:140px;border:1px solid var(--line);background:#fff;
+    border-radius:12px;padding:13px 16px;font:inherit;font-size:14.5px;font-weight:600;
+    cursor:pointer;color:var(--ink)}
+  .bigpick button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
+
+  @media print{
+    .ratebox,.noprint,.assist,.assistbar,.sheet{display:none!important}
+    .subhead{background:#fff;color:#000;border:1px solid #000}
+    .subwrap{padding-bottom:20px}
+  }
 </style>
 </head>
 <body>
 <div class="subwrap">
   <div id="out"><p class="muted">Hämtar planen…</p></div>
+</div>
+
+<div class="assistbar" id="bar" hidden>
+  <div class="in">
+    <span class="lbl" id="barlbl"></span>
+    <button data-fill="5">5</button>
+    <button data-fill="10">10</button>
+    <button data-fill="15">15</button>
+    <button data-fill="20">20</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="card">
+    <button class="x" data-sheetclose aria-label="Close">✕</button>
+    <div id="sheetbody"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -41,51 +123,86 @@ const sb = window.supabase.createClient(
 const params = new URLSearchParams(location.search);
 const token = params.get('t');
 let DATA = null;
+let EXTRAS = [];
+let REASONS = new Set();
 // The substitute may not read Swedish comfortably, so they pick, not the school.
 let LANG = params.get('lang') || (() => { try { return localStorage.getItem('lk.lang') || ''; } catch { return ''; } })();
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = (id) => document.getElementById(id);
 
 const SV_LABELS = {
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
-  board: 'Skriv på tavlan innan det ringer', need: 'Du behöver:',
+  board: 'Skriv på tavlan innan lektionen börjar', need: 'Du behöver:',
   clock: 'Lektionen, på klockan', say: 'Säg', pupils: 'Eleverna:', expect: 'Förväntat:',
   check: 'Kontrollfråga:', answer: 'Svar:', handouts: 'Allt du delar ut',
   tasks: 'Uppgifter med facit', earlyStuck: 'Om de blir klara tidigt, om de fastnar',
   stuck: 'Fastnar', ahead: 'Klara tidigt', wrong: 'Om det går snett', exit: 'Exit ticket',
-  handover: 'Överlämning till ordinarie lärare', worked: 'Fungerade planen?',
-  ratingNote: 'Ditt betyg avgör om den används igen. Tar två sekunder.',
-  thanks: 'Tack — betyget är sparat.', saveFail: 'Kunde inte spara: ',
+  handover: 'Överlämning till ordinarie lärare',
+  worked: 'Skulle du använda den här planen igen?',
+  ratingNote: 'Ett tryck räcker. Ditt svar avgör om planen används igen.',
+  yes: 'Ja', no: 'Inte som den är',
+  whyTitle: 'Vad var det som inte stämde? (frivilligt)',
+  thanks: 'Tack — ditt svar är sparat.', saveFail: 'Kunde inte spara: ',
+  // live assist
+  aExplain: 'Förklara på nytt sätt', aExercise: 'Fler övningar på detta',
+  aEasier: 'Lättare', aHarder: 'Svårare',
+  barLbl: 'Tid kvar att fylla (min):',
+  working: 'Tar fram något…',
+  srcLibrary: 'Färdigskrivet stöd', srcModel: 'Genererat under lektionen',
+  srcFallback: 'Färdigskrivet stöd (modellen svarade inte)',
+  boardNow: 'Skriv upp på tavlan', tasksNow: 'Uppgifter med facit',
+  saved: 'Sparat i planen — markerat för granskning.',
+  quota: 'Dagens gräns för lektionshjälp är nådd för den här planen.',
+  closeS: 'Stäng', genTag: 'Genererat under lektionen',
+  reasons: {
+    easy: 'För lätt', hard: 'För svårt', short: 'Tog för kort tid', long: 'Tog för lång tid',
+    materials: 'Materialet funkade inte', unclear: 'Otydliga instruktioner',
+  },
 };
 const EN_LABELS = {
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
-  board: 'Write on the board before the bell', need: 'You need:',
+  board: 'Write on the board before the lesson starts', need: 'You need:',
   clock: 'The lesson, on the clock', say: 'Say', pupils: 'Pupils:', expect: 'Expected:',
   check: 'Check question:', answer: 'Answer:', handouts: 'Everything you hand out',
   tasks: 'Tasks with answers', earlyStuck: 'If they finish early, if they get stuck',
   stuck: 'Stuck', ahead: 'Finished early', wrong: 'If it goes wrong', exit: 'Exit ticket',
-  handover: 'Handover to the class teacher', worked: 'Did the plan work?',
-  ratingNote: 'Your rating decides whether it gets used again. Takes two seconds.',
-  thanks: 'Thank you — your rating is saved.', saveFail: 'Could not save: ',
+  handover: 'Handover to the class teacher',
+  worked: 'Would you use this plan again?',
+  ratingNote: 'One tap is enough. Your answer decides whether it gets used again.',
+  yes: 'Yes', no: 'Not as it is',
+  whyTitle: 'What was off? (optional)',
+  thanks: 'Thank you — your answer is saved.', saveFail: 'Could not save: ',
+  aExplain: 'Explain another way', aExercise: 'More practice on this',
+  aEasier: 'Easier', aHarder: 'Harder',
+  barLbl: 'Minutes left to fill:',
+  working: 'Working on it…',
+  srcLibrary: 'Written support', srcModel: 'Generated during the lesson',
+  srcFallback: 'Written support (the model did not answer)',
+  boardNow: 'Write this on the board', tasksNow: 'Tasks with answers',
+  saved: 'Saved to the plan — flagged for review.',
+  quota: 'The daily limit for in-lesson help has been reached for this plan.',
+  closeS: 'Close', genTag: 'Generated during the lesson',
+  reasons: {
+    easy: 'Too easy', hard: 'Too hard', short: 'Ran short', long: 'Ran long',
+    materials: 'Materials did not work', unclear: 'Instructions unclear',
+  },
 };
+const L = () => (LANG === 'en' ? EN_LABELS : SV_LABELS);
 
-document.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-pick]');
-  if (!b || !DATA) return;
-  LANG = b.getAttribute('data-pick');
-  try { localStorage.setItem('lk.lang', LANG); } catch { /* private window */ }
-  render(DATA);
-  window.scrollTo(0, 0);
-});
-
+/* ── Loading ─────────────────────────────────────────── */
 async function load() {
-  if (!token) { document.getElementById('out').innerHTML = '<p class="muted">Länken saknar kod.</p>'; return; }
-  const { data, error } = await sb.rpc('lk_plan_by_token', { p_token: token });
-  if (error || !data) {
-    document.getElementById('out').innerHTML =
+  if (!token) { $('out').innerHTML = '<p class="muted">Länken saknar kod.</p>'; return; }
+  const [plan, extras] = await Promise.all([
+    sb.rpc('lk_plan_by_token', { p_token: token }),
+    sb.rpc('lk_extras_by_token', { p_token: token }),
+  ]);
+  if (plan.error || !plan.data) {
+    $('out').innerHTML =
       '<p class="muted">Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.</p>';
     return;
   }
-  render(data);
+  EXTRAS = Array.isArray(extras.data) ? extras.data : [];
+  render(plan.data);
 }
 
 function bodies(d) {
@@ -95,12 +212,129 @@ function bodies(d) {
   return b;
 }
 
-function render(d) {
+/* ── Live assist ─────────────────────────────────────── */
+const KIND_LABEL = (k, variant) => {
+  const l = L();
+  if (k === 'explain') return l.aExplain;
+  if (k === 'exercise') return l.aExercise;
+  if (k === 'level') return variant === 'harder' ? l.aHarder : l.aEasier;
+  return l.barLbl;
+};
+
+// Buttons that act on one part of the plan. section_ref is what turns a
+// press into per-section signal later.
+function assistRow(ref, label) {
+  const l = L(), a = (k, v, txt) =>
+    '<button data-assist="' + k + '" data-ref="' + esc(ref) + '"' +
+    (v ? ' data-variant="' + v + '"' : '') +
+    ' data-label="' + esc(label) + '">' + esc(txt) + '</button>';
+  return '<div class="assist noprint">' +
+    a('explain', '', l.aExplain) + a('exercise', '', l.aExercise) +
+    a('level', 'easier', l.aEasier) + a('level', 'harder', l.aHarder) + '</div>';
+}
+
+function extrasFor(ref) {
+  const l = L();
+  return EXTRAS.filter((x) => x.section_ref === ref).map((x) =>
+    '<div class="extra"><span class="tag">' + esc(l.genTag) + '</span>' +
+    '<b>' + esc(x.body?.title || '') + '</b>' +
+    '<ul style="margin:4px 0 0;padding-left:16px">' +
+      (x.body?.lines || []).map((li) => '<li>' + esc(li) + '</li>').join('') +
+    '</ul></div>').join('');
+}
+
+function sheetHtml(extra, source, saveNote) {
+  const l = L();
+  const srcTxt = source === 'model' ? l.srcModel : source === 'fallback' ? l.srcFallback : l.srcLibrary;
+  let h = '<h3>' + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) +
+          (extra.minutes ? ' · ' + extra.minutes + ' min' : '') + '</div>';
+  h += '<ol>' + (extra.lines || []).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>';
+  if (extra.board) h += '<h4 style="font-size:13px;margin-bottom:5px">' + esc(l.boardNow) + '</h4>' +
+                        '<div class="board">' + esc(extra.board) + '</div>';
+  if ((extra.tasks || []).length) {
+    h += '<h4 style="font-size:13px;margin:14px 0 5px">' + esc(l.tasksNow) + '</h4>' +
+         '<ol style="font-size:13.5px">' + extra.tasks.map((x) =>
+           '<li>' + esc(x.q) + ' <span class="ans">' + esc(x.a) + '</span></li>').join('') + '</ol>';
+  }
+  h += '<div class="sheetfoot"><span class="hint">' + esc(saveNote) + '</span></div>';
+  return h;
+}
+
+async function runAssist(opts) {
+  const l = L();
+  $('sheetbody').innerHTML = '<h3><span class="spin"></span> ' + esc(l.working) + '</h3>';
+  $('sheet').hidden = false;
+
+  const p = currentBody();
+  const payload = {
+    kind: opts.kind,
+    section_ref: opts.ref,
+    section_label: opts.label,
+    section_text: opts.text || '',
+    variant: opts.variant || '',
+    language: LANG,
+    subject: DATA.subject,
+    year_group: DATA.year_group,
+    topic: p?.title || DATA.title,
+    minutes_left: opts.minutes || undefined,
+  };
+
+  // Check the quota first. Once a real model is connected, a blocked
+  // request must not cost a generation.
+  const q = await sb.rpc('lk_assist_quota', { p_token: token });
+  if (typeof q.data === 'number' && q.data <= 0) {
+    $('sheetbody').innerHTML = '<h3>' + esc(l.quota) + '</h3>';
+    return;
+  }
+
+  const { data, error } = await sb.functions.invoke('lk-assist', { body: payload });
+  if (error || !data?.extra) {
+    $('sheetbody').innerHTML = '<h3>' + esc(l.saveFail) + '</h3><p class="muted">' +
+      esc(error?.message || 'unknown') + '</p>';
+    return;
+  }
+
+  // Saved but flagged: the plan keeps improving, nothing enters the bank
+  // unreviewed. The quota is enforced server-side, not here.
+  const saved = await sb.rpc('lk_assist_save', {
+    p_token: token,
+    p_section_ref: opts.ref,
+    p_section_label: opts.label || null,
+    p_kind: opts.kind,
+    p_variant: opts.variant || null,
+    p_language: LANG,
+    p_body: data.extra,
+    p_model: data.model || null,
+  });
+
+  const ok = saved.data?.ok;
+  const note = ok ? l.saved : saved.data?.error === 'quota' ? l.quota : '';
+  $('sheetbody').innerHTML = sheetHtml(data.extra, data.source, note);
+
+  if (ok) {
+    EXTRAS.push({
+      section_ref: opts.ref, section_label: opts.label, kind: opts.kind,
+      variant: opts.variant, language: LANG, body: data.extra,
+    });
+    render(DATA, true);
+  }
+}
+
+function currentBody() {
+  if (!DATA) return null;
+  const all = bodies(DATA);
+  return all[LANG] || all[DATA.language] || null;
+}
+
+/* ── Render ──────────────────────────────────────────── */
+function render(d, keepScroll) {
+  const y = keepScroll ? window.scrollY : 0;
   DATA = d;
   const all = bodies(d);
   if (!all[LANG]) LANG = d.language || Object.keys(all)[0];
   const p = all[LANG] || {};
   const choices = Object.keys(all);
+  const l = L();
 
   let h =
     '<div class="subhead"><div class="subhead-row"><div>' +
@@ -108,60 +342,135 @@ function render(d) {
     '<div class="m">' + esc(d.subject) + ' · ' + esc(d.year_group) + ' · ' + d.minutes + ' min · ' + esc(d.school) + '</div>' +
     '</div>' +
     (choices.length > 1
-      ? '<div class="langpick">' + choices.map((c) =>
+      ? '<div class="langpick noprint">' + choices.map((c) =>
           '<button data-pick="' + c + '"' + (c === LANG ? ' class="on"' : '') + '>' + (c === 'sv' ? 'SV' : 'EN') + '</button>').join('') + '</div>'
       : '') +
     '</div></div>';
 
-  const L = LANG === 'en' ? EN_LABELS : SV_LABELS;
-  h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + L.first90 + '</b>' +
+  h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + esc(l.first90) + '</b>' +
        '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90||[]).map(x=>'<li>'+esc(x)+'</li>').join('') + '</ul></div></div>';
 
-  h += '<div class="ps"><h4>' + L.overview + '</h4><p>' + esc(p.summary) + '</p>' +
-       '<p style="font-size:13px;color:var(--ink-soft)"><b>' + L.goal + '</b> ' + esc(p.goal) + '</p></div>';
+  h += '<div class="ps"><h4>' + esc(l.overview) + '</h4><p>' + esc(p.summary) + '</p>' +
+       '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.goal) + '</b> ' + esc(p.goal) + '</p></div>';
 
-  h += '<div class="ps"><h4>' + L.board + '</h4><div class="board">' + esc(p.board) + '</div>' +
-       '<p style="margin-top:8px;font-size:13px"><b>' + L.need + '</b> ' + esc(p.equipment?.need) + '<br>' +
+  h += '<div class="ps"><h4>' + esc(l.board) + '</h4><div class="board">' + esc(p.board) + '</div>' +
+       '<p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment?.need) + '<br>' +
        '<span style="color:var(--ink-soft)">' + esc(p.equipment?.fallback) + '</span></p></div>';
 
-  h += '<div class="ps"><h4>' + L.clock + '</h4>';
-  (p.phases||[]).forEach(ph => {
+  h += '<div class="ps"><h4>' + esc(l.clock) + '</h4>';
+  (p.phases||[]).forEach((ph, i) => {
+    const ref = 'phase:' + i;
     h += '<div class="phase"><div class="phase-h"><span class="clock">' + esc(ph.t) + '</span><strong>' + esc(ph.n) + '</strong></div>' +
-      '<div class="say"><em>' + L.say + '</em>' + esc(ph.say) + '</div>' +
-      '<p style="font-size:13px"><b>' + L.pupils + '</b> ' + esc(ph.pupils) + '</p>' +
-      (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + L.expect + '</b> ' + esc(ph.expect) + '</p>' : '') +
-      ((ph.checks||[]).length ? '<p style="font-size:13px;margin-bottom:3px"><b>' + L.check + '</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
-        ph.checks.map(c=>'<li>'+esc(c.q)+'<br><span class="ans">Svar: '+esc(c.a)+'</span></li>').join('') + '</ul>' : '') + '</div>';
+      '<div class="say"><em>' + esc(l.say) + '</em>' + esc(ph.say) + '</div>' +
+      '<p style="font-size:13px"><b>' + esc(l.pupils) + '</b> ' + esc(ph.pupils) + '</p>' +
+      (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.expect) + '</b> ' + esc(ph.expect) + '</p>' : '') +
+      ((ph.checks||[]).length ? '<p style="font-size:13px;margin-bottom:3px"><b>' + esc(l.check) + '</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
+        ph.checks.map(c=>'<li>'+esc(c.q)+'<br><span class="ans">'+esc(l.answer)+' '+esc(c.a)+'</span></li>').join('') + '</ul>' : '') +
+      assistRow(ref, ph.n) + extrasFor(ref) + '</div>';
   });
   h += '</div>';
 
-  h += '<div class="ps"><h4>' + L.handouts + '</h4>' +
+  h += '<div class="ps"><h4>' + esc(l.handouts) + '</h4>' +
     (p.materials||[]).map(m=>'<div class="mat"><h5>'+esc(m.h)+'</h5><div>'+esc(m.body)+'</div></div>').join('') + '</div>';
-  h += '<div class="ps"><h4>' + L.tasks + '</h4><ol style="font-size:13.5px">' +
-    (p.tasks||[]).map(t=>'<li>'+esc(t.q)+' <span class="ans">'+esc(t.a)+'</span></li>').join('') + '</ol></div>';
-  h += '<div class="ps"><h4>' + L.earlyStuck + '</h4><div class="twocol">' +
-    '<div class="callout"><strong>' + L.stuck + '</strong>'+esc(p.stuck)+'</div>' +
-    '<div class="callout"><strong>' + L.ahead + '</strong>'+esc(p.ahead)+'</div></div></div>';
-  h += '<div class="ps"><h4>' + L.wrong + '</h4><p>' + esc(p.wrong) + '</p></div>';
-  h += '<div class="ps"><h4>' + L.exit + '</h4><p>' + esc(p.exit?.q) + '<br><span class="ans">' + esc(p.exit?.a) + '</span></p></div>';
-  h += '<div class="ps"><h4>' + L.handover + '</h4><p style="white-space:pre-wrap">' + esc(p.handover) + '</p></div>';
 
-  h += '<div class="ratebox"><h3>' + L.worked + '</h3>' +
-       '<p class="muted" style="margin:0 0 10px">' + L.ratingNote + '</p>' +
-       '<div class="rate" id="rate">' + [1,2,3,4,5].map(n=>'<button data-score="'+n+'">★</button>').join('') + '</div>' +
+  h += '<div class="ps"><h4>' + esc(l.tasks) + '</h4><ol style="font-size:13.5px">' +
+    (p.tasks||[]).map(x=>'<li>'+esc(x.q)+' <span class="ans">'+esc(x.a)+'</span></li>').join('') + '</ol>' +
+    assistRow('tasks', l.tasks) + extrasFor('tasks') + '</div>';
+
+  h += '<div class="ps"><h4>' + esc(l.earlyStuck) + '</h4><div class="twocol">' +
+    '<div class="callout"><strong>' + esc(l.stuck) + '</strong>'+esc(p.stuck)+'</div>' +
+    '<div class="callout"><strong>' + esc(l.ahead) + '</strong>'+esc(p.ahead)+'</div></div></div>';
+  h += '<div class="ps"><h4>' + esc(l.wrong) + '</h4><p>' + esc(p.wrong) + '</p></div>';
+  h += '<div class="ps"><h4>' + esc(l.exit) + '</h4><p>' + esc(p.exit?.q) + '<br><span class="ans">' + esc(p.exit?.a) + '</span></p></div>';
+  h += '<div class="ps"><h4>' + esc(l.handover) + '</h4><p style="white-space:pre-wrap">' + esc(p.handover) + '</p>' +
+       extrasFor('lesson') + '</div>';
+
+  // One question, binary. A tired substitute at the end of a lesson gives
+  // you one tap; reasons are optional and only appear after it.
+  h += '<div class="ratebox noprint"><h3>' + esc(l.worked) + '</h3>' +
+       '<p class="muted" style="margin:0 0 10px">' + esc(l.ratingNote) + '</p>' +
+       '<div class="bigpick" id="verdict">' +
+         '<button data-reuse="1">' + esc(l.yes) + '</button>' +
+         '<button data-reuse="0">' + esc(l.no) + '</button>' +
+       '</div>' +
+       '<div id="why" hidden><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p>' +
+         '<div class="reasons">' + Object.keys(l.reasons).map((k) =>
+           '<button data-reason="' + k + '">' + esc(l.reasons[k]) + '</button>').join('') + '</div></div>' +
        '<p id="ratemsg" class="hint" style="margin-top:10px"></p></div>';
 
-  document.getElementById('out').innerHTML = h;
-
-  document.getElementById('rate').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-score]');
-    if (!b) return;
-    const score = Number(b.getAttribute('data-score'));
-    [...document.querySelectorAll('#rate button')].forEach((x, i) => x.classList.toggle('on', i < score));
-    const { error } = await sb.rpc('lk_rate_by_token', { p_token: token, p_score: score, p_comment: null });
-    document.getElementById('ratemsg').textContent = error ? L.saveFail + error.message : L.thanks;
-  });
+  $('out').innerHTML = h;
+  $('barlbl').textContent = l.barLbl;
+  $('bar').hidden = false;
+  if (keepScroll) window.scrollTo(0, y);
 }
+
+/* ── Events ──────────────────────────────────────────── */
+document.addEventListener('click', async (e) => {
+  const l = L();
+
+  const pick = e.target.closest('[data-pick]');
+  if (pick && DATA) {
+    LANG = pick.getAttribute('data-pick');
+    try { localStorage.setItem('lk.lang', LANG); } catch { /* private window */ }
+    render(DATA);
+    window.scrollTo(0, 0);
+    return;
+  }
+
+  const a = e.target.closest('[data-assist]');
+  if (a) {
+    return runAssist({
+      kind: a.getAttribute('data-assist'),
+      ref: a.getAttribute('data-ref'),
+      label: a.getAttribute('data-label'),
+      variant: a.getAttribute('data-variant') || '',
+      text: a.closest('.phase, .ps')?.innerText?.slice(0, 1200) || '',
+    });
+  }
+
+  const fill = e.target.closest('[data-fill]');
+  if (fill) {
+    return runAssist({
+      kind: 'filler', ref: 'lesson', label: l.barLbl,
+      minutes: Number(fill.getAttribute('data-fill')),
+    });
+  }
+
+  if (e.target.closest('[data-sheetclose]') || e.target.id === 'sheet') {
+    $('sheet').hidden = true;
+    return;
+  }
+
+  const reason = e.target.closest('[data-reason]');
+  if (reason) {
+    const k = reason.getAttribute('data-reason');
+    if (REASONS.has(k)) { REASONS.delete(k); reason.classList.remove('on'); }
+    else { REASONS.add(k); reason.classList.add('on'); }
+    const { error } = await sb.rpc('lk_rate_reasons_by_token', {
+      p_token: token, p_reasons: [...REASONS],
+    });
+    $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
+    return;
+  }
+
+  const v = e.target.closest('[data-reuse]');
+  if (v) {
+    const reuse = v.getAttribute('data-reuse') === '1';
+    [...document.querySelectorAll('#verdict button')].forEach((b) => b.classList.remove('on'));
+    v.classList.add('on');
+    $('why').hidden = reuse;              // only ask why when something was off
+    REASONS = new Set();
+    const { error } = await sb.rpc('lk_rate_by_token_v2', {
+      p_token: token, p_reuse: reuse, p_reasons: [],
+    });
+    $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') $('sheet').hidden = true;
+});
+
 load();
 </script>
 </body>
