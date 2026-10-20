@@ -331,3 +331,23 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .phase.flagged,.ps.flagged{background:var(--warn-bg);border-radius:10px}
 .ps.flagged{padding:12px}
 .fbchip{margin-left:6px;font-size:10.5px}
+
+/* Sharing progress and the "why" checklist */
+.shline{margin:6px 0 0;font-size:12.5px;line-height:1.4}
+.shline.ok{color:var(--ok);font-weight:600}
+.shline.near{color:#9a4d00;font-weight:600}
+.shline.muted{color:var(--ink-soft)}
+.shline.used{color:var(--ink-soft);font-style:italic}
+.whybox{margin-top:8px;font-size:12.5px}
+.whybox>summary{cursor:pointer;color:var(--blue);font-weight:600;list-style:none}
+.whybox>summary::-webkit-details-marker{display:none}
+.whybox>summary::before{content:'▸ '}
+.whybox[open]>summary::before{content:'▾ '}
+.whybody{padding:8px 0 0}
+.whylist{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.whylist li{display:flex;gap:8px;align-items:flex-start;line-height:1.4}
+.whylist li>span{flex:0 0 auto;font-weight:700}
+.whylist li.pass>span{color:var(--ok)}
+.whylist li.fail>span{color:var(--warn)}
+.bankcard.hadit{border-color:var(--warn)}
+.hadwarn{margin-top:3px;font-size:11.5px;font-weight:600;color:#9a4d00}

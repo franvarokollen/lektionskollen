@@ -116,7 +116,7 @@ const ROWS = [
     cover: 'Mats Ek', plannable: true, practical: true },
 ];
 
-const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [], model: null, cap: 20 };
+const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [], model: null, cap: 20, uses: [], share: {} };
 
 /* ── No login in the test env ───────────────────────
    The lk_* functions fall back to the shared demo school for anonymous
@@ -126,7 +126,7 @@ function boot() {
   document.documentElement.lang = LANG;
   applyStatic();
   renderNav();
-  enterApp().then(() => loadFeedback()).catch(() => {});
+  enterApp().then(() => Promise.all([loadFeedback(), loadUses()])).catch(() => {});
 }
 
 $('signout').addEventListener('click', () => location.reload());
@@ -195,9 +195,13 @@ function fillFilterOptions() {
   };
   keep($('f-subject'), subs, t('allSubjects'));
   keep($('f-year'), yrs, t('allYears'));
+  // Fixed options: rebuilding them mid-load would drop a choice made while loading.
   const sc = $('f-scope'), cur = sc.value || 'all';
-  sc.innerHTML = [['all', t('allSources')], ['mine', t('ourSchool')], ['shared', t('sharedOnly')]]
-    .map(([v, l]) => '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
+  const want = [['all', t('allSources')], ['mine', t('ourSchool')], ['shared', t('sharedOnly')]];
+  if (sc.options.length !== want.length || sc.options[0].text !== want[0][1]) {
+    sc.innerHTML = want.map(([v, l]) => '<option value="' + v + '">' + esc(l) + '</option>').join('');
+    sc.value = cur;
+  }
 }
 
 /** A bank row's title in the reader's language, else the one it has. */
@@ -214,7 +218,9 @@ function stars(r) {
 function renderBank() {
   const g = $('bankgrid');
   if (!state.bank.length) {
-    g.innerHTML = '<p class="note">' + esc(t('bankEmpty')) + '</p>';
+    // The "create one" line is wrong when a filter is simply matching nothing.
+    const scope = $('f-scope')?.value;
+    g.innerHTML = '<p class="note">' + esc(scope === 'shared' ? t('bankNoneShared') : t('bankEmpty')) + '</p>';
     return;
   }
   g.innerHTML = state.bank.map((b) =>
@@ -232,14 +238,110 @@ function renderBank() {
         (b.n_v > 0
           ? '<span><b>' + b.yes_v + '/' + b.n_v + '</b> ' + esc(t('wouldReuse')) + '</span>'
           : '<span class="muted">' + esc(t('noSubRatings')) + '</span>') +
-        (b.is_new && b.approved ? '<span class="chip chip-blue">' + esc(t('newPlan')) + ' · ' + b.n_v + '/5</span>' : '') +
+        (b.is_new && b.approved && !b.shared ? '<span class="chip chip-blue">' + esc(t('newPlan')) + '</span>' : '') +
         (b.assists > 0 ? '<span class="chip chip-warn">' + b.assists + '× ' + esc(t('neededHelp')) + '</span>' : '') +
       '</div>' +
+      (() => { const l = shareLine(b); return '<p class="shline ' + l.cls + '">' + esc(l.text) + '</p>'; })() +
+      usedLine(b.id) +
+      '<details class="whybox" data-why="' + b.id + '"><summary>' +
+        esc(b.shared ? t('whyShared') : t('whyNotShared')) + '</summary><div class="whybody">' +
+        '<p class="hint">' + esc(t('loading')) + '</p></div></details>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
         '<button class="btn btn-soft btn-sm" data-viewplan="' + b.id + '">' + esc(t('open')) + '</button>' +
         (b.approved ? '<button class="btn btn-ghost btn-sm" data-copylink="' + esc(b.share_token) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '') +
       '</div>' +
     '</div>').join('');
+}
+
+
+/* ── When a plan reaches the shared pool ─────────────────
+   Mirrors lk_share_confidence / lk_share_state in the database. Kept here so a
+   card can explain itself without a round trip; the database still decides.
+
+   The old rule was a flat "3 ratings or it stays home", which buried a lesson two
+   substitutes both loved. Confidence replaces the head count: few ratings pull the
+   number down on their own, so a small sample is handled honestly rather than banned.
+   The floor of 2 remains so one person cannot push a lesson to every other school. */
+const SHARE_FLOOR = 2;
+const SHARE_BAR = 0.32;
+
+function shareConfidence(n, yes) {
+  if (!n) return 0;
+  const p = Math.min(yes, n) / n, z2 = 1.6384, z = 1.2816;
+  return ((p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n));
+}
+
+/** One line per plan: in the pool, or precisely what is still missing. */
+function shareLine(b) {
+  const n = b.n_v || 0, yes = b.yes_v || 0;
+  if (!b.approved) return { cls: 'muted', text: t('shNotApproved') };
+  if (b.shared) return { cls: 'ok', text: fillT('shIn', { yes: yes, n: n }) };
+  if (n < SHARE_FLOOR) {
+    const miss = SHARE_FLOOR - n;
+    return { cls: 'muted', text: fillT('shNeedUses', {
+      have: n, floor: SHARE_FLOOR, need: miss === 1 ? t('shNeed1') : fillT('shNeedN', { n: miss }) }) };
+  }
+  if (shareConfidence(n + 1, yes + 1) >= SHARE_BAR) return { cls: 'near', text: fillT('shOneAway', { yes: yes, n: n }) };
+  return { cls: 'muted', text: fillT('shNotYet', { yes: yes, n: n }) };
+}
+
+function fillT(k, o) { return t(k).replace(/\{(\w+)\}/g, (_, x) => o[x]); }
+
+/** The full checklist, straight from the database so nothing can drift. */
+async function shareWhy(id, box) {
+  if (!state.share[id]) {
+    const { data, error } = await sb.rpc('lk_share_state', { p_id: id });
+    if (error || !data) { box.innerHTML = '<p class="hint">' + esc(error?.message || '—') + '</p>'; return; }
+    state.share[id] = data;
+  }
+  const d = state.share[id];
+  const row = (pass, text, detail) =>
+    '<li class="' + (pass ? 'pass' : 'fail') + '"><span>' + (pass ? '✓' : '✕') + '</span><div>' + esc(text) +
+    (detail ? '<br><span class="muted">' + esc(detail) + '</span>' : '') + '</div></li>';
+  const n = d.n || 0, yes = d.yes || 0, conf = Number(d.confidence || 0);
+  box.innerHTML = '<ul class="whylist">' +
+    row(d.approved, t('whyApproved'), d.approved ? '' : t('whyApprovedNo')) +
+    row(n >= SHARE_FLOOR, fillT('whyUsed', { n: n, floor: SHARE_FLOOR })) +
+    row(n >= SHARE_FLOOR && conf >= SHARE_BAR, fillT('whySaidYes', { yes: yes, n: n }),
+        n ? fillT('whyConfidence', { c: conf.toFixed(2), bar: SHARE_BAR.toFixed(2) }) : '') +
+    row(!d.burnt, t('whyNotBurnt'),
+        d.burnt ? fillT('whyBurntNo', { s: d.worst_label || t('wholeLesson'), c: d.worst_explains }) : '') +
+    '</ul><p class="hint">' + esc(t('whyFoot')) + '</p>';
+}
+
+/* ── Which class already had this lesson ─────────────────
+   A good plan should be reused — with a different class. Staff and class group
+   only; no pupil is named, here or anywhere in Lektionskollen. */
+async function loadUses() {
+  const { data } = await sb.rpc('lk_uses');
+  state.uses = data || [];
+}
+
+/** "Last given to 7A on 12 Sept" — the line that stops a class getting a repeat. */
+function usedLine(planId) {
+  const u = usesOf(planId);
+  if (!u.length) return '';
+  const last = u[0];
+  return '<p class="shline used">' + esc(fillT('usedLast', { g: last.group_name, d: fmtDate(last.used_on) })) +
+    (u.length > 1 ? ' ' + esc(fillT('usedTimes', { n: u.length })) : '') + '</p>';
+}
+
+function usesOf(planId, group) {
+  return state.uses.filter((u) => u.plan_id === planId && (!group || u.group_name === group));
+}
+
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { day: 'numeric', month: 'short' });
+}
+
+/** Record that a plan went to a class. Silent: a failure here must never block a lesson. */
+async function logUse(planId) {
+  const r = state.row;
+  if (!planId || !r || !r.group) return;
+  await sb.rpc('lk_log_use', {
+    p_plan_id: planId, p_group: r.group, p_absence_ref: r.id || null, p_substitute: r.cover || null,
+  }).catch(() => {});
+  await loadUses().catch(() => {});
 }
 
 /* ── Add-in ────────────────────────────────────────── */
@@ -277,11 +379,12 @@ function showRequest() {
 
     (matches.length
       ? '<div><div class="sect-h">' + esc(t('fromBank')) + ' — ' + matches.length + ' ' + esc(matches.length === 1 ? t('bankApproved') : t('bankApprovedPl')) + '</div><div class="bankrow">' +
-        matches.map((b) => '<button class="bankcard" data-usebank="' + b.id + '">' +
+        matches.map((b) => { const had = usesOf(b.id, r.group); return '<button class="bankcard' + (had.length ? ' hadit' : '') + '" data-usebank="' + b.id + '">' +
           '<div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div>' +
-          '<div class="m">' + b.minutes + ' ' + esc(t('min')) + ' · ' + b.rating_count + ' ' + esc(t('ratings')) + (b.shared ? ' · ' + esc(t('sharedTag')) : '') + '</div></div>' +
+          '<div class="m">' + b.minutes + ' ' + esc(t('min')) + ' · ' + b.rating_count + ' ' + esc(t('ratings')) + (b.shared ? ' · ' + esc(t('sharedTag')) : '') + '</div>' +
+          (had.length ? '<div class="hadwarn">⚠ ' + esc(fillT('hadIt', { g: r.group, d: fmtDate(had[0].used_on) })) + '</div>' : '') + '</div>' +
           '<span class="stars">' + stars(b.rating) + '</span>' +
-          '<span class="btn btn-soft btn-sm">' + esc(t('use')) + '</span></button>').join('') + '</div></div>'
+          '<span class="btn btn-soft btn-sm">' + esc(t('use')) + '</span></button>'; }).join('') + '</div></div>'
       : '<div><div class="sect-h">' + esc(t('fromBank')) + '</div><p class="hint">' + esc(t('bankNone')) + ' ' + esc(r.subject) + ' ' + esc(r.year) + ' ' + esc(t('bankNoneTail')) + '</p></div>') +
 
     (matches.length ? '<details class="steerbox"><summary>' + esc(t('noFit')) + '</summary>' : '') +
@@ -606,6 +709,13 @@ function vikarieView(p, r) {
 }
 
 /* ── Events ────────────────────────────────────────── */
+// <details> does not bubble 'toggle', so the checklist is filled on open.
+document.addEventListener('toggle', (e) => {
+  const d = e.target.closest ? e.target.closest('[data-why]') : null;
+  if (!d || !d.open) return;
+  shareWhy(d.getAttribute('data-why'), d.querySelector('.whybody'));
+}, true);
+
 document.addEventListener('click', async (e) => {
   // Live assist, handled first: the delegation guard below does not list
   // these attributes and would drop them.
@@ -666,7 +776,11 @@ document.addEventListener('click', async (e) => {
   if (t2.hasAttribute('data-view')) { state.view = t2.getAttribute('data-view'); return showPlan(); }
   if (t2.hasAttribute('data-planlang')) return setLang(t2.getAttribute('data-planlang'));
   if (t2.hasAttribute('data-viewplan')) return usePlan(t2.getAttribute('data-viewplan'));
-  if (t2.hasAttribute('data-usebank')) return usePlan(t2.getAttribute('data-usebank'));
+  if (t2.hasAttribute('data-usebank')) {
+    const pid = t2.getAttribute('data-usebank');
+    // Picked for a real cover, so it counts as given to that class.
+    return usePlan(pid).then(() => logUse(pid));
+  }
 
   if (t2.hasAttribute('data-copylink') || t2.hasAttribute('data-copymail')) {
     const tok = t2.getAttribute('data-copylink') || t2.getAttribute('data-copymail');
@@ -701,6 +815,7 @@ document.addEventListener('click', async (e) => {
     const { data } = await sb.rpc('lk_plan', { p_id: state.planId });
     state.approved = true;
     state.shareToken = data?.share_token || null;
+    await logUse(state.planId);
     showPlan();
     loadBank();
     toast('Godkänd och sparad i banken');
@@ -852,7 +967,7 @@ function showScreen(which) {
   $('screen-bank').hidden = which !== 'bank';
   $('screen-feedback').hidden = which !== 'feedback';
   renderNav();
-  if (which === 'bank') loadBank();
+  if (which === 'bank') { loadUses().then(renderBank).catch(() => {}); loadBank(); }
   if (which === 'feedback') loadFeedback();
   setTitles();
   window.scrollTo(0, 0);
