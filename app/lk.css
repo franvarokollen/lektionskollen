@@ -320,3 +320,14 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .covrow{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
 .covrow button{flex:1;min-width:90px;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:10px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 .covrow button.on{border-color:var(--ink);background:var(--ink);color:#fff}
+
+.bcard.clickable{cursor:pointer;transition:box-shadow .15s,border-color .15s}
+.bcard.clickable:hover{border-color:var(--ink);box-shadow:0 4px 14px rgba(13,35,64,.10)}
+.fbsum{font-size:14px;font-weight:500;margin:0;line-height:1.45}
+.fbwarn{margin:6px 0 0;font-size:13px;font-weight:600;color:#9a4d00}
+.fbbox{border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0;background:var(--card)}
+.fbbox h4{font-size:14px;margin:0 0 8px}
+.heat .hl{white-space:normal;overflow:visible;text-overflow:clip;font-size:12.5px;line-height:1.3}
+.phase.flagged,.ps.flagged{background:var(--warn-bg);border-radius:10px}
+.ps.flagged{padding:12px}
+.fbchip{margin-left:6px;font-size:10.5px}

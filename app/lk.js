@@ -427,6 +427,10 @@ function showPlan() {
   const simNote = state.model === 'canned'
     ? '<div class="flag sim"><span>⚠</span><div><b>' + esc(t('simTitle')) + '</b> ' + esc(t('simBody')) + '</div></div>'
     : '';
+  const fbRow = state.view === 'coordinator' ? fbRowForOpenPlan() : null;
+  const fbBox = fbRow
+    ? '<div class="fx fbbox"><h4>' + esc(t('fbThisPlan')) + '</h4>' + fbBody(fbRow) + '</div>'
+    : '';
   const head =
   '<div class="addin-body">' +
     '<div class="addin-head"><div style="flex:1;min-width:0">' +
@@ -448,7 +452,7 @@ function showPlan() {
       '<span class="hint">' +
       (state.view === 'coordinator' ? esc(t('coordHint')) : esc(t('subHint')) + ' ' + esc(p.readTime || '')) +
       '</span></div>';
-  $('addin-content').innerHTML = head + simNote + fallbackNote +
+  $('addin-content').innerHTML = head + simNote + fallbackNote + fbBox +
     (state.view === 'coordinator' ? coordView(p, r) : vikarieView(p, r)) + '</div>';
 }
 
@@ -555,6 +559,7 @@ async function previewAssist(opts) {
 
 function vikarieView(p, r) {
   const L = (x) => esc(x);
+  const HEAT = fbHeatMap();
   let h = '<div class="plan">';
   h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + esc(t('first90')) + '</b>' +
        '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90 || []).map((x) => '<li>' + L(x) + '</li>').join('') + '</ul></div></div>';
@@ -566,7 +571,7 @@ function vikarieView(p, r) {
 
   h += '<div class="ps"><h4>' + esc(t('lessonClock')) + '</h4>';
   (p.phases || []).forEach((ph, i) => {
-    h += '<div class="phase"><div class="phase-h"><span class="clock">' + L(ph.t) + '</span><strong>' + L(ph.n) + '</strong></div>' +
+    h += '<div class="phase' + (HEAT['phase:' + i] ? ' flagged' : '') + '"><div class="phase-h"><span class="clock">' + L(ph.t) + '</span><strong>' + L(ph.n) + '</strong>' + fbFlag(HEAT, 'phase:' + i) + '</div>' +
       '<div class="say"><em>' + esc(t('say')) + '</em>' + L(ph.say) + '</div>' +
       '<p style="font-size:13px"><b>' + esc(t('pupils')) + '</b> ' + L(ph.pupils) + '</p>' +
       (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(t('expected')) + '</b> ' + L(ph.expect) + '</p>' : '') +
@@ -579,7 +584,7 @@ function vikarieView(p, r) {
 
   h += '<div class="ps"><h4>' + esc(t('handouts')) + '</h4>' +
     (p.materials || []).map((m) => '<div class="mat"><h5>' + L(m.h) + '</h5><div>' + L(m.body) + '</div></div>').join('') + '</div>';
-  h += '<div class="ps"><h4>' + esc(t('tasksTitle')) + '</h4><ol style="font-size:13.5px">' +
+  h += '<div class="ps' + (HEAT.tasks ? ' flagged' : '') + '"><h4>' + esc(t('tasksTitle')) + ' ' + fbFlag(HEAT, 'tasks') + '</h4><ol style="font-size:13.5px">' +
     (p.tasks || []).map((x) => '<li>' + L(x.q) + ' <span class="ans">' + L(x.a) + '</span></li>').join('') + '</ol>' +
     assistRow('tasks', t('tasksTitle')) + '</div>';
   h += '<div class="ps"><h4>' + esc(t('earlyStuck')) + '</h4><div class="twocol">' +
@@ -763,6 +768,56 @@ async function loadFeedback() {
   setTitles();
 }
 
+
+/** What substitutes did with one plan, in plain sentences. Shared by the
+ *  Feedback card and the box on top of the opened plan. */
+function fbRowForOpenPlan() {
+  return (state.fb || []).find((x) => x.id === state.planId) || null;
+}
+
+/** section_ref -> how many times a substitute asked for help there. */
+function fbHeatMap() {
+  const r = fbRowForOpenPlan();
+  const m = {};
+  ((r && r.heat) || []).forEach((x) => { if (x.section_ref) m[x.section_ref] = (m[x.section_ref] || 0) + x.n; });
+  return m;
+}
+
+function fbFlag(map, ref) {
+  return map[ref] ? '<span class="chip chip-warn fbchip">' + esc(t('neededHelp')) + ' ' + map[ref] + '×</span>' : '';
+}
+
+function fbBody(p) {
+  const fbk = p.feedback || { notes: [], comments: [] };
+  const fill = (k, o) => t(k).replace(/\{(\w+)\}/g, (_, x) => o[x]);
+  const lines = [];
+  if (p.ratings) lines.push(fill('fbSumYes', { y: p.yes, n: p.ratings }));
+  const top = (p.heat || [])[0];
+  if (top) lines.push(fill('fbSumHelp', { s: top.section_label || t('wholeLesson'), c: top.n === 1 ? t('fbTime1') : fill('fbTimesN', { c: top.n }) }));
+  let h = lines.length ? '<p class="fbsum">' + lines.map(esc).join(' ') + '</p>' : '<p class="muted">' + esc(t('fbNoSignal')) + '</p>';
+
+  if ((p.heat || []).length) {
+    const max = Math.max(1, ...p.heat.map((x) => x.n));
+    h += '<div class="sect-h">' + esc(t('heatTitle')) + '</div>' + p.heat.map((x) =>
+      '<div class="heat"><span class="hl"><b>' + esc(x.section_label || t('wholeLesson')) + '</b><br><span class="muted">' + esc(kindLabel(x.kind, '')) + '</span></span>' +
+      '<span class="hb"><i style="width:' + Math.round(x.n / max * 100) + '%"></i></span><b>' + x.n + '×</b></div>').join('');
+    if (top && top.n >= 2) h += '<p class="fbwarn">' + esc(t('fbRewrite')) + '</p>';
+  }
+
+  const said = [];
+  fbk.comments.forEach((c) => {
+    const parts = [];
+    if (c.coverage) parts.push('<b>' + esc(t({ all: 'fbCovAll', part: 'fbCovPart', none: 'fbCovNone' }[c.coverage])) + '.</b>');
+    if (c.left_off) parts.push(esc(t('fbNote')) + ': ' + esc(c.left_off));
+    if (c.comment) parts.push(esc(c.comment));
+    if (c.reasons && c.reasons.length) parts.push('<span class="muted">(' + esc(c.reasons.join(', ')) + ')</span>');
+    if (parts.length) said.push('<blockquote>' + parts.join(' ') + '</blockquote>');
+  });
+  fbk.notes.forEach((n) => said.push('<blockquote>' + esc(t('fbOn')) + ' <b>' + esc(n.section_label || t('wholeLesson')) + '</b>: ' + esc(n.note) + '</blockquote>'));
+  if (said.length) h += '<div class="sect-h">' + esc(t('fbSaid')) + '</div>' + said.join('');
+  return h;
+}
+
 function renderFeedback() {
   const q = state.queue;
   $('fbqueue').innerHTML = q.length
@@ -781,24 +836,13 @@ function renderFeedback() {
     : '<p class="note">' + esc(t('queueEmpty')) + '</p>';
 
   $('fbplans').innerHTML = state.fb.length
-    ? state.fb.map((p) => {
-      const max = Math.max(1, ...p.heat.map((h) => h.n));
-      const fbk = p.feedback || { notes: [], comments: [] };
-      return '<div class="bcard fx">' +
+    ? state.fb.map((p) =>
+      '<div class="bcard fx clickable" data-viewplan="' + p.id + '" title="' + esc(t('fbOpenHint')) + '">' +
         '<h4>' + esc(p.title || p.subject) + '</h4>' +
-        '<div class="tags"><span class="chip chip-neutral">' + esc(p.subject) + '</span><span class="chip chip-neutral">' + esc(p.year_group) + '</span>' +
-          (p.ratings ? '<span class="chip ' + (p.yes / p.ratings >= 2 / 3 ? 'chip-ok' : 'chip-warn') + '">' + p.yes + '/' + p.ratings + ' ' + esc(t('wouldReuse')) + '</span>' : '') + '</div>' +
-        (p.heat.length ? '<div class="sect-h">' + esc(t('heatTitle')) + '</div>' + p.heat.map((h) =>
-          '<div class="heat"><span class="hl">' + esc(h.section_label || t('wholeLesson')) + ' · ' + esc(kindLabel(h.kind, '')) + '</span>' +
-          '<span class="hb"><i style="width:' + Math.round(h.n / max * 100) + '%"></i></span><b>' + h.n + '</b></div>').join('') : '') +
-        ((fbk.notes.length || fbk.comments.length) ? '<div class="sect-h">' + esc(t('subSaid')) + '</div>' +
-          fbk.comments.map((c) => '<blockquote>' +
-            (c.coverage ? '<span class="chip ' + (c.coverage === 'all' ? 'chip-ok' : 'chip-warn') + '">' + esc(t('cov_' + c.coverage)) + '</span> ' : '') +
-            (c.left_off ? esc(t('stoppedAt')) + ' ' + esc(c.left_off) + '. ' : '') +
-            esc(c.comment || '') + (c.reasons && c.reasons.length ? ' <span class="muted">(' + esc(c.reasons.join(', ')) + ')</span>' : '') + '</blockquote>').join('') +
-          fbk.notes.map((n) => '<blockquote><b>' + esc(n.section_label || '') + ':</b> ' + esc(n.note) + '</blockquote>').join('') : '') +
-      '</div>';
-    }).join('')
+        '<div class="tags"><span class="chip chip-neutral">' + esc(p.subject) + '</span><span class="chip chip-neutral">' + esc(p.year_group) + '</span></div>' +
+        fbBody(p) +
+        '<div><span class="btn btn-soft btn-sm">' + esc(t('openPlan')) + ' →</span></div>' +
+      '</div>').join('')
     : '<p class="note">' + esc(t('fbEmpty')) + '</p>';
 }
 
