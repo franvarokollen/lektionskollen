@@ -178,7 +178,7 @@ async function loadBank() {
   const subject = $('f-subject').value || null;
   const year = $('f-year').value || null;
   const scope = $('f-scope').value || 'all';
-  const { data, error } = await sb.rpc('lk_bank_list', { p_subject: subject, p_year: year, p_scope: scope });
+  const { data, error } = await sb.rpc('lk_bank_ranked', { p_subject: subject, p_year: year, p_scope: scope });
   if (error) { $('bankgrid').innerHTML = '<p class="note">Kunde inte läsa banken: ' + esc(error.message) + '</p>'; return; }
   state.bank = data || [];
   fillFilterOptions();
@@ -229,8 +229,11 @@ function renderBank() {
         (b.approved ? '' : '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>') +
       '</div>' +
       '<div class="stat">' +
-        '<span class="stars">' + stars(b.rating) + ' <b>' + (Number(b.rating) || 0).toFixed(1) + '</b></span>' +
-        '<span><b>' + b.rating_count + '</b> ' + esc(t('ratings')) + '</span>' +
+        (b.n_v > 0
+          ? '<span><b>' + b.yes_v + '/' + b.n_v + '</b> ' + esc(t('wouldReuse')) + '</span>'
+          : '<span class="muted">' + esc(t('noSubRatings')) + '</span>') +
+        (b.is_new && b.approved ? '<span class="chip chip-blue">' + esc(t('newPlan')) + ' · ' + b.n_v + '/5</span>' : '') +
+        (b.assists > 0 ? '<span class="chip chip-warn">' + b.assists + '× ' + esc(t('neededHelp')) + '</span>' : '') +
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
         '<button class="btn btn-soft btn-sm" data-viewplan="' + b.id + '">' + esc(t('open')) + '</button>' +
