@@ -78,6 +78,12 @@ window.LK_T = {
     thresholdNote: 'En plan når den delade banken vid minst 3 betyg med snitt 4,0 eller bättre. Tröskeln sitter i databasen och går att ändra.',
     plansCount: 'planer', sharedBetween: 'delade mellan skolor',
     seam: 'samma kod som körs i iframe inuti FVK', demoRole: 'Delad testmiljö',
+    onlyInOther: 'Den här planen finns bara på svenska. Nya planer skapas på båda språken.',
+    showInSv: 'Visa på svenska', showInEn: 'Show in English',
+    seamWaiting: 'awaiting approval', seamApproved: 'approved', seamGenerating: 'generating…',
+    saveFailed: 'The plan was created but could not be saved:',
+    seamWaiting: 'väntar på godkännande', seamApproved: 'godkänd', seamGenerating: 'genererar…',
+    saveFailed: 'Planen skapades men kunde inte sparas:',
   },
 
   en: {
@@ -157,5 +163,7 @@ window.LK_T = {
     thresholdNote: 'A plan reaches the shared bank at 3+ ratings averaging 4.0 or better. The threshold lives in the database and can be changed.',
     plansCount: 'plans', sharedBetween: 'shared between schools',
     seam: 'the same code that runs in an iframe inside FVK', demoRole: 'Shared test environment',
+    onlyInOther: 'This plan only exists in Swedish. Plans created from now on are written in both.',
+    showInSv: 'Visa på svenska', showInEn: 'Show in English',
   },
 };

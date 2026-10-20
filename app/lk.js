@@ -27,6 +27,7 @@ function setLang(l) {
   renderBank();
   fillFilterOptions();
   setTitles();
+  if (state.bodies) state.plan = pickBody();
   if (!$('overlay').hidden) { state.plan ? showPlan() : showRequest(); }
 }
 
@@ -109,7 +110,7 @@ const ROWS = [
     cover: 'Mats Ek', plannable: true, practical: true },
 ];
 
-const state = { me: null, row: null, plan: null, planId: null, view: 'coordinator', bank: [], screen: 'cover' };
+const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover' };
 
 /* ── No login in the test env ───────────────────────
    The lk_* functions fall back to the shared demo school for anonymous
@@ -171,7 +172,7 @@ async function loadBank() {
   const subject = $('f-subject').value || null;
   const year = $('f-year').value || null;
   const scope = $('f-scope').value || 'all';
-  const { data, error } = await sb.rpc('lk_bank', { p_subject: subject, p_year: year, p_scope: scope });
+  const { data, error } = await sb.rpc('lk_bank_list', { p_subject: subject, p_year: year, p_scope: scope });
   if (error) { $('bankgrid').innerHTML = '<p class="note">Kunde inte läsa banken: ' + esc(error.message) + '</p>'; return; }
   state.bank = data || [];
   fillFilterOptions();
@@ -193,6 +194,12 @@ function fillFilterOptions() {
     .map(([v, l]) => '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
 }
 
+/** A bank row's title in the reader's language, else the one it has. */
+function rowTitle(b) {
+  if (b.language_alt === LANG && b.title_alt) return b.title_alt;
+  return b.title;
+}
+
 function stars(r) {
   const n = Math.round(Number(r) || 0);
   return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
@@ -206,7 +213,7 @@ function renderBank() {
   }
   g.innerHTML = state.bank.map((b) =>
     '<div class="bcard">' +
-      '<h4>' + esc(b.title) + '</h4>' +
+      '<h4>' + esc(rowTitle(b)) + '</h4>' +
       '<div class="tags">' +
         '<span class="chip chip-neutral">' + esc(b.subject) + '</span>' +
         '<span class="chip chip-neutral">' + esc(b.year_group) + '</span>' +
@@ -262,7 +269,7 @@ function showRequest() {
     (matches.length
       ? '<div><div class="sect-h">' + esc(t('fromBank')) + ' — ' + matches.length + ' ' + esc(matches.length === 1 ? t('bankApproved') : t('bankApprovedPl')) + '</div><div class="bankrow">' +
         matches.map((b) => '<button class="bankcard" data-usebank="' + b.id + '">' +
-          '<div style="flex:1;min-width:0"><div class="t">' + esc(b.title) + '</div>' +
+          '<div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div>' +
           '<div class="m">' + b.minutes + ' ' + esc(t('min')) + ' · ' + b.rating_count + ' ' + esc(t('ratings')) + (b.shared ? ' · ' + esc(t('sharedTag')) : '') + '</div></div>' +
           '<span class="stars">' + stars(b.rating) + '</span>' +
           '<span class="btn btn-soft btn-sm">' + esc(t('use')) + '</span></button>').join('') + '</div></div>'
@@ -316,7 +323,7 @@ function gatherRequest() {
 
 async function generate() {
   const req = gatherRequest();
-  $('seam-state').textContent = 'genererar…';
+  $('seam-state').textContent = t('seamGenerating');
   $('addin-content').innerHTML =
     '<div class="gen"><div class="bar"><i id="pbar" style="width:12%"></i></div>' +
     '<div class="genstep" id="pstep">' + esc(t('genCalling')) + '</div>' +
@@ -325,11 +332,18 @@ async function generate() {
   let pct = 12;
   const tick = setInterval(() => { pct = Math.min(90, pct + 9); const b = $('pbar'); if (b) b.style.width = pct + '%'; }, 400);
 
-  const { data, error } = await sb.functions.invoke('lk-generate', { body: { request: req } });
+  // Both languages, so whoever opens the plan reads it in theirs. The written
+  // library answers instantly; with a real model this becomes one generation
+  // plus a translation rather than two generations.
+  const other = req.language === 'en' ? 'sv' : 'en';
+  const [main, alt] = await Promise.all([
+    sb.functions.invoke('lk-generate', { body: { request: req } }),
+    sb.functions.invoke('lk-generate', { body: { request: { ...req, language: other } } }),
+  ]);
   clearInterval(tick);
 
-  if (error || data?.error) {
-    const msg = data?.error || error?.message || 'okänt fel';
+  if (main.error || main.data?.error) {
+    const msg = main.data?.error || main.error?.message || 'okänt fel';
     $('addin-content').innerHTML =
       '<div class="addin-body"><div class="addin-head"><h2>' + esc(t('failed')) + '</h2>' +
       '<button class="x" data-close aria-label="Stäng">✕</button></div>' +
@@ -339,12 +353,20 @@ async function generate() {
     return;
   }
 
-  const { data: pid, error: saveErr } = await sb.rpc('lk_save_plan', {
-    p_request: req, p_plan: data.plan, p_model: data.model || null,
-  });
-  if (saveErr) { toast('Planen skapades men kunde inte sparas: ' + saveErr.message); }
+  const altPlan = (!alt.error && !alt.data?.error) ? alt.data.plan : null;
 
-  state.plan = data.plan;
+  const { data: pid, error: saveErr } = await sb.rpc('lk_save_plan', {
+    p_request: req,
+    p_plan: main.data.plan,
+    p_model: main.data.model || null,
+    p_plan_alt: altPlan,
+    p_language_alt: altPlan ? other : null,
+  });
+  if (saveErr) toast(t('saveFailed') + ' ' + saveErr.message);
+
+  state.bodies = { [req.language]: main.data.plan };
+  if (altPlan) state.bodies[other] = altPlan;
+  state.plan = pickBody();
   state.planId = pid || null;
   state.approved = false;
   state.shareToken = null;
@@ -352,10 +374,23 @@ async function generate() {
   loadBank();
 }
 
+/** The plan in the reader's language, falling back to whatever exists. */
+function pickBody() {
+  const b = state.bodies || {};
+  return b[LANG] || b.sv || b.en || Object.values(b)[0] || null;
+}
+
+/** True when the plan is not available in the language being read. */
+function bodyIsFallback() {
+  return !!(state.bodies && !state.bodies[LANG]);
+}
+
 async function usePlan(id) {
   const { data, error } = await sb.rpc('lk_plan', { p_id: id });
   if (error || !data) { toast('Kunde inte öppna planen'); return; }
-  state.plan = data.body;
+  state.bodies = { [data.language || 'sv']: data.body };
+  if (data.body_alt && data.language_alt) state.bodies[data.language_alt] = data.body_alt;
+  state.plan = pickBody();
   state.planId = data.id;
   state.approved = data.approved;
   state.shareToken = data.share_token;
@@ -367,7 +402,10 @@ async function usePlan(id) {
 
 function showPlan() {
   const r = state.row, p = state.plan;
-  $('seam-state').textContent = state.approved ? 'godkänd' : 'väntar på godkännande';
+  $('seam-state').textContent = state.approved ? t('seamApproved') : t('seamWaiting');
+  const fallbackNote = bodyIsFallback()
+    ? '<div class="flag" style="background:var(--warn-bg);color:#7c4a02"><span>!</span><div>' + esc(t('onlyInOther')) + '</div></div>'
+    : '';
   const head =
   '<div class="addin-body">' +
     '<div class="addin-head"><div style="flex:1;min-width:0">' +
@@ -379,10 +417,18 @@ function showPlan() {
       '<div class="viewtog">' +
         '<button class="' + (state.view === 'coordinator' ? 'on' : '') + '" data-view="coordinator">' + esc(t('viewCoord')) + '</button>' +
         '<button class="' + (state.view === 'vikarie' ? 'on' : '') + '" data-view="vikarie">' + esc(t('viewSub')) + '</button>' +
-      '</div><span class="hint">' +
+      '</div>' +
+      // The sidebar toggle sits behind this overlay, so the plan carries its own.
+      (state.bodies && Object.keys(state.bodies).length > 1
+        ? '<div class="viewtog">' + ['sv', 'en'].filter((c) => state.bodies[c]).map((c) =>
+            '<button class="' + (c === LANG ? 'on' : '') + '" data-planlang="' + c + '">' +
+            (c === 'sv' ? 'SV' : 'EN') + '</button>').join('') + '</div>'
+        : '') +
+      '<span class="hint">' +
       (state.view === 'coordinator' ? esc(t('coordHint')) : esc(t('subHint')) + ' ' + esc(p.readTime || '')) +
       '</span></div>';
-  $('addin-content').innerHTML = head + (state.view === 'coordinator' ? coordView(p, r) : vikarieView(p, r)) + '</div>';
+  $('addin-content').innerHTML = head + fallbackNote +
+    (state.view === 'coordinator' ? coordView(p, r) : vikarieView(p, r)) + '</div>';
 }
 
 function minDiff(a, b) {
@@ -464,7 +510,7 @@ function vikarieView(p, r) {
 
 /* ── Events ────────────────────────────────────────── */
 document.addEventListener('click', async (e) => {
-  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-nav],[data-lang],#refreshbank');
+  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el;
 
@@ -482,6 +528,7 @@ document.addEventListener('click', async (e) => {
   if (t2.hasAttribute('data-generate')) return generate();
   if (t2.hasAttribute('data-regen')) return showRequest();
   if (t2.hasAttribute('data-view')) { state.view = t2.getAttribute('data-view'); return showPlan(); }
+  if (t2.hasAttribute('data-planlang')) return setLang(t2.getAttribute('data-planlang'));
   if (t2.hasAttribute('data-viewplan')) return usePlan(t2.getAttribute('data-viewplan'));
   if (t2.hasAttribute('data-usebank')) return usePlan(t2.getAttribute('data-usebank'));
 
