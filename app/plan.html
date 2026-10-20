@@ -95,6 +95,24 @@
     border-radius:9px;padding:9px 15px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
   .noterow button:disabled{opacity:.45;cursor:default}
 
+
+  .stbtn{display:inline-flex;gap:6px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)}
+  .stbtn:hover{background:var(--line-soft)}
+  .strow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  #student{position:fixed;inset:0;z-index:90;background:#fff;overflow:auto;padding:20px 16px 60px}
+  #student .in{max-width:760px;margin:0 auto}
+  #student h1{font-size:26px;margin:8px 0 4px}
+  #student .bigboard{background:#15402e;color:#eef5ef;border-radius:12px;padding:18px 20px;white-space:pre-wrap;font-size:22px;line-height:1.5;margin:14px 0}
+  #student ol{font-size:19px;line-height:1.7;padding-left:28px}
+  #student h2{font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin:22px 0 4px}
+  #student .mat{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0;white-space:pre-wrap;font-size:17px}
+  #student .stbar{display:flex;gap:8px;flex-wrap:wrap}
+  body.pst > :not(#student){display:none!important}
+  @media print{
+    body.pst #student{position:static;padding:0}
+    #student .stbar{display:none}
+    #student .bigboard{background:#fff;color:#000;border:2px solid #000;font-size:20px}
+  }
   @media print{
     .ratebox,.noprint,.assist,.assistbar,.sheet,.note{display:none!important}
     .subhead{background:#fff;color:#000;border:1px solid #000}
@@ -141,6 +159,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'
 const $ = (id) => document.getElementById(id);
 
 const SV_LABELS = {
+  forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
   board: 'Skriv på tavlan innan lektionen börjar', need: 'Du behöver:',
   clock: 'Lektionen, på klockan', say: 'Säg', pupils: 'Eleverna:', expect: 'Förväntat:',
@@ -177,6 +196,7 @@ const SV_LABELS = {
   },
 };
 const EN_LABELS = {
+  forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
   board: 'Write on the board before the lesson starts', need: 'You need:',
   clock: 'The lesson, on the clock', say: 'Say', pupils: 'Pupils:', expect: 'Expected:',
@@ -278,6 +298,8 @@ function extrasFor(ref) {
         (body?.lines || []).map((li) => '<li>' + esc(li) + '</li>').join('') +
       '</ul>' +
       (body?.board ? '<div class="board" style="margin-top:7px">' + esc(body.board) + '</div>' : '') +
+      ((body?.tasks || []).length || body?.board
+        ? '<div class="strow noprint"><button class="stbtn" data-student="x:' + x.id + '">' + esc(l.forStudents) + '</button></div>' : '') +
       '</div>';
   }).join('');
 }
@@ -412,6 +434,9 @@ function render(d, keepScroll) {
        '<p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment?.need) + '<br>' +
        '<span style="color:var(--ink-soft)">' + esc(p.equipment?.fallback) + '</span></p></div>';
 
+  h += '<div class="strow noprint"><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button>' +
+       '<span class="hint">' + esc(l.forStudentsHint) + '</span></div>';
+
   h += '<div class="ps"><h4>' + esc(l.clock) + '</h4>';
   (p.phases||[]).forEach((ph, i) => {
     const ref = 'phase:' + i;
@@ -467,9 +492,57 @@ function render(d, keepScroll) {
   if (keepScroll) window.scrollTo(0, y);
 }
 
+/* ── Student sheet: what the pupils see, never the answers ─── */
+let STUDENT_TXT = '';
+function openStudent(which) {
+  const l = L();
+  const p = bodies(DATA)[LANG] || {};
+  let title, board, tasks, mats = [], exit = '';
+  if (which === 'lesson') {
+    title = p.title; board = p.board; tasks = (p.tasks || []).map((x) => x.q);
+    mats = p.materials || []; exit = p.exit?.q || '';
+  } else {
+    const x = EXTRAS.find((e) => String(e.id) === which.slice(2));
+    const { body } = extraBody(x || {});
+    title = body?.title; board = body?.board; tasks = (body?.tasks || []).map((q) => q.q);
+  }
+  const txt = [title, '', board, ''].concat(mats.map((m) => m.h + '\n' + m.body + '\n'))
+    .concat(tasks.map((q, i) => (i + 1) + '. ' + q)).concat(exit ? ['', l.exit + ': ' + exit] : []).join('\n').trim();
+  STUDENT_TXT = txt;
+  let h = '<div class="in"><div class="stbar noprint"><button class="stbtn" data-stprint>' + esc(l.print) + '</button>' +
+          '<button class="stbtn" data-stcopy>' + esc(l.copyText) + '</button>' +
+          '<button class="stbtn" data-stclose>' + esc(l.close) + '</button></div>' +
+          '<h1>' + esc(title || '') + '</h1>';
+  if (board) h += '<div class="bigboard">' + esc(board) + '</div>';
+  mats.forEach((m) => { h += '<h2>' + esc(m.h) + '</h2><div class="mat">' + esc(m.body) + '</div>'; });
+  if (tasks.length) h += '<h2>' + esc(l.tasksNow.replace(/ med facit| with answers/i, '')) + '</h2><ol>' + tasks.map((q) => '<li>' + esc(q) + '</li>').join('') + '</ol>';
+  if (exit) h += '<h2>' + esc(l.exit) + '</h2><p style="font-size:19px">' + esc(exit) + '</p>';
+  h += '</div>';
+  let el = document.getElementById('student');
+  if (!el) { el = document.createElement('div'); el.id = 'student'; document.body.appendChild(el); }
+  el.innerHTML = h; el.hidden = false; el.scrollTop = 0;
+  document.body.classList.add('pst');
+}
+function closeStudent() {
+  const el = document.getElementById('student');
+  if (el) el.hidden = true;
+  document.body.classList.remove('pst');
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStudent(); });
+
 /* ── Events ──────────────────────────────────────────── */
 document.addEventListener('click', async (e) => {
   const l = L();
+
+  const st = e.target.closest('[data-student],[data-stprint],[data-stcopy],[data-stclose]');
+  if (st) {
+    if (st.hasAttribute('data-student')) return openStudent(st.getAttribute('data-student'));
+    if (st.hasAttribute('data-stclose')) return closeStudent();
+    if (st.hasAttribute('data-stprint')) return window.print();
+    try { await navigator.clipboard.writeText(STUDENT_TXT); st.textContent = l.copiedTxt; setTimeout(() => { st.textContent = l.copyText; }, 1600); }
+    catch { /* clipboard blocked */ }
+    return;
+  }
 
   const pick = e.target.closest('[data-pick]');
   if (pick && DATA) {
