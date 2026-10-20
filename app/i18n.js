@@ -4,6 +4,7 @@ window.LK_T = {
   sv: {
     navSection: 'Navigering',
     navCover: 'Daglig vikarie',
+    navFeedback: 'Återkoppling', onlyOther: 'Finns bara på annat språk', titleFeedback: 'Återkoppling från vikarier', toReview: 'att granska', keep: 'Behåll', hide: 'Dölj', keptToast: 'Behålls och syns för alla', hiddenToast: 'Dold', queueTitle: 'Att granska', queueEmpty: 'Inget nytt att granska.', plansTitle: 'Planer och vad vikarierna sa', fbEmpty: 'Ingen återkoppling än.', wouldReuse: 'skulle använda igen', heatTitle: 'Där vikarien behövde hjälp', subSaid: 'Vikarien skrev', wholeLesson: 'Hela lektionen',
     navBank: 'Lektionsbank',
     navRadar: 'Skolradar (Beta)',
     navHub: 'Vikariecentral',
@@ -99,6 +100,7 @@ window.LK_T = {
   en: {
     navSection: 'Navigation',
     navCover: 'Daily Cover',
+    navFeedback: 'Feedback', onlyOther: 'Only in another language', titleFeedback: 'Substitute feedback', toReview: 'to review', keep: 'Keep', hide: 'Hide', keptToast: 'Kept and visible to everyone', hiddenToast: 'Hidden', queueTitle: 'To review', queueEmpty: 'Nothing new to review.', plansTitle: 'Plans and what substitutes said', fbEmpty: 'No feedback yet.', wouldReuse: 'would reuse', heatTitle: 'Where the substitute needed help', subSaid: 'Substitute wrote', wholeLesson: 'Whole lesson',
     navBank: 'Lesson bank',
     navRadar: 'School Radar (Beta)',
     navHub: 'Cover Hub',

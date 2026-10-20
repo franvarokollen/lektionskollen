@@ -303,3 +303,12 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .linkchip .cl-label{overflow-wrap:anywhere;text-align:left}
 .linkchip:hover{background:var(--line-soft)}
 @media (prefers-reduced-motion:reduce){:is([data-copylink],[data-copymail]).copied,:is([data-copylink],[data-copymail]).copied .cl-tick{animation:none;stroke-dashoffset:0}}
+
+/* feedback tab */
+.fb-h{font-size:15px}
+.fx{gap:9px}.fx ol{margin:0;padding-left:18px;font-size:13.5px}.fx .fx-title{font-weight:600;font-size:13.5px}
+.fx blockquote{margin:0;padding:6px 10px;border-left:3px solid var(--line);background:var(--line-soft);border-radius:0 8px 8px 0;font-size:13px}
+.heat{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12.5px}
+.heat .hl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.heat .hb{background:var(--line-soft);border-radius:6px;height:8px;overflow:hidden}
+.heat .hb i{display:block;height:100%;background:var(--warn);border-radius:6px}
