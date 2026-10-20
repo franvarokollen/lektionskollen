@@ -70,3 +70,22 @@ export function buildMessages(r: Record<string, unknown>) {
 
   return [{ role: 'system', content: system }, { role: 'user', content: user }]
 }
+
+/** Translate an existing plan instead of generating a second one. Cheaper, and
+ *  the two languages stay the same lesson rather than two similar ones. */
+export function buildTranslateMessages(plan: Record<string, unknown>, lang: string) {
+  const target = lang === 'en' ? 'ENGLISH' : 'SWEDISH'
+  return [
+    {
+      role: 'system',
+      content:
+        `You translate a school lesson plan into ${target}. ` +
+        'Return ONLY the same JSON structure: identical keys, identical array lengths, identical order. ' +
+        'Translate every string value into natural classroom language, not word for word. ' +
+        'Leave unchanged: numbers, clock times like "08:20–08:35", maths expressions, answers that are only numbers, ' +
+        'and anything on the board that is a diagram. Swedish schools have no bells: never write "bell". ' +
+        'Do not add, remove or reorder anything. No commentary, no markdown fences.',
+    },
+    { role: 'user', content: JSON.stringify(plan) },
+  ]
+}

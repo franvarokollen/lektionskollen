@@ -7,7 +7,7 @@
 // To go live: set AI_BASE_URL, AI_MODEL and (if hosted) AI_API_KEY as function
 // secrets. No code change, no redeploy of anything else.
 
-import { buildMessages } from './prompt.ts'
+import { buildMessages, buildTranslateMessages } from './prompt.ts'
 import { parseModelJson } from './repair.ts'
 import { cannedPlan } from './library.ts'
 
@@ -32,11 +32,14 @@ Deno.serve(async (req) => {
   }
 
   const baseUrl = Deno.env.get('AI_BASE_URL')
-  const model = Deno.env.get('AI_MODEL')
+  const bigModel = Deno.env.get('AI_MODEL')
+  // A translation needs no planning, so it can run on the cheaper model.
+  const translate = body.translate as Record<string, unknown> | undefined
+  const model = translate ? (Deno.env.get('AI_MODEL_SMALL') || bigModel) : bigModel
   const t0 = Date.now()
 
   // ── No model configured: serve a written plan ────────────
-  if (!baseUrl || !model) {
+  if (!baseUrl || !bigModel) {
     const plan = cannedPlan(r)
     return json({ plan, model: 'canned', source: 'library', repaired: false, ms: Date.now() - t0 })
   }
@@ -53,8 +56,8 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model,
-        messages: buildMessages(r),
-        temperature: 0.4,
+        messages: translate ? buildTranslateMessages(translate, String(r.language || 'sv')) : buildMessages(r),
+        temperature: translate ? 0.2 : 0.4,
         max_tokens: 8000,
         stream: false,
         ...(Deno.env.get('AI_JSON_MODE') === 'json_object' ? { response_format: { type: 'json_object' } } : {}),

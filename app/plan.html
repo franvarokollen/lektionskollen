@@ -193,7 +193,7 @@ const SV_LABELS = {
   aEasier: 'Lättare', aHarder: 'Svårare',
   barLbl: 'Tid kvar att fylla (min):',
   working: 'Tar fram något…',
-  srcLibrary: 'Färdigskrivet stöd', srcModel: 'Genererat under lektionen',
+  srcLibrary: 'Simulerat stöd – ingen AI-modell ansluten än', srcCache: 'Sparat svar från tidigare', simTag: 'Simulerad', simBanner: 'Simulerad plan – ingen AI-modell är ansluten än.', srcModel: 'Genererat under lektionen',
   srcFallback: 'Färdigskrivet stöd (modellen svarade inte)',
   boardNow: 'Skriv upp på tavlan', tasksNow: 'Uppgifter med facit',
   saved: 'Sparat i planen — markerat för granskning.',
@@ -233,7 +233,7 @@ const EN_LABELS = {
   aEasier: 'Easier', aHarder: 'Harder',
   barLbl: 'Minutes left to fill:',
   working: 'Working on it…',
-  srcLibrary: 'Written support', srcModel: 'Generated during the lesson',
+  srcLibrary: 'Simulated support – no AI model connected yet', srcCache: 'Saved answer from before', simTag: 'Simulated', simBanner: 'Simulated plan – no AI model is connected yet.', srcModel: 'Generated during the lesson',
   srcFallback: 'Written support (the model did not answer)',
   boardNow: 'Write this on the board', tasksNow: 'Tasks with answers',
   saved: 'Saved to the plan — flagged for review.',
@@ -320,7 +320,7 @@ function extrasFor(ref) {
     const { body, exact, lang } = extraBody(x);
     const note = exact ? ''
       : ' · ' + esc(lang === 'sv' ? l.onlyOther : l.onlyOtherEn);
-    return '<div class="extra"><span class="tag">' + esc(l.genTag) + note + '</span>' +
+    return '<div class="extra"><span class="tag">' + esc(x.model === 'canned' ? l.simTag : l.genTag) + note + '</span>' +
       '<b>' + esc(body?.title || '') + '</b>' +
       '<ul style="margin:4px 0 0;padding-left:16px">' +
         (body?.lines || []).map((li) => '<li>' + esc(li) + '</li>').join('') +
@@ -334,7 +334,7 @@ function extrasFor(ref) {
 
 function sheetHtml(extra, source, saveNote, extraId, opts) {
   const l = L();
-  const srcTxt = source === 'model' ? l.srcModel : source === 'fallback' ? l.srcFallback : l.srcLibrary;
+  const srcTxt = source === 'model' ? l.srcModel : source === 'cache' ? l.srcCache : source === 'fallback' ? l.srcFallback : l.srcLibrary;
   let h = '<h3>' + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) +
           (extra.minutes ? ' · ' + extra.minutes + ' min' : '') + '</div>';
   h += '<ol>' + (extra.lines || []).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>';
@@ -458,6 +458,7 @@ function render(d, keepScroll) {
   }
 
   let h =
+    (d.model === 'canned' ? '<div class="offl noprint">' + esc(l.simBanner) + '</div>' : '') +
     (OFFLINE ? '<div class="offl noprint">' + esc(l.offlineNote) + '</div>' : '') +
     '<div class="subhead"><div class="subhead-row"><div>' +
     '<h1>' + esc(p.title) + '</h1>' +
