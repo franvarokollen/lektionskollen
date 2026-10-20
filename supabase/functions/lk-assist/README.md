@@ -61,3 +61,9 @@ answer, never a spinner or an error.
 Saving is separate, and server-side: the page calls `lk_assist_save`, which
 enforces the per-plan daily quota (20) and flags the row for coordinator
 review. The quota is there because the page this is called from has no login.
+
+## Cost controls
+
+- **Small model:** set `AI_MODEL_SMALL` to run extras on a cheaper, faster model; falls back to `AI_MODEL`.
+- **Cache:** the same section + kind + variant + language returns the stored answer (`source: "cache"`, no model call). Only complete model answers are stored. The cache is private to this function (service role); entries expire after 180 days.
+- **Cap:** extras per plan per day come from a school setting (5 / 20 / unlimited), enforced in the database.

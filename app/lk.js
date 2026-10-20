@@ -116,7 +116,7 @@ const ROWS = [
     cover: 'Mats Ek', plannable: true, practical: true },
 ];
 
-const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [] };
+const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [], model: null, cap: 20 };
 
 /* ── No login in the test env ───────────────────────
    The lk_* functions fall back to the shared demo school for anonymous
@@ -284,6 +284,7 @@ function showRequest() {
           '<span class="btn btn-soft btn-sm">' + esc(t('use')) + '</span></button>').join('') + '</div></div>'
       : '<div><div class="sect-h">' + esc(t('fromBank')) + '</div><p class="hint">' + esc(t('bankNone')) + ' ' + esc(r.subject) + ' ' + esc(r.year) + ' ' + esc(t('bankNoneTail')) + '</p></div>') +
 
+    (matches.length ? '<details class="steerbox"><summary>' + esc(t('noFit')) + '</summary>' : '') +
     '<div><div class="sect-h">' + esc(t('steer')) + '</div><div class="steer">' +
       '<label class="f full">' + esc(t('fTopic')) + '<input id="s-topic" placeholder="' + esc(t('fTopicPh')) + '"></label>' +
       '<label class="f full">' + esc(t('fNotes')) + '<textarea id="s-notes" rows="2" placeholder="' + esc(t('fNotesPh')) + '"></textarea></label>' +
@@ -302,10 +303,11 @@ function showRequest() {
           .map((k, i) => '<button class="tog' + (i === 0 ? ' on' : '') + '" data-res>' + esc(t(k)) + '</button>').join('') +
       '</div></div>' +
     '</div></div>' +
+    (matches.length ? '</details>' : '') +
 
     '<div class="foot"><span class="hint">' + esc(t('privacyNote')) + '</span>' +
       '<span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t('cancel')) + '</button>' +
-      '<button class="btn btn-primary" data-generate>' + esc(t('create')) + '</button></div>' +
+      '<button class="btn ' + (matches.length ? 'btn-ghost' : 'btn-primary') + '" data-generate>' + esc(t('create')) + '</button></div>' +
   '</div>';
 }
 
@@ -341,14 +343,19 @@ async function generate() {
   let pct = 12;
   const tick = setInterval(() => { pct = Math.min(90, pct + 9); const b = $('pbar'); if (b) b.style.width = pct + '%'; }, 400);
 
-  // Both languages, so whoever opens the plan reads it in theirs. The written
-  // library answers instantly; with a real model this becomes one generation
-  // plus a translation rather than two generations.
+  // Both languages, so whoever opens the plan reads it in theirs. One
+  // generation, then the other language is a translation of it: cheaper than
+  // a second generation and the two stay the same lesson. (With no model set
+  // the written library answers both languages instantly.)
   const other = req.language === 'en' ? 'sv' : 'en';
-  const [main, alt] = await Promise.all([
-    sb.functions.invoke('lk-generate', { body: { request: req } }),
-    sb.functions.invoke('lk-generate', { body: { request: { ...req, language: other } } }),
-  ]);
+  const main = await sb.functions.invoke('lk-generate', { body: { request: req } });
+  let alt = { error: new Error('skipped') };
+  if (!main.error && !main.data?.error) {
+    $('pstep').textContent = t('genTranslating');
+    alt = await sb.functions.invoke('lk-generate', {
+      body: { request: { ...req, language: other }, translate: main.data.source === 'model' ? main.data.plan : undefined },
+    });
+  }
   clearInterval(tick);
 
   if (main.error || main.data?.error) {
@@ -379,6 +386,7 @@ async function generate() {
   state.planId = pid || null;
   state.approved = false;
   state.shareToken = null;
+  state.model = main.data.model || null;
   showPlan();
   loadBank();
 }
@@ -403,6 +411,7 @@ async function usePlan(id) {
   state.planId = data.id;
   state.approved = data.approved;
   state.shareToken = data.share_token;
+  state.model = data.model || null;
   if (!state.row) state.row = { subject: data.subject, year: data.year_group, group: '—', mins: data.minutes, start: '', end: '', room: '—', teacher: '—', cover: null };
   $('overlay').hidden = false;
   document.body.style.overflow = 'hidden';
@@ -414,6 +423,9 @@ function showPlan() {
   $('seam-state').textContent = state.approved ? t('seamApproved') : t('seamWaiting');
   const fallbackNote = bodyIsFallback()
     ? '<div class="flag" style="background:var(--warn-bg);color:#7c4a02"><span>!</span><div>' + esc(t('onlyInOther')) + '</div></div>'
+    : '';
+  const simNote = state.model === 'canned'
+    ? '<div class="flag sim"><span>⚠</span><div><b>' + esc(t('simTitle')) + '</b> ' + esc(t('simBody')) + '</div></div>'
     : '';
   const head =
   '<div class="addin-body">' +
@@ -436,7 +448,7 @@ function showPlan() {
       '<span class="hint">' +
       (state.view === 'coordinator' ? esc(t('coordHint')) : esc(t('subHint')) + ' ' + esc(p.readTime || '')) +
       '</span></div>';
-  $('addin-content').innerHTML = head + fallbackNote +
+  $('addin-content').innerHTML = head + simNote + fallbackNote +
     (state.view === 'coordinator' ? coordView(p, r) : vikarieView(p, r)) + '</div>';
 }
 
@@ -494,7 +506,7 @@ function assistRow(ref, label) {
 }
 
 function assistSheetHtml(extra, source) {
-  const srcTxt = source === 'model' ? t('srcModel') : source === 'fallback' ? t('srcFallback') : t('srcLibrary');
+  const srcTxt = source === 'model' ? t('srcModel') : source === 'cache' ? t('srcCache') : source === 'fallback' ? t('srcFallback') : t('srcLibrary');
   let h = '<h3>' + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) +
           (extra.minutes ? ' · ' + extra.minutes + ' min' : '') + ' · ' + esc(t('assistPreview')) + '</div>';
   h += '<ol>' + (extra.lines || []).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>';
@@ -614,7 +626,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-nav],[data-lang],#refreshbank');
+  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el;
 
@@ -626,6 +638,13 @@ document.addEventListener('click', async (e) => {
     return showScreen(id);
   }
   if (t2.id === 'refreshbank') return loadBank();
+  if (t2.hasAttribute('data-cap')) {
+    const v = Number(t2.getAttribute('data-cap'));
+    const { data, error } = await sb.rpc('lk_set_assist_cap', { p_cap: v });
+    if (error || !data) { toast(error?.message || 'error'); return; }
+    state.cap = v; renderSettings(); toast(t('capSaved'));
+    return;
+  }
   if (t2.hasAttribute('data-review')) {
     const [id, keep] = t2.getAttribute('data-review').split(':');
     t2.disabled = true;
@@ -715,7 +734,22 @@ function extraText(x) {
   return h;
 }
 
+async function loadSettings() {
+  const { data } = await sb.rpc('lk_get_settings');
+  if (data && data.assist_cap !== undefined) state.cap = data.assist_cap;
+  renderSettings();
+}
+
+function renderSettings() {
+  const box = $('fbsettings');
+  if (!box) return;
+  box.innerHTML = '<h4>' + esc(t('capTitle')) + '</h4><p class="hint">' + esc(t('capNote')) + '</p>' +
+    '<div class="covrow">' + [[5, '5'], [20, '20'], [-1, t('capUnlimited')]].map(([v, lbl]) =>
+      '<button data-cap="' + v + '"' + (state.cap === v ? ' class="on"' : '') + '>' + esc(lbl) + '</button>').join('') + '</div>';
+}
+
 async function loadFeedback() {
+  loadSettings();
   const [ex, ov] = await Promise.all([sb.rpc('lk_extras', { p_id: null }), sb.rpc('lk_feedback_overview')]);
   if (ex.error || ov.error) {
     $('fbqueue').innerHTML = '<p class="note">' + esc((ex.error || ov.error).message) + '</p>';
@@ -737,7 +771,8 @@ function renderFeedback() {
         '<div class="tags"><span class="chip chip-neutral">' + esc(x.subject) + '</span>' +
           '<span class="chip chip-neutral">' + esc(x.year_group) + '</span>' +
           '<span class="chip chip-blue">' + esc(kindLabel(x.kind, x.variant)) + '</span>' +
-          (x.section_label ? '<span class="chip chip-neutral">' + esc(x.section_label) + '</span>' : '') + '</div>' +
+          (x.section_label ? '<span class="chip chip-neutral">' + esc(x.section_label) + '</span>' : '') +
+          (x.model === 'canned' ? '<span class="chip chip-warn">' + esc(t('simTag')) + '</span>' : '') + '</div>' +
         '<div class="plan-meta">' + esc(x.title || '') + ' · ' + new Date(x.created_at).toLocaleString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) + '</div>' +
         extraText(x) +
         '<div style="display:flex;gap:6px"><button class="btn btn-ok btn-sm" data-review="' + x.id + ':1">' + esc(t('keep')) + '</button>' +

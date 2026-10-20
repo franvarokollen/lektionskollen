@@ -4,6 +4,7 @@ window.LK_T = {
   sv: {
     navSection: 'Navigering',
     navCover: 'Daglig vikarie',
+    simTitle: 'Simulerad plan.', simBody: 'Ingen AI-modell är ansluten än – innehållet kommer från ett skrivet bibliotek.', simTag: 'Simulerad', srcCache: 'Sparat svar från tidigare', genTranslating: 'Översätter till andra språket…', noFit: 'Inget passar? Skapa en ny plan', capTitle: 'Inställning: hjälp under lektionen', capNote: 'Så många gånger per plan och dag kan en vikarie be om extra hjälp. Skyddar mot skenande kostnad. Prototyp – flyttas till Skolkollens administration senare.', capUnlimited: 'Obegränsat', capSaved: 'Sparat',
     navFeedback: 'Återkoppling', noSubRatings: 'Inga vikarieomdömen än', newPlan: 'Ny', neededHelp: 'hjälp behövdes', rankNote: 'Sorterad: bäst först. Varje femte plats går till en ny plan med färre än 5 omdömen, så nya planer syns också.', cov_all: 'Hela planen', cov_part: 'En del', cov_none: 'Knappt något', stoppedAt: 'Stannade vid', onlyOther: 'Finns bara på annat språk', titleFeedback: 'Återkoppling från vikarier', toReview: 'att granska', keep: 'Behåll', hide: 'Dölj', keptToast: 'Behålls och syns för alla', hiddenToast: 'Dold', queueTitle: 'Att granska', queueEmpty: 'Inget nytt att granska.', plansTitle: 'Planer och vad vikarierna sa', fbEmpty: 'Ingen återkoppling än.', wouldReuse: 'skulle använda igen', heatTitle: 'Där vikarien behövde hjälp', subSaid: 'Vikarien skrev', wholeLesson: 'Hela lektionen',
     navBank: 'Lektionsbank',
     navRadar: 'Skolradar (Beta)',
@@ -69,7 +70,7 @@ window.LK_T = {
     assistNote: 'Vikarien kan trycka på de här mitt i lektionen. Här är det bara förhandsvisning — inget sparas.',
     assistPreview: 'Förhandsvisning — sparas inte',
     working: 'Tar fram något…',
-    srcLibrary: 'Färdigskrivet stöd', srcModel: 'Genererat under lektionen',
+    srcLibrary: 'Simulerat stöd – ingen AI-modell ansluten än', srcModel: 'Genererat under lektionen',
     srcFallback: 'Färdigskrivet stöd (modellen svarade inte)',
     boardNow: 'Skriv upp på tavlan', tasksNow: 'Uppgifter med facit',
     minLeft: 'Minuter kvar:',
@@ -100,6 +101,7 @@ window.LK_T = {
   en: {
     navSection: 'Navigation',
     navCover: 'Daily Cover',
+    simTitle: 'Simulated plan.', simBody: 'No AI model is connected yet – the content comes from a written library.', simTag: 'Simulated', srcCache: 'Saved answer from before', genTranslating: 'Translating to the other language…', noFit: 'Nothing fits? Create a new plan', capTitle: 'Setting: help during the lesson', capNote: 'How many times per plan and day a substitute can ask for extra help. Guards against runaway cost. Prototype – moves to Skolkollen admin later.', capUnlimited: 'Unlimited', capSaved: 'Saved',
     navFeedback: 'Feedback', noSubRatings: 'No substitute ratings yet', newPlan: 'New', neededHelp: 'help needed', rankNote: 'Sorted best first. Every fifth slot goes to a new plan with fewer than 5 ratings, so new plans get seen.', cov_all: 'All of it', cov_part: 'Part of it', cov_none: 'Hardly any', stoppedAt: 'Stopped at', onlyOther: 'Only in another language', titleFeedback: 'Substitute feedback', toReview: 'to review', keep: 'Keep', hide: 'Hide', keptToast: 'Kept and visible to everyone', hiddenToast: 'Hidden', queueTitle: 'To review', queueEmpty: 'Nothing new to review.', plansTitle: 'Plans and what substitutes said', fbEmpty: 'No feedback yet.', wouldReuse: 'would reuse', heatTitle: 'Where the substitute needed help', subSaid: 'Substitute wrote', wholeLesson: 'Whole lesson',
     navBank: 'Lesson bank',
     navRadar: 'School Radar (Beta)',
@@ -165,7 +167,7 @@ window.LK_T = {
     assistNote: 'The substitute can press these mid-lesson. This is preview only — nothing is saved.',
     assistPreview: 'Preview — not saved',
     working: 'Working on it…',
-    srcLibrary: 'Written support', srcModel: 'Generated during the lesson',
+    srcLibrary: 'Simulated support – no AI model connected yet', srcModel: 'Generated during the lesson',
     srcFallback: 'Written support (the model did not answer)',
     boardNow: 'Write this on the board', tasksNow: 'Tasks with answers',
     minLeft: 'Minutes left:',
