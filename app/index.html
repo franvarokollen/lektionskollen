@@ -103,6 +103,15 @@
   </div>
 </div>
 
+<!-- Assist results open over the plan, never inline: you must not lose
+     your place in a document you are reading live. -->
+<div class="sheet" id="assist-sheet" hidden>
+  <div class="card">
+    <button class="x" data-assistclose aria-label="Stäng">✕</button>
+    <div id="assist-sheet-body"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
