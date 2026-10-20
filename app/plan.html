@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="sv" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Din lektionsplan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="./lk.css">
+<style>
+  /* The vikarie's page: no app chrome, no login, reads on a phone. */
+  .subwrap{max-width:720px;margin:0 auto;padding-block:20px 60px;
+    padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .subhead{background:var(--navy-deep);color:#e8edf2;border-radius:12px;padding:16px 18px;margin-bottom:18px}
+  .subhead h1{font-size:20px;letter-spacing:-.015em}
+  .subhead .m{color:#9fb3c8;font-size:13px;margin-top:4px}
+  .ratebox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:22px}
+  .ratebox h3{font-size:15px;margin-bottom:4px}
+  @media print{.ratebox,.noprint{display:none!important}.subhead{background:#fff;color:#000;border:1px solid #000}}
+</style>
+</head>
+<body>
+<div class="subwrap">
+  <div id="out"><p class="muted">Hämtar planen…</p></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const sb = window.supabase.createClient(
+  'https://pbamabzbfbkxajntsrmc.supabase.co',
+  'sb_publishable_XtMg3eLikZtI-UkNspIwcA_bWGvj428'
+);
+const token = new URLSearchParams(location.search).get('t');
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function load() {
+  if (!token) { document.getElementById('out').innerHTML = '<p class="muted">Länken saknar kod.</p>'; return; }
+  const { data, error } = await sb.rpc('lk_plan_by_token', { p_token: token });
+  if (error || !data) {
+    document.getElementById('out').innerHTML =
+      '<p class="muted">Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.</p>';
+    return;
+  }
+  render(data);
+}
+
+function render(d) {
+  const p = d.body || {};
+  let h =
+    '<div class="subhead"><h1>' + esc(p.title) + '</h1>' +
+    '<div class="m">' + esc(d.subject) + ' · ' + esc(d.year_group) + ' · ' + d.minutes + ' min · ' + esc(d.school) + '</div></div>';
+
+  h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>De första 90 sekunderna</b>' +
+       '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90||[]).map(x=>'<li>'+esc(x)+'</li>').join('') + '</ul></div></div>';
+
+  h += '<div class="ps"><h4>Översikt</h4><p>' + esc(p.summary) + '</p>' +
+       '<p style="font-size:13px;color:var(--ink-soft)"><b>Mål:</b> ' + esc(p.goal) + '</p></div>';
+
+  h += '<div class="ps"><h4>Skriv på tavlan innan det ringer</h4><div class="board">' + esc(p.board) + '</div>' +
+       '<p style="margin-top:8px;font-size:13px"><b>Du behöver:</b> ' + esc(p.equipment?.need) + '<br>' +
+       '<span style="color:var(--ink-soft)">' + esc(p.equipment?.fallback) + '</span></p></div>';
+
+  h += '<div class="ps"><h4>Lektionen, på klockan</h4>';
+  (p.phases||[]).forEach(ph => {
+    h += '<div class="phase"><div class="phase-h"><span class="clock">' + esc(ph.t) + '</span><strong>' + esc(ph.n) + '</strong></div>' +
+      '<div class="say"><em>Säg</em>' + esc(ph.say) + '</div>' +
+      '<p style="font-size:13px"><b>Eleverna:</b> ' + esc(ph.pupils) + '</p>' +
+      (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>Förväntat:</b> ' + esc(ph.expect) + '</p>' : '') +
+      ((ph.checks||[]).length ? '<p style="font-size:13px;margin-bottom:3px"><b>Kontrollfråga:</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
+        ph.checks.map(c=>'<li>'+esc(c.q)+'<br><span class="ans">Svar: '+esc(c.a)+'</span></li>').join('') + '</ul>' : '') + '</div>';
+  });
+  h += '</div>';
+
+  h += '<div class="ps"><h4>Allt du delar ut</h4>' +
+    (p.materials||[]).map(m=>'<div class="mat"><h5>'+esc(m.h)+'</h5><div>'+esc(m.body)+'</div></div>').join('') + '</div>';
+  h += '<div class="ps"><h4>Uppgifter med facit</h4><ol style="font-size:13.5px">' +
+    (p.tasks||[]).map(t=>'<li>'+esc(t.q)+' <span class="ans">'+esc(t.a)+'</span></li>').join('') + '</ol></div>';
+  h += '<div class="ps"><h4>Om de blir klara tidigt, om de fastnar</h4><div class="twocol">' +
+    '<div class="callout"><strong>Fastnar</strong>'+esc(p.stuck)+'</div>' +
+    '<div class="callout"><strong>Klara tidigt</strong>'+esc(p.ahead)+'</div></div></div>';
+  h += '<div class="ps"><h4>Om det går snett</h4><p>' + esc(p.wrong) + '</p></div>';
+  h += '<div class="ps"><h4>Exit ticket</h4><p>' + esc(p.exit?.q) + '<br><span class="ans">' + esc(p.exit?.a) + '</span></p></div>';
+  h += '<div class="ps"><h4>Överlämning till ordinarie lärare</h4><p style="white-space:pre-wrap">' + esc(p.handover) + '</p></div>';
+
+  h += '<div class="ratebox"><h3>Fungerade planen?</h3>' +
+       '<p class="muted" style="margin:0 0 10px">Ditt betyg avgör om den används igen. Tar två sekunder.</p>' +
+       '<div class="rate" id="rate">' + [1,2,3,4,5].map(n=>'<button data-score="'+n+'">★</button>').join('') + '</div>' +
+       '<p id="ratemsg" class="hint" style="margin-top:10px"></p></div>';
+
+  document.getElementById('out').innerHTML = h;
+
+  document.getElementById('rate').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-score]');
+    if (!b) return;
+    const score = Number(b.getAttribute('data-score'));
+    [...document.querySelectorAll('#rate button')].forEach((x, i) => x.classList.toggle('on', i < score));
+    const { error } = await sb.rpc('lk_rate_by_token', { p_token: token, p_score: score, p_comment: null });
+    document.getElementById('ratemsg').textContent = error ? 'Kunde inte spara: ' + error.message : 'Tack — betyget är sparat.';
+  });
+}
+load();
+</script>
+</body>
+</html>
