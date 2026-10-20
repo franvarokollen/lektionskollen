@@ -94,10 +94,18 @@ async function enterApp() {
   if (!data || !data.school_id) {
     $('login').hidden = false;
     $('loginform').innerHTML =
-      '<p class="hint">Du är inloggad men hör inte till någon skola ännu.<br><br>' +
-      'Barry behöver lägga till dig i <span class="mono">lektionskollen.members</span>. ' +
-      'Ditt konto finns nu, så det räcker med en rad.</p>' +
-      '<button class="btn btn-ghost" style="width:100%;margin-top:12px" onclick="sb.auth.signOut().then(()=>location.reload())">Logga ut</button>';
+      '<p class="hint" style="margin:0 0 12px">Du är inloggad. Ange skolans kod för att komma in.</p>' +
+      '<label class="f">Skolkod<input id="joincode" placeholder="TESTBERGA" autocapitalize="characters"></label>' +
+      '<button class="btn btn-primary" style="width:100%;margin-top:12px" id="joinbtn">Gå med</button>' +
+      '<button class="btn btn-ghost" style="width:100%;margin-top:8px" id="signout2">Logga ut</button>';
+    $('joinbtn').addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      const { data: j, error: je } = await sb.rpc('lk_join', { p_code: $('joincode').value });
+      if (je) { $('loginmsg').textContent = je.message; return; }
+      if (!j || !j.ok) { $('loginmsg').textContent = (j && j.error) || 'Gick inte'; return; }
+      enterApp();
+    });
+    $('signout2').addEventListener('click', (ev) => { ev.preventDefault(); sb.auth.signOut().then(() => location.reload()); });
     return;
   }
 
