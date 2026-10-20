@@ -3,7 +3,7 @@
    through the public.lk_* security-definer functions. */
 
 const SUPABASE_URL = 'https://pbamabzbfbkxajntsrmc.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_XtMg3eLikZtI-UkNspIwcA_bWGvj428';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBiYW1hYnpiZmJreGFqbnRzcm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMzU3MTEsImV4cCI6MjA5NTkxMTcxMX0.9G3-2cFOHwVqVOsIBcHomrEEclISFUaIQlg10nIlWHM';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -43,78 +43,30 @@ const ROWS = [
 
 const state = { me: null, row: null, plan: null, planId: null, view: 'coordinator', bank: [] };
 
-/* ── Auth ──────────────────────────────────────────── */
-async function boot() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) return enterApp();
-  $('login').hidden = false;
-}
+/* ── No login in the test env ───────────────────────
+   The lk_* functions fall back to the shared demo school for anonymous
+   callers. Revoking the anon grants in Postgres restores a real login
+   without touching this file. */
+function boot() { enterApp(); }
 
-$('loginform').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = $('email').value.trim();
-  const btn = $('loginbtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Skickar…';
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: true, emailRedirectTo: location.href.split('#')[0] },
-  });
-  btn.disabled = false;
-  btn.textContent = 'Skicka inloggningslänk';
-  if (error) { $('loginmsg').textContent = 'Gick inte: ' + error.message; return; }
-  showCodeEntry(email);
-});
-
-function showCodeEntry(email) {
-  $('loginform').innerHTML =
-    '<p class="hint" style="margin:0 0 12px">Vi skickade ett mejl till <b>' + esc(email) + '</b>. ' +
-    'Klicka länken i mejlet — eller skriv in koden härifrån om mejlet innehåller en.</p>' +
-    '<label class="f">Kod från mejlet<input id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></label>' +
-    '<button class="btn btn-primary" style="width:100%;margin-top:12px" id="verifybtn">Logga in</button>';
-  $('verifybtn').addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    const token = $('otp').value.trim();
-    if (!token) return;
-    const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
-    if (error) { $('loginmsg').textContent = 'Fel kod: ' + error.message; return; }
-    enterApp();
-  });
-}
-
-$('signout').addEventListener('click', async () => {
-  await sb.auth.signOut();
-  location.reload();
-});
+$('signout').addEventListener('click', () => location.reload());
 
 async function enterApp() {
   const { data, error } = await sb.rpc('lk_me');
-  if (error) { $('loginmsg').textContent = 'Kunde inte läsa profilen: ' + error.message; $('login').hidden = false; return; }
+  if (error) {
+    document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">Kunde inte nå databasen: ' + esc(error.message) + '</p>';
+    return;
+  }
 
   if (!data || !data.school_id) {
-    $('login').hidden = false;
-    $('loginform').innerHTML =
-      '<p class="hint" style="margin:0 0 12px">Du är inloggad. Ange skolans kod för att komma in.</p>' +
-      '<label class="f">Skolkod<input id="joincode" placeholder="TESTBERGA" autocapitalize="characters"></label>' +
-      '<button class="btn btn-primary" style="width:100%;margin-top:12px" id="joinbtn">Gå med</button>' +
-      '<button class="btn btn-ghost" style="width:100%;margin-top:8px" id="signout2">Logga ut</button>';
-    $('joinbtn').addEventListener('click', async (ev) => {
-      ev.preventDefault();
-      const { data: j, error: je } = await sb.rpc('lk_join', { p_code: $('joincode').value });
-      if (je) { $('loginmsg').textContent = je.message; return; }
-      if (!j || !j.ok) { $('loginmsg').textContent = (j && j.error) || 'Gick inte'; return; }
-      enterApp();
-    });
-    $('signout2').addEventListener('click', (ev) => { ev.preventDefault(); sb.auth.signOut().then(() => location.reload()); });
+    document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">Demoskolan saknas i databasen.</p>';
     return;
   }
 
   state.me = data;
-  const { data: { user } } = await sb.auth.getUser();
-  $('login').hidden = true;
   $('app').hidden = false;
   $('schoolname').textContent = data.school;
-  $('username').textContent = (user?.email || '') + ' · ' + data.role;
+  $('username').textContent = data.role === 'demo' ? 'Delad testmiljö' : data.role;
   $('pagesub').textContent = new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   renderRows();
   loadBank();
@@ -483,5 +435,4 @@ function showScreen(which) {
   window.scrollTo(0, 0);
 }
 
-sb.auth.onAuthStateChange((evt) => { if (evt === 'SIGNED_IN' && $('app').hidden) enterApp(); });
 boot();
