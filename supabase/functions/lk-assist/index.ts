@@ -10,8 +10,8 @@
 
 import { buildMessages } from './prompt.ts'
 import { parseModelJson } from './repair.ts'
-import { writtenExtra } from './library.ts'
-import type { AssistReq, Extra } from './types.ts'
+import { writtenPair } from './library.ts'
+import type { AssistReq, Extra, ExtraPair } from './types.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -38,11 +38,11 @@ Deno.serve(async (req) => {
   const model = Deno.env.get('AI_MODEL')
   const t0 = Date.now()
 
+  const fallback = (source: string) =>
+    json({ ...writtenPair(body), model: 'canned', source, ms: Date.now() - t0 })
+
   // ── No model configured: serve a written teaching move ───
-  if (!baseUrl || !model) {
-    const extra = writtenExtra(body)
-    return json({ extra, model: 'canned', source: 'library', repaired: false, ms: Date.now() - t0 })
-  }
+  if (!baseUrl || !model) return fallback('library')
 
   // ── Model configured ─────────────────────────────────────
   // Short timeout on purpose. A substitute standing in front of a class
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
         model,
         messages: buildMessages(body),
         temperature: 0.5,
-        max_tokens: 1500,
+        max_tokens: 2600,   // both languages in one response
         stream: false,
         ...(Deno.env.get('AI_JSON_MODE') === 'json_object' ? { response_format: { type: 'json_object' } } : {}),
       }),
@@ -68,24 +68,37 @@ Deno.serve(async (req) => {
     })
     clearTimeout(timer)
 
-    if (!res.ok) return json({ extra: writtenExtra(body), model: 'canned', source: 'fallback', ms: Date.now() - t0 })
+    if (!res.ok) return fallback('fallback')
 
     const out = await res.json()
     const content: string = out?.choices?.[0]?.message?.content ?? ''
-    if (!content) return json({ extra: writtenExtra(body), model: 'canned', source: 'fallback', ms: Date.now() - t0 })
+    if (!content) return fallback('fallback')
 
     const { data, repaired } = parseModelJson(content)
-    const extra = data as Extra
-    if (!extra?.title || !Array.isArray(extra?.lines) || !extra.lines.length) {
-      return json({ extra: writtenExtra(body), model: 'canned', source: 'fallback', ms: Date.now() - t0 })
+    const raw = data as Extra & { alt?: Extra }
+    if (!raw?.title || !Array.isArray(raw?.lines) || !raw.lines.length) return fallback('fallback')
+
+    // The alt is optional: a model that skipped it should not cost the
+    // substitute their answer. The page then says this one is only in the
+    // other language rather than silently showing the wrong one.
+    const { alt, ...extra } = raw
+    const lang = body.language === 'en' ? 'en' : 'sv'
+    const altLang = lang === 'en' ? 'sv' : 'en'
+    const altOk = alt?.title && Array.isArray(alt?.lines) && alt.lines.length
+
+    const pair: ExtraPair = {
+      language: lang,
+      extra: extra as Extra,
+      language_alt: altLang,
+      extra_alt: altOk ? { ...(alt as Extra), minutes: alt!.minutes ?? extra.minutes } : null,
     }
     return json({
-      extra, model: out.model ?? model, source: 'model', repaired,
+      ...pair, model: out.model ?? model, source: 'model', repaired,
       usage: out.usage, ms: Date.now() - t0,
     })
   } catch {
     clearTimeout(timer)
     // Mid-lesson, never show an error where a usable answer will do.
-    return json({ extra: writtenExtra(body), model: 'canned', source: 'fallback', ms: Date.now() - t0 })
+    return fallback('fallback')
   }
 })
