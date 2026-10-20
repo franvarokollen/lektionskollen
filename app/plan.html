@@ -113,7 +113,19 @@
     #student .stbar{display:none}
     #student .bigboard{background:#fff;color:#000;border:2px solid #000;font-size:20px}
   }
+
+  .qmode h1{font-size:22px}
+  .covrow{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .covrow button{flex:1;min-width:110px;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:11px 10px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .covrow button.on{border-color:var(--ink);background:var(--ink);color:#fff}
+  .onlyprint{display:none}
+  .offl{background:#fff7e0;border:1px solid #e8d48a;border-radius:9px;padding:8px 12px;font-size:13px;margin:8px 0}
   @media print{
+    .onlyprint{display:block;page-break-before:always}
+    .stprint .bigboard{background:#fff;color:#000;border:2px solid #000;font-size:20px;white-space:pre-wrap;padding:14px;margin:12px 0}
+    .stprint ol{font-size:17px;line-height:1.7}
+    .stprint h2{font-size:13px;text-transform:uppercase;margin:16px 0 4px}
+    .stprint .mat{border:1px solid #000;padding:8px 12px;margin:6px 0;white-space:pre-wrap}
     .ratebox,.noprint,.assist,.assistbar,.sheet,.note{display:none!important}
     .subhead{background:#fff;color:#000;border:1px solid #000}
     .subwrap{padding-bottom:20px}
@@ -159,6 +171,10 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'
 const $ = (id) => document.getElementById(id);
 
 const SV_LABELS = {
+  quickBtn: '⏱ Har du 5 minuter?', fullBtn: 'Visa hela planen', quickTitle: 'Snabbstart', quickHint: 'Bara det du behöver innan eleverna kommer in.',
+  packBtn: 'Skriv ut paket (plan + elevblad)', offlineNote: 'Sparad kopia – du är offline.', onlineAgain: '',
+  covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftOff: 'Vi stannade vid… (valfritt)',
+  covCopy: 'Kopiera notis till ordinarie lärare', covNote: 'Lektion', covSaid: 'Hur långt vi kom', covLeft: 'Stannade vid',
   forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
   board: 'Skriv på tavlan innan lektionen börjar', need: 'Du behöver:',
@@ -196,6 +212,10 @@ const SV_LABELS = {
   },
 };
 const EN_LABELS = {
+  quickBtn: '⏱ Got 5 minutes?', fullBtn: 'Show full plan', quickTitle: 'Quick start', quickHint: 'Only what you need before the pupils walk in.',
+  packBtn: 'Print pack (plan + student sheet)', offlineNote: 'Saved copy – you are offline.', onlineAgain: '',
+  covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftOff: 'We stopped at… (optional)',
+  covCopy: 'Copy note for the class teacher', covNote: 'Lesson', covSaid: 'How far we got', covLeft: 'Stopped at',
   forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
   board: 'Write on the board before the lesson starts', need: 'You need:',
@@ -240,12 +260,20 @@ async function load() {
     sb.rpc('lk_plan_by_token', { p_token: token }),
     sb.rpc('lk_extras_by_token', { p_token: token }),
   ]);
+  const ck = 'lk.plan.' + token;
+  if (plan.error && !plan.data) {
+    try {
+      const c = JSON.parse(localStorage.getItem(ck) || 'null');
+      if (c && c.plan) { OFFLINE = true; EXTRAS = c.extras || []; render(c.plan); return; }
+    } catch { /* no cache */ }
+  }
   if (plan.error || !plan.data) {
     $('out').innerHTML =
       '<p class="muted">Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.</p>';
     return;
   }
   EXTRAS = Array.isArray(extras.data) ? extras.data : [];
+  try { localStorage.setItem(ck, JSON.stringify({ plan: plan.data, extras: EXTRAS })); } catch { /* private window */ }
   render(plan.data);
 }
 
@@ -413,7 +441,24 @@ function render(d, keepScroll) {
   const choices = Object.keys(all);
   const l = L();
 
+  if (QUICK) {
+    let q = '<div class="qmode"><div class="subhead"><div class="subhead-row"><div><h1>' + esc(l.quickTitle) + ' — ' + esc(p.title) + '</h1>' +
+      '<div class="m">' + esc(l.quickHint) + '</div></div></div></div>' +
+      '<div class="strow noprint"><button class="stbtn" data-quick="0">' + esc(l.fullBtn) + '</button></div>' +
+      '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + esc(l.first90) + '</b><ul style="margin:6px 0 0;padding-left:18px">' +
+        (p.first90||[]).map(x=>'<li>'+esc(x)+'</li>').join('') + '</ul></div></div>' +
+      '<div class="ps"><h4>' + esc(l.board) + '</h4><div class="board">' + esc(p.board) + '</div>' +
+      '<p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment?.need) + '</p></div>' +
+      '<div class="ps"><h4>' + esc(l.clock) + '</h4>' + (p.phases||[]).map((ph) =>
+        '<p style="margin:4px 0;font-size:14px"><span class="clock">' + esc(ph.t) + '</span> <strong>' + esc(ph.n) + '</strong></p>').join('') + '</div>' +
+      '<div class="strow noprint"><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button></div></div>';
+    $('out').innerHTML = q; $('bar').hidden = true;
+    if (keepScroll) window.scrollTo(0, y);
+    return;
+  }
+
   let h =
+    (OFFLINE ? '<div class="offl noprint">' + esc(l.offlineNote) + '</div>' : '') +
     '<div class="subhead"><div class="subhead-row"><div>' +
     '<h1>' + esc(p.title) + '</h1>' +
     '<div class="m">' + esc(d.subject) + ' · ' + esc(d.year_group) + ' · ' + d.minutes + ' min · ' + esc(d.school) + '</div>' +
@@ -434,8 +479,10 @@ function render(d, keepScroll) {
        '<p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment?.need) + '<br>' +
        '<span style="color:var(--ink-soft)">' + esc(p.equipment?.fallback) + '</span></p></div>';
 
-  h += '<div class="strow noprint"><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button>' +
-       '<span class="hint">' + esc(l.forStudentsHint) + '</span></div>';
+  h += '<div class="strow noprint"><button class="stbtn" data-quick="1">' + esc(l.quickBtn) + '</button>' +
+       '<button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button>' +
+       '<button class="stbtn" data-pack>' + esc(l.packBtn) + '</button></div>' +
+       '<p class="hint noprint" style="margin:0 0 10px">' + esc(l.forStudentsHint) + '</p>';
 
   h += '<div class="ps"><h4>' + esc(l.clock) + '</h4>';
   (p.phases||[]).forEach((ph, i) => {
@@ -464,6 +511,15 @@ function render(d, keepScroll) {
   h += '<div class="ps"><h4>' + esc(l.exit) + '</h4><p>' + esc(p.exit?.q) + '<br><span class="ans">' + esc(p.exit?.a) + '</span></p></div>';
   h += '<div class="ps"><h4>' + esc(l.handover) + '</h4><p style="white-space:pre-wrap">' + esc(p.handover) + '</p>' +
        extrasFor('lesson') + '</div>';
+
+  h += '<div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts('lesson').html + '</div></div>';
+
+  h += '<div class="ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' +
+       ['all', 'part', 'none'].map((k) => '<button data-cov="' + k + '"' + (COV === k ? ' class="on"' : '') + '>' +
+         esc(l[{ all: 'covAll', part: 'covPart', none: 'covNone' }[k]]) + '</button>').join('') + '</div>' +
+       '<div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(LEFT) + '">' +
+       '<button data-leftoff>' + esc(l.send) + '</button></div>' +
+       '<div class="strow" id="covcopy"' + (COV ? '' : ' hidden') + '><button class="stbtn" data-covcopy>' + esc(l.covCopy) + '</button></div></div>';
 
   // One question, binary. A tired substitute at the end of a lesson gives
   // you one tap; reasons are optional and only appear after it.
@@ -494,7 +550,8 @@ function render(d, keepScroll) {
 
 /* ── Student sheet: what the pupils see, never the answers ─── */
 let STUDENT_TXT = '';
-function openStudent(which) {
+let QUICK = false, OFFLINE = false, COV = '', LEFT = '';
+function studentParts(which) {
   const l = L();
   const p = bodies(DATA)[LANG] || {};
   let title, board, tasks, mats = [], exit = '';
@@ -508,16 +565,21 @@ function openStudent(which) {
   }
   const txt = [title, '', board, ''].concat(mats.map((m) => m.h + '\n' + m.body + '\n'))
     .concat(tasks.map((q, i) => (i + 1) + '. ' + q)).concat(exit ? ['', l.exit + ': ' + exit] : []).join('\n').trim();
-  STUDENT_TXT = txt;
-  let h = '<div class="in"><div class="stbar noprint"><button class="stbtn" data-stprint>' + esc(l.print) + '</button>' +
-          '<button class="stbtn" data-stcopy>' + esc(l.copyText) + '</button>' +
-          '<button class="stbtn" data-stclose>' + esc(l.close) + '</button></div>' +
-          '<h1>' + esc(title || '') + '</h1>';
+  let h = '<h1>' + esc(title || '') + '</h1>';
   if (board) h += '<div class="bigboard">' + esc(board) + '</div>';
   mats.forEach((m) => { h += '<h2>' + esc(m.h) + '</h2><div class="mat">' + esc(m.body) + '</div>'; });
   if (tasks.length) h += '<h2>' + esc(l.tasksNow.replace(/ med facit| with answers/i, '')) + '</h2><ol>' + tasks.map((q) => '<li>' + esc(q) + '</li>').join('') + '</ol>';
   if (exit) h += '<h2>' + esc(l.exit) + '</h2><p style="font-size:19px">' + esc(exit) + '</p>';
-  h += '</div>';
+  return { html: h, txt };
+}
+
+function openStudent(which) {
+  const l = L();
+  const { html, txt } = studentParts(which);
+  STUDENT_TXT = txt;
+  const h = '<div class="in"><div class="stbar noprint"><button class="stbtn" data-stprint>' + esc(l.print) + '</button>' +
+          '<button class="stbtn" data-stcopy>' + esc(l.copyText) + '</button>' +
+          '<button class="stbtn" data-stclose>' + esc(l.close) + '</button></div>' + html + '</div>';
   let el = document.getElementById('student');
   if (!el) { el = document.createElement('div'); el.id = 'student'; document.body.appendChild(el); }
   el.innerHTML = h; el.hidden = false; el.scrollTop = 0;
@@ -541,6 +603,35 @@ document.addEventListener('click', async (e) => {
     if (st.hasAttribute('data-stprint')) return window.print();
     try { await navigator.clipboard.writeText(STUDENT_TXT); st.textContent = l.copiedTxt; setTimeout(() => { st.textContent = l.copyText; }, 1600); }
     catch { /* clipboard blocked */ }
+    return;
+  }
+
+  const qk = e.target.closest('[data-quick]');
+  if (qk && DATA) { QUICK = qk.getAttribute('data-quick') === '1'; render(DATA); window.scrollTo(0, 0); return; }
+  if (e.target.closest('[data-pack]')) { window.print(); return; }
+
+  const cov = e.target.closest('[data-cov]');
+  const lo = e.target.closest('[data-leftoff]');
+  if (cov || lo) {
+    if (cov) {
+      COV = cov.getAttribute('data-cov');
+      document.querySelectorAll('#covrow button').forEach((b) => b.classList.toggle('on', b === cov));
+    }
+    LEFT = $('leftoff')?.value || '';
+    if (!COV) return;
+    $('covcopy').hidden = false;
+    const { error } = await sb.rpc('lk_rate_coverage_by_token', { p_token: token, p_coverage: COV, p_left_off: LEFT });
+    $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
+    return;
+  }
+  if (e.target.closest('[data-covcopy]')) {
+    const p = bodies(DATA)[LANG] || {};
+    LEFT = $('leftoff')?.value || LEFT;
+    const txt = l.covNote + ': ' + (p.title || '') + '\n' + l.covSaid + ': ' +
+      l[{ all: 'covAll', part: 'covPart', none: 'covNone' }[COV]] + (LEFT ? '\n' + l.covLeft + ': ' + LEFT : '') +
+      (p.handover ? '\n\n' + p.handover : '');
+    const btn = e.target.closest('[data-covcopy]');
+    try { await navigator.clipboard.writeText(txt); btn.textContent = l.copiedTxt; setTimeout(() => { btn.textContent = l.covCopy; }, 1600); } catch { /* blocked */ }
     return;
   }
 
