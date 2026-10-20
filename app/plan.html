@@ -173,8 +173,7 @@ const $ = (id) => document.getElementById(id);
 const SV_LABELS = {
   quickBtn: '⏱ Har du 5 minuter?', fullBtn: 'Visa hela planen', quickTitle: 'Snabbstart', quickHint: 'Bara det du behöver innan eleverna kommer in.',
   packBtn: 'Skriv ut paket (plan + elevblad)', offlineNote: 'Sparad kopia – du är offline.', onlineAgain: '',
-  covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftOff: 'Vi stannade vid… (valfritt)',
-  covCopy: 'Kopiera notis till ordinarie lärare', covNote: 'Lektion', covSaid: 'Hur långt vi kom', covLeft: 'Stannade vid',
+  covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftLbl: 'Anteckning till ordinarie lärare (valfritt)', leftOff: 'T.ex. "Hann uppgift 1–4, tog slut på tid"', leftHint: 'Sparas så att ordinarie lärare kan läsa den.',
   forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
   board: 'Skriv på tavlan innan lektionen börjar', need: 'Du behöver:',
@@ -214,8 +213,7 @@ const SV_LABELS = {
 const EN_LABELS = {
   quickBtn: '⏱ Got 5 minutes?', fullBtn: 'Show full plan', quickTitle: 'Quick start', quickHint: 'Only what you need before the pupils walk in.',
   packBtn: 'Print pack (plan + student sheet)', offlineNote: 'Saved copy – you are offline.', onlineAgain: '',
-  covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftOff: 'We stopped at… (optional)',
-  covCopy: 'Copy note for the class teacher', covNote: 'Lesson', covSaid: 'How far we got', covLeft: 'Stopped at',
+  covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftLbl: 'Note for the class teacher (optional)', leftOff: 'e.g. "Finished tasks 1–4, ran out of time"', leftHint: 'Saved so the class teacher can read it.',
   forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
   board: 'Write on the board before the lesson starts', need: 'You need:',
@@ -518,9 +516,10 @@ function render(d, keepScroll) {
   h += '<div class="ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' +
        ['all', 'part', 'none'].map((k) => '<button data-cov="' + k + '"' + (COV === k ? ' class="on"' : '') + '>' +
          esc(l[{ all: 'covAll', part: 'covPart', none: 'covNone' }[k]]) + '</button>').join('') + '</div>' +
+       '<label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label>' +
        '<div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(LEFT) + '">' +
        '<button data-leftoff>' + esc(l.send) + '</button></div>' +
-       '<div class="strow" id="covcopy"' + (COV ? '' : ' hidden') + '><button class="stbtn" data-covcopy>' + esc(l.covCopy) + '</button></div></div>';
+       '<p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p></div>';
 
   // One question, binary. A tired substitute at the end of a lesson gives
   // you one tap; reasons are optional and only appear after it.
@@ -620,22 +619,10 @@ document.addEventListener('click', async (e) => {
     }
     LEFT = $('leftoff')?.value || '';
     if (!COV) return;
-    $('covcopy').hidden = false;
     const { error } = await sb.rpc('lk_rate_coverage_by_token', { p_token: token, p_coverage: COV, p_left_off: LEFT });
     $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
     return;
   }
-  if (e.target.closest('[data-covcopy]')) {
-    const p = bodies(DATA)[LANG] || {};
-    LEFT = $('leftoff')?.value || LEFT;
-    const txt = l.covNote + ': ' + (p.title || '') + '\n' + l.covSaid + ': ' +
-      l[{ all: 'covAll', part: 'covPart', none: 'covNone' }[COV]] + (LEFT ? '\n' + l.covLeft + ': ' + LEFT : '') +
-      (p.handover ? '\n\n' + p.handover : '');
-    const btn = e.target.closest('[data-covcopy]');
-    try { await navigator.clipboard.writeText(txt); btn.textContent = l.copiedTxt; setTimeout(() => { btn.textContent = l.covCopy; }, 1600); } catch { /* blocked */ }
-    return;
-  }
-
   const pick = e.target.closest('[data-pick]');
   if (pick && DATA) {
     LANG = pick.getAttribute('data-pick');
