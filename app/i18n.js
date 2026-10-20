@@ -4,7 +4,7 @@ window.LK_T = {
   sv: {
     navSection: 'Navigering',
     navCover: 'Daglig vikarie',
-    navFeedback: 'Återkoppling', cov_all: 'Hela planen', cov_part: 'En del', cov_none: 'Knappt något', stoppedAt: 'Stannade vid', onlyOther: 'Finns bara på annat språk', titleFeedback: 'Återkoppling från vikarier', toReview: 'att granska', keep: 'Behåll', hide: 'Dölj', keptToast: 'Behålls och syns för alla', hiddenToast: 'Dold', queueTitle: 'Att granska', queueEmpty: 'Inget nytt att granska.', plansTitle: 'Planer och vad vikarierna sa', fbEmpty: 'Ingen återkoppling än.', wouldReuse: 'skulle använda igen', heatTitle: 'Där vikarien behövde hjälp', subSaid: 'Vikarien skrev', wholeLesson: 'Hela lektionen',
+    navFeedback: 'Återkoppling', noSubRatings: 'Inga vikarieomdömen än', newPlan: 'Ny', neededHelp: 'hjälp behövdes', rankNote: 'Sorterad: bäst först. Varje femte plats går till en ny plan med färre än 5 omdömen, så nya planer syns också.', cov_all: 'Hela planen', cov_part: 'En del', cov_none: 'Knappt något', stoppedAt: 'Stannade vid', onlyOther: 'Finns bara på annat språk', titleFeedback: 'Återkoppling från vikarier', toReview: 'att granska', keep: 'Behåll', hide: 'Dölj', keptToast: 'Behålls och syns för alla', hiddenToast: 'Dold', queueTitle: 'Att granska', queueEmpty: 'Inget nytt att granska.', plansTitle: 'Planer och vad vikarierna sa', fbEmpty: 'Ingen återkoppling än.', wouldReuse: 'skulle använda igen', heatTitle: 'Där vikarien behövde hjälp', subSaid: 'Vikarien skrev', wholeLesson: 'Hela lektionen',
     navBank: 'Lektionsbank',
     navRadar: 'Skolradar (Beta)',
     navHub: 'Vikariecentral',
@@ -100,7 +100,7 @@ window.LK_T = {
   en: {
     navSection: 'Navigation',
     navCover: 'Daily Cover',
-    navFeedback: 'Feedback', cov_all: 'All of it', cov_part: 'Part of it', cov_none: 'Hardly any', stoppedAt: 'Stopped at', onlyOther: 'Only in another language', titleFeedback: 'Substitute feedback', toReview: 'to review', keep: 'Keep', hide: 'Hide', keptToast: 'Kept and visible to everyone', hiddenToast: 'Hidden', queueTitle: 'To review', queueEmpty: 'Nothing new to review.', plansTitle: 'Plans and what substitutes said', fbEmpty: 'No feedback yet.', wouldReuse: 'would reuse', heatTitle: 'Where the substitute needed help', subSaid: 'Substitute wrote', wholeLesson: 'Whole lesson',
+    navFeedback: 'Feedback', noSubRatings: 'No substitute ratings yet', newPlan: 'New', neededHelp: 'help needed', rankNote: 'Sorted best first. Every fifth slot goes to a new plan with fewer than 5 ratings, so new plans get seen.', cov_all: 'All of it', cov_part: 'Part of it', cov_none: 'Hardly any', stoppedAt: 'Stopped at', onlyOther: 'Only in another language', titleFeedback: 'Substitute feedback', toReview: 'to review', keep: 'Keep', hide: 'Hide', keptToast: 'Kept and visible to everyone', hiddenToast: 'Hidden', queueTitle: 'To review', queueEmpty: 'Nothing new to review.', plansTitle: 'Plans and what substitutes said', fbEmpty: 'No feedback yet.', wouldReuse: 'would reuse', heatTitle: 'Where the substitute needed help', subSaid: 'Substitute wrote', wholeLesson: 'Whole lesson',
     navBank: 'Lesson bank',
     navRadar: 'School Radar (Beta)',
     navHub: 'Cover Hub',
