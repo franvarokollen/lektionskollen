@@ -27,6 +27,10 @@ export function getPlanForAbsence(absenceRef) {
   return readAll().find((p) => p.absenceRef === absenceRef) || null;
 }
 
+export function getPlan(id) {
+  return readAll().find((p) => p.id === id) || null;
+}
+
 export function savePlan({ absenceRef, request, result }) {
   const list = readAll().filter((p) => !absenceRef || p.absenceRef !== absenceRef);
   const record = {

@@ -1,19 +1,26 @@
-// Single entry point for the UI. Picks direct (local model) or edge (Supabase) mode.
+// Single entry point for the UI. Picks direct (local model) or edge (Supabase) mode at call time.
 import { generateLessonPlan } from '../../supabase/functions/_shared/generate.ts';
 import { supabase } from './supabase.js';
+import { getConfig } from './config.js';
 
-const env = import.meta.env;
-export const AI_MODE = env.VITE_AI_MODE || 'direct';
+let authToken = null;
+/** Host-provided user token (FVK session). Used for the edge function in production. */
+export function setAuthToken(token) {
+  authToken = token || null;
+}
 
-export function aiLabel() {
-  return AI_MODE === 'edge' ? 'Supabase edge' : `Lokal: ${env.VITE_AI_MODEL || '?'}`;
+export function aiLabel(cfg = getConfig()) {
+  return cfg.aiMode === 'edge' ? 'Hosted (Supabase)' : `Local: ${cfg.model}`;
 }
 
 export async function requestLessonPlan(request, absenceRef) {
-  if (AI_MODE === 'edge') {
-    if (!supabase) throw new Error('Supabase är inte konfigurerat (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)');
+  const cfg = getConfig();
+
+  if (cfg.aiMode === 'edge') {
+    if (!supabase) throw new Error('Hosted mode is not configured in this build (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
     const { data, error } = await supabase.functions.invoke('generate-lesson', {
       body: { request, absenceRef },
+      ...(authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {}),
     });
     if (error) {
       let msg = error.message;
@@ -24,9 +31,16 @@ export async function requestLessonPlan(request, absenceRef) {
     return data;
   }
 
-  return generateLessonPlan(request, {
-    baseUrl: env.VITE_AI_BASE_URL || 'http://localhost:1234/v1',
-    model: env.VITE_AI_MODEL || 'local-model',
-    jsonMode: env.VITE_AI_JSON_MODE || 'none',
-  });
+  try {
+    return await generateLessonPlan(request, {
+      baseUrl: cfg.baseUrl,
+      model: cfg.model,
+      jsonMode: cfg.jsonMode,
+    });
+  } catch (e) {
+    if (/Could not reach model/.test(e.message)) {
+      throw new Error(`${e.message}. Is LM Studio/Ollama running with CORS enabled? On a hosted page, allow the browser's "local network access" prompt.`);
+    }
+    throw e;
+  }
 }

@@ -26,7 +26,7 @@ function QA({ items, answerLabel }) {
   );
 }
 
-export default function PlanView({ record, onClose, onRegenerate }) {
+export default function PlanView({ record, onClose, onRegenerate, onSend }) {
   const { t } = useT();
   const p = record.plan || {};
   const r = record.request || {};
@@ -39,8 +39,10 @@ export default function PlanView({ record, onClose, onRegenerate }) {
       <article className="plan">
         <div className="plan-actions no-print">
           <button className="btn primary" onClick={() => window.print()}>{t.print}</button>
-          <button className="btn secondary" disabled title={t.comingPhase2}>{t.sendToSub}</button>
-          {record.absenceRef && <button className="btn ghost" onClick={onRegenerate}>{t.regenerate}</button>}
+          <button className="btn secondary" disabled={!onSend} title={onSend ? '' : t.comingPhase2} onClick={() => onSend?.(record)}>
+            {t.sendToSub}
+          </button>
+          {onRegenerate && <button className="btn ghost" onClick={onRegenerate}>{t.regenerate}</button>}
           <span className="spacer" />
           <button className="btn ghost" onClick={onClose}>{t.close}</button>
         </div>
