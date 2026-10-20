@@ -462,6 +462,7 @@ function coordView(p, r) {
     '<div class="foot">' +
       (state.approved
         ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t('seeSubView')) + '</button>' +
+          (link ? '<button class="btn btn-ghost" data-copymail="' + esc(state.shareToken) + '">' + CHK + '<span class="cl-label">' + esc(t('copyMail')) + '</span></button>' : '') +
           (link ? '<button class="btn btn-primary" data-copylink="' + esc(state.shareToken) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '')
         : '<span class="hint">' + esc(t('nothingBefore')) + '</span><span class="spacer"></span>' +
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
@@ -604,7 +605,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-nav],[data-lang],#refreshbank');
+  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el;
 
@@ -626,18 +627,25 @@ document.addEventListener('click', async (e) => {
   if (t2.hasAttribute('data-viewplan')) return usePlan(t2.getAttribute('data-viewplan'));
   if (t2.hasAttribute('data-usebank')) return usePlan(t2.getAttribute('data-usebank'));
 
-  if (t2.hasAttribute('data-copylink')) {
-    const url = location.href.replace(/[^/]*$/, '') + 'plan.html?t=' + t2.getAttribute('data-copylink');
+  if (t2.hasAttribute('data-copylink') || t2.hasAttribute('data-copymail')) {
+    const tok = t2.getAttribute('data-copylink') || t2.getAttribute('data-copymail');
+    const url = location.href.replace(/[^/]*$/, '') + 'plan.html?t=' + tok;
+    let text = url;
+    if (t2.hasAttribute('data-copymail')) {
+      const r = state.row || {};
+      const what = [r.subject, r.year, r.group && '(' + r.group + ')'].filter(Boolean).join(' ') + (r.start ? ', ' + r.start + '–' + r.end : '');
+      text = t('mailHi') + '\n\n' + t('mailIntro') + ' ' + what + ':\n' + url + '\n\n' + t('mailNote') + '\n\n' + t('mailBye');
+    }
     const label = t2.querySelector('.cl-label') || t2;
     const orig = label.dataset.orig || label.textContent;
     label.dataset.orig = orig;
     let ok = true;
-    try { await navigator.clipboard.writeText(url); }
+    try { await navigator.clipboard.writeText(text); }
     catch {
-      try { const ta = document.createElement('textarea'); ta.value = url; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); }
+      try { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); }
       catch { ok = false; }
     }
-    if (!ok) { toast(url, 12000); return; }
+    if (!ok) { toast(text, 12000); return; }
     clearTimeout(t2._cl);
     t2.classList.remove('copied'); void t2.offsetWidth; t2.classList.add('copied');
     label.textContent = t('copiedShort');
