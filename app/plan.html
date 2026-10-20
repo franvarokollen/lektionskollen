@@ -17,6 +17,12 @@
   .subhead h1{font-size:20px;letter-spacing:-.015em}
   .subhead .m{color:#9fb3c8;font-size:13px;margin-top:4px}
   .ratebox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:22px}
+  .langpick{display:flex;gap:4px;background:rgba(255,255,255,.1);border-radius:10px;padding:3px}
+  .langpick button{border:0;background:transparent;color:rgba(255,255,255,.5);border-radius:7px;
+    padding:5px 12px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
+  .langpick button.on{background:rgba(255,255,255,.18);color:#fff}
+  .subhead-row{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .subhead-row > div:first-child{flex:1;min-width:0}
   .ratebox h3{font-size:15px;margin-bottom:4px}
   @media print{.ratebox,.noprint{display:none!important}.subhead{background:#fff;color:#000;border:1px solid #000}}
 </style>
@@ -32,8 +38,44 @@ const sb = window.supabase.createClient(
   'https://pbamabzbfbkxajntsrmc.supabase.co',
   'sb_publishable_XtMg3eLikZtI-UkNspIwcA_bWGvj428'
 );
-const token = new URLSearchParams(location.search).get('t');
+const params = new URLSearchParams(location.search);
+const token = params.get('t');
+let DATA = null;
+// The substitute may not read Swedish comfortably, so they pick, not the school.
+let LANG = params.get('lang') || (() => { try { return localStorage.getItem('lk.lang') || ''; } catch { return ''; } })();
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const SV_LABELS = {
+  first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
+  board: 'Skriv på tavlan innan det ringer', need: 'Du behöver:',
+  clock: 'Lektionen, på klockan', say: 'Säg', pupils: 'Eleverna:', expect: 'Förväntat:',
+  check: 'Kontrollfråga:', answer: 'Svar:', handouts: 'Allt du delar ut',
+  tasks: 'Uppgifter med facit', earlyStuck: 'Om de blir klara tidigt, om de fastnar',
+  stuck: 'Fastnar', ahead: 'Klara tidigt', wrong: 'Om det går snett', exit: 'Exit ticket',
+  handover: 'Överlämning till ordinarie lärare', worked: 'Fungerade planen?',
+  ratingNote: 'Ditt betyg avgör om den används igen. Tar två sekunder.',
+  thanks: 'Tack — betyget är sparat.', saveFail: 'Kunde inte spara: ',
+};
+const EN_LABELS = {
+  first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
+  board: 'Write on the board before the bell', need: 'You need:',
+  clock: 'The lesson, on the clock', say: 'Say', pupils: 'Pupils:', expect: 'Expected:',
+  check: 'Check question:', answer: 'Answer:', handouts: 'Everything you hand out',
+  tasks: 'Tasks with answers', earlyStuck: 'If they finish early, if they get stuck',
+  stuck: 'Stuck', ahead: 'Finished early', wrong: 'If it goes wrong', exit: 'Exit ticket',
+  handover: 'Handover to the class teacher', worked: 'Did the plan work?',
+  ratingNote: 'Your rating decides whether it gets used again. Takes two seconds.',
+  thanks: 'Thank you — your rating is saved.', saveFail: 'Could not save: ',
+};
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pick]');
+  if (!b || !DATA) return;
+  LANG = b.getAttribute('data-pick');
+  try { localStorage.setItem('lk.lang', LANG); } catch { /* private window */ }
+  render(DATA);
+  window.scrollTo(0, 0);
+});
 
 async function load() {
   if (!token) { document.getElementById('out').innerHTML = '<p class="muted">Länken saknar kod.</p>'; return; }
@@ -46,46 +88,66 @@ async function load() {
   render(data);
 }
 
-function render(d) {
-  const p = d.body || {};
-  let h =
-    '<div class="subhead"><h1>' + esc(p.title) + '</h1>' +
-    '<div class="m">' + esc(d.subject) + ' · ' + esc(d.year_group) + ' · ' + d.minutes + ' min · ' + esc(d.school) + '</div></div>';
+function bodies(d) {
+  const b = {};
+  b[d.language || 'sv'] = d.body;
+  if (d.body_alt && d.language_alt) b[d.language_alt] = d.body_alt;
+  return b;
+}
 
-  h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>De första 90 sekunderna</b>' +
+function render(d) {
+  DATA = d;
+  const all = bodies(d);
+  if (!all[LANG]) LANG = d.language || Object.keys(all)[0];
+  const p = all[LANG] || {};
+  const choices = Object.keys(all);
+
+  let h =
+    '<div class="subhead"><div class="subhead-row"><div>' +
+    '<h1>' + esc(p.title) + '</h1>' +
+    '<div class="m">' + esc(d.subject) + ' · ' + esc(d.year_group) + ' · ' + d.minutes + ' min · ' + esc(d.school) + '</div>' +
+    '</div>' +
+    (choices.length > 1
+      ? '<div class="langpick">' + choices.map((c) =>
+          '<button data-pick="' + c + '"' + (c === LANG ? ' class="on"' : '') + '>' + (c === 'sv' ? 'SV' : 'EN') + '</button>').join('') + '</div>'
+      : '') +
+    '</div></div>';
+
+  const L = LANG === 'en' ? EN_LABELS : SV_LABELS;
+  h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + L.first90 + '</b>' +
        '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90||[]).map(x=>'<li>'+esc(x)+'</li>').join('') + '</ul></div></div>';
 
-  h += '<div class="ps"><h4>Översikt</h4><p>' + esc(p.summary) + '</p>' +
-       '<p style="font-size:13px;color:var(--ink-soft)"><b>Mål:</b> ' + esc(p.goal) + '</p></div>';
+  h += '<div class="ps"><h4>' + L.overview + '</h4><p>' + esc(p.summary) + '</p>' +
+       '<p style="font-size:13px;color:var(--ink-soft)"><b>' + L.goal + '</b> ' + esc(p.goal) + '</p></div>';
 
-  h += '<div class="ps"><h4>Skriv på tavlan innan det ringer</h4><div class="board">' + esc(p.board) + '</div>' +
-       '<p style="margin-top:8px;font-size:13px"><b>Du behöver:</b> ' + esc(p.equipment?.need) + '<br>' +
+  h += '<div class="ps"><h4>' + L.board + '</h4><div class="board">' + esc(p.board) + '</div>' +
+       '<p style="margin-top:8px;font-size:13px"><b>' + L.need + '</b> ' + esc(p.equipment?.need) + '<br>' +
        '<span style="color:var(--ink-soft)">' + esc(p.equipment?.fallback) + '</span></p></div>';
 
-  h += '<div class="ps"><h4>Lektionen, på klockan</h4>';
+  h += '<div class="ps"><h4>' + L.clock + '</h4>';
   (p.phases||[]).forEach(ph => {
     h += '<div class="phase"><div class="phase-h"><span class="clock">' + esc(ph.t) + '</span><strong>' + esc(ph.n) + '</strong></div>' +
-      '<div class="say"><em>Säg</em>' + esc(ph.say) + '</div>' +
-      '<p style="font-size:13px"><b>Eleverna:</b> ' + esc(ph.pupils) + '</p>' +
-      (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>Förväntat:</b> ' + esc(ph.expect) + '</p>' : '') +
-      ((ph.checks||[]).length ? '<p style="font-size:13px;margin-bottom:3px"><b>Kontrollfråga:</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
+      '<div class="say"><em>' + L.say + '</em>' + esc(ph.say) + '</div>' +
+      '<p style="font-size:13px"><b>' + L.pupils + '</b> ' + esc(ph.pupils) + '</p>' +
+      (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + L.expect + '</b> ' + esc(ph.expect) + '</p>' : '') +
+      ((ph.checks||[]).length ? '<p style="font-size:13px;margin-bottom:3px"><b>' + L.check + '</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
         ph.checks.map(c=>'<li>'+esc(c.q)+'<br><span class="ans">Svar: '+esc(c.a)+'</span></li>').join('') + '</ul>' : '') + '</div>';
   });
   h += '</div>';
 
-  h += '<div class="ps"><h4>Allt du delar ut</h4>' +
+  h += '<div class="ps"><h4>' + L.handouts + '</h4>' +
     (p.materials||[]).map(m=>'<div class="mat"><h5>'+esc(m.h)+'</h5><div>'+esc(m.body)+'</div></div>').join('') + '</div>';
-  h += '<div class="ps"><h4>Uppgifter med facit</h4><ol style="font-size:13.5px">' +
+  h += '<div class="ps"><h4>' + L.tasks + '</h4><ol style="font-size:13.5px">' +
     (p.tasks||[]).map(t=>'<li>'+esc(t.q)+' <span class="ans">'+esc(t.a)+'</span></li>').join('') + '</ol></div>';
-  h += '<div class="ps"><h4>Om de blir klara tidigt, om de fastnar</h4><div class="twocol">' +
-    '<div class="callout"><strong>Fastnar</strong>'+esc(p.stuck)+'</div>' +
-    '<div class="callout"><strong>Klara tidigt</strong>'+esc(p.ahead)+'</div></div></div>';
-  h += '<div class="ps"><h4>Om det går snett</h4><p>' + esc(p.wrong) + '</p></div>';
-  h += '<div class="ps"><h4>Exit ticket</h4><p>' + esc(p.exit?.q) + '<br><span class="ans">' + esc(p.exit?.a) + '</span></p></div>';
-  h += '<div class="ps"><h4>Överlämning till ordinarie lärare</h4><p style="white-space:pre-wrap">' + esc(p.handover) + '</p></div>';
+  h += '<div class="ps"><h4>' + L.earlyStuck + '</h4><div class="twocol">' +
+    '<div class="callout"><strong>' + L.stuck + '</strong>'+esc(p.stuck)+'</div>' +
+    '<div class="callout"><strong>' + L.ahead + '</strong>'+esc(p.ahead)+'</div></div></div>';
+  h += '<div class="ps"><h4>' + L.wrong + '</h4><p>' + esc(p.wrong) + '</p></div>';
+  h += '<div class="ps"><h4>' + L.exit + '</h4><p>' + esc(p.exit?.q) + '<br><span class="ans">' + esc(p.exit?.a) + '</span></p></div>';
+  h += '<div class="ps"><h4>' + L.handover + '</h4><p style="white-space:pre-wrap">' + esc(p.handover) + '</p></div>';
 
-  h += '<div class="ratebox"><h3>Fungerade planen?</h3>' +
-       '<p class="muted" style="margin:0 0 10px">Ditt betyg avgör om den används igen. Tar två sekunder.</p>' +
+  h += '<div class="ratebox"><h3>' + L.worked + '</h3>' +
+       '<p class="muted" style="margin:0 0 10px">' + L.ratingNote + '</p>' +
        '<div class="rate" id="rate">' + [1,2,3,4,5].map(n=>'<button data-score="'+n+'">★</button>').join('') + '</div>' +
        '<p id="ratemsg" class="hint" style="margin-top:10px"></p></div>';
 
@@ -97,7 +159,7 @@ function render(d) {
     const score = Number(b.getAttribute('data-score'));
     [...document.querySelectorAll('#rate button')].forEach((x, i) => x.classList.toggle('on', i < score));
     const { error } = await sb.rpc('lk_rate_by_token', { p_token: token, p_score: score, p_comment: null });
-    document.getElementById('ratemsg').textContent = error ? 'Kunde inte spara: ' + error.message : 'Tack — betyget är sparat.';
+    document.getElementById('ratemsg').textContent = error ? L.saveFail + error.message : L.thanks;
   });
 }
 load();
