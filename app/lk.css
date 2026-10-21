@@ -351,3 +351,12 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .whylist li.fail>span{color:var(--warn)}
 .bankcard.hadit{border-color:var(--warn)}
 .hadwarn{margin-top:3px;font-size:11.5px;font-weight:600;color:#9a4d00}
+
+/* Embedded in Frånvarokollen's cover screen: our chrome goes, their panel stays */
+body.embed .sidebar,
+body.embed .topbar,
+body.embed .main > header{display:none}
+body.embed .main{margin:0;padding:0}
+body.embed .overlay{position:static;background:none;padding:0}
+body.embed .addin{max-width:none;width:100%;border-radius:0;box-shadow:none;max-height:none}
+body.embed{overflow:auto}
