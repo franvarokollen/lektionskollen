@@ -152,6 +152,13 @@ a.openbtn:hover{opacity:.92;color:#fff}
 .peek>summary::-webkit-details-marker{display:none}
 .peek>summary::before{content:'▸ '}
 .peek[open]>summary::before{content:'▾ '}
+
+/* How much of the plan is written out */
+.depthrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+.depthrow .dl{font-size:12.5px;color:var(--ink-soft);margin-right:2px}
+.depthrow button{padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;border-radius:8px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
 </head>
 <body>
@@ -186,6 +193,7 @@ const params = new URLSearchParams(location.search);
 const token = params.get('t');
 let DATA = null;
 let LINKED = null;
+let TEACHER = null;
 const ASPECTS = { reuse: '', clarity: '', timefit: '' };
 
 /* The three questions save as they are tapped, so the second tap has to find
@@ -213,6 +221,8 @@ const SV_LABELS = {
   linkedKicker: 'Lektionsplan från skolan', linkedFrom: 'Ordinarie lärares plan', linkedNote: 'Instruktion från ordinarie lärare', linkedBody: 'Den här lektionen har en plan som skolan redan hade. Öppna den med knappen och berätta sedan hur långt ni kom.', noteBody: 'Ordinarie lärare lämnade de här instruktionerna. Berätta efteråt hur långt ni kom.', linkedNoteH: 'Från ordinarie lärare', linkedOpen: 'Öppna planen', linkedPeek: 'Visa den här på sidan', linkedFallback: 'Syns inget eller fel sida? Använd knappen ovan — alla sidor går inte att visa inbäddade.', linkedNoRate: 'Den här planen betygsätts inte. Vi frågar bara hur långt ni kom, så att ordinarie lärare vet var klassen står.',
   qReuse: 'Skulle du använda den här planen igen?', aReuseYes: 'Ja, som den är', aReuseChanges: 'Ja, med ändringar', aReuseNo: 'Nej', qClarity: 'Gick den att hålla utan förberedelse?', aClearFull: 'Helt tydlig', aClearMost: 'Mestadels', aClearNeeded: 'Behövde arbete', qTime: 'Räckte innehållet till lektionen?', aTimeRight: 'Lagom', aTimeLittle: 'För lite', aTimeMuch: 'För mycket', savedSoFar: 'Sparat. Svara gärna på de andra också.',
   noCode: 'Länken saknar kod.', notFound: 'Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.',
+  depthQ: 'Hur mycket vill du ha utskrivet?', depthFull: 'Allt', depthGuided: 'Huvuddragen', depthBrief: 'Bara ramen',
+  tKicker: 'Din lektion medan du var borta', tSubSaid: 'Vad vikarien sa', tQuestion: 'Var det här rätt för din klass?', tWhy: 'Du är den enda som kan avgöra om innehållet stämde. Samordnaren kan det inte, och vikarien kan bara säga om den gick att hålla.', tRight: 'Ja, rätt', tMostly: 'Mest rätt', tWrong: 'Nej', tNoteLbl: 'Vad var fel? (valfritt)', tNotePh: 'T.ex. ”Vi hade redan gjort det här” eller ”Facit på uppgift 2 är fel”', tNoteHint: 'Går till samordnaren. En plan du säger är fel plockas ur den delade poolen.', tThePlan: 'Planen de fick', tThanks: 'Tack — ditt svar är sparat.', covLeftLbl: 'Stannade vid',
   covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftLbl: 'Anteckning till ordinarie lärare (valfritt)', leftOff: 'T.ex. "Hann uppgift 1–4, tog slut på tid"', leftHint: 'Sparas så att ordinarie lärare kan läsa den.',
   forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
@@ -256,6 +266,8 @@ const EN_LABELS = {
   linkedKicker: 'Lesson plan from the school', linkedFrom: "The class teacher's plan", linkedNote: 'Instructions from the class teacher', linkedBody: 'This lesson has a plan the school already had. Open it with the button, then tell us how far you got.', noteBody: "The class teacher left these instructions. Tell us afterwards how far you got.", linkedNoteH: 'From the class teacher', linkedOpen: 'Open the plan', linkedPeek: 'Show it on this page', linkedFallback: "Nothing showing, or the wrong page? Use the button above — not every page can be displayed embedded.", linkedNoRate: 'This plan is not rated. We only ask how far you got, so the class teacher knows where the class is.',
   qReuse: 'Would you use this plan again?', aReuseYes: 'Yes, as it is', aReuseChanges: 'Yes, with changes', aReuseNo: 'No', qClarity: 'Could you teach it without preparing?', aClearFull: 'Completely clear', aClearMost: 'Mostly', aClearNeeded: 'Needed work', qTime: 'Was there enough to fill the lesson?', aTimeRight: 'About right', aTimeLittle: 'Too little', aTimeMuch: 'Too much', savedSoFar: 'Saved. Please answer the others too.',
   noCode: 'The link is missing its code.', notFound: 'The plan could not be found. It may have been removed, or not approved yet. Get in touch with the school.',
+  depthQ: 'How much do you want written out?', depthFull: 'Everything', depthGuided: 'The main points', depthBrief: 'Just the outline',
+  tKicker: 'Your lesson while you were away', tSubSaid: 'What the substitute said', tQuestion: 'Was this right for your class?', tWhy: 'You are the only person who can judge whether the content was correct. The coordinator cannot, and the substitute can only say whether it could be delivered.', tRight: 'Yes, right', tMostly: 'Mostly right', tWrong: 'No', tNoteLbl: 'What was wrong? (optional)', tNotePh: 'e.g. “We had already covered this” or “The answer to task 2 is wrong”', tNoteHint: 'Goes to the coordinator. A plan you say is wrong is taken out of the shared pool.', tThePlan: 'The plan they were given', tThanks: 'Thank you — your answer is saved.', covLeftLbl: 'Stopped at',
   covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftLbl: 'Note for the class teacher (optional)', leftOff: 'e.g. "Finished tasks 1–4, ran out of time"', leftHint: 'Saved so the class teacher can read it.',
   forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
@@ -294,6 +306,71 @@ const EN_LABELS = {
 };
 const L = () => (LANG === 'en' ? EN_LABELS : SV_LABELS);
 
+
+
+/* ── What the class teacher sees ─────────────────────────
+   They are the only person in the chain who can tell whether the content was
+   correct and whether it suited this particular class. The coordinator cannot
+   — they are not a chemist — and the substitute can only report whether it was
+   deliverable, which is a different question entirely.
+
+   Kept to three taps and one optional line, because this is read between
+   lessons by someone who has just come back from being ill. The plan itself is
+   below the question so they can check it, but the question comes first. */
+function renderTeacher(d) {
+  const l = L();
+  TEACHER = d;
+  const all = { [d.language]: d.body };
+  if (d.body_alt && d.language_alt) all[d.language_alt] = d.body_alt;
+  const p = all[LANG] || all[d.language] || {};
+  const said = d.substitute_said || [];
+  const covText = { all: l.covAll, part: l.covPart, none: l.covNone };
+
+  $('out').innerHTML =
+    '<div class="card">' +
+      '<span class="kicker">' + esc(l.tKicker) + '</span>' +
+      '<h1>' + esc(p.title || d.title) + '</h1>' +
+      '<p class="muted">' + esc(d.group_name) + ' · ' +
+        esc(new Date(d.used_on).toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB',
+          { weekday: 'long', day: 'numeric', month: 'long' })) +
+        (d.substitute ? ' · ' + esc(d.substitute) : '') + '</p>' +
+      (said.length
+        ? '<div class="ps"><h3>' + esc(l.tSubSaid) + '</h3>' + said.map((x) =>
+            '<p style="margin:4px 0">' +
+            (x.coverage ? '<b>' + esc(covText[x.coverage] || x.coverage) + '.</b> ' : '') +
+            (x.left_off ? esc(l.covLeftLbl) + ': ' + esc(x.left_off) + '. ' : '') +
+            (x.comment ? esc(x.comment) : '') + '</p>').join('') + '</div>'
+        : '') +
+    '</div>' +
+
+    '<div class="card ratebox noprint">' +
+      '<h3>' + esc(l.tQuestion) + '</h3>' +
+      '<p class="muted" style="margin:0 0 10px">' + esc(l.tWhy) + '</p>' +
+      '<div class="qpick" id="tverdict">' +
+        [['right', l.tRight], ['mostly', l.tMostly], ['wrong', l.tWrong]].map((o) =>
+          '<button data-tv="' + o[0] + '"' + (d.teacher_verdict === o[0] ? ' class="on"' : '') +
+          '>' + esc(o[1]) + '</button>').join('') + '</div>' +
+      '<label for="tnote" style="display:block;font-size:13px;font-weight:600;margin:14px 0 5px">' +
+        esc(l.tNoteLbl) + '</label>' +
+      '<div class="noterow"><input id="tnote" type="text" maxlength="400" placeholder="' +
+        esc(l.tNotePh) + '" value="' + esc(d.teacher_note || '') + '">' +
+        '<button data-tnote>' + esc(l.send) + '</button></div>' +
+      '<p class="hint" style="margin:6px 0 0">' + esc(l.tNoteHint) + '</p>' +
+      '<p id="tmsg" class="hint" style="margin-top:10px"></p>' +
+    '</div>' +
+
+    '<div class="card"><h3>' + esc(l.tThePlan) + '</h3>' +
+      '<p>' + esc(p.summary || '') + '</p>' +
+      '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.goal) + '</b> ' + esc(p.goal || '') + '</p>' +
+      // Parenthesised deliberately: a bare ternary here takes the whole
+      // concatenation above as its condition and throws the card away.
+      ((p.tasks || []).length
+        ? '<h4 style="margin-top:14px">' + esc(l.tasks) + '</h4><ol style="font-size:13.5px">' +
+          (p.tasks || []).map((x) => '<li>' + esc(x.q) + '<br><span class="ans">' + esc(x.a) + '</span></li>').join('') +
+          '</ol>'
+        : '') +
+    '</div>';
+}
 
 /* ── A plan the school already had ───────────────────────
    Wrapped rather than handed over as a bare link: the substitute still gets
@@ -366,6 +443,14 @@ function renderLinked(d) {
 /* ── Loading ─────────────────────────────────────────── */
 async function load() {
   if (!token) { $('out').innerHTML = '<p class="muted">' + esc(L().noCode) + '</p>'; return; }
+
+  // The class teacher's own door. Same link shape, different question: the
+  // substitute is asked whether the lesson could be delivered, the teacher
+  // whether it was right.
+  if (params.get('as') === 'teacher') {
+    const tv = await sb.rpc('lk_teacher_view', { p_token: token });
+    if (tv.data) { renderTeacher(tv.data); return; }
+  }
 
   // A teacher's own plan arrives through the same door as a generated one, so
   // the substitute never has to know which kind they were sent.
@@ -586,8 +671,13 @@ function render(d, keepScroll) {
       : '') +
     '</div></div>';
 
-  h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + esc(l.first90) + '</b>' +
-       '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90||[]).map(x=>'<li>'+esc(x)+'</li>').join('') + '</ul></div></div>';
+  // "Stand at the door and say good morning" is exactly right for someone who
+  // has never done this, and faintly insulting to someone who has done it for
+  // twenty years. It goes at the outline depth.
+  if (DEPTH !== 'brief') {
+    h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + esc(l.first90) + '</b>' +
+         '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90||[]).map(x=>'<li>'+esc(x)+'</li>').join('') + '</ul></div></div>';
+  }
 
   h += '<div class="ps"><h4>' + esc(l.overview) + '</h4><p>' + esc(p.summary) + '</p>' +
        '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.goal) + '</b> ' + esc(p.goal) + '</p></div>';
@@ -601,13 +691,20 @@ function render(d, keepScroll) {
        '<button class="stbtn" data-pack>' + esc(l.packBtn) + '</button></div>' +
        '<p class="hint noprint" style="margin:0 0 10px">' + esc(l.forStudentsHint) + '</p>';
 
+  h += '<div class="depthrow noprint"><span class="dl">' + esc(l.depthQ) + '</span>' +
+    [['full', l.depthFull], ['guided', l.depthGuided], ['brief', l.depthBrief]].map((d) =>
+      '<button data-depth="' + d[0] + '"' + (DEPTH === d[0] ? ' class="on"' : '') + '>' + esc(d[1]) + '</button>').join('') +
+    '</div>';
+
   h += '<div class="ps"><h4>' + esc(l.clock) + '</h4>';
   (p.phases||[]).forEach((ph, i) => {
     const ref = 'phase:' + i;
+    // The answers survive every depth. A teacher who needs no script still
+    // wants the key, and a key is the thing a substitute cannot improvise.
     h += '<div class="phase"><div class="phase-h"><span class="clock">' + esc(ph.t) + '</span><strong>' + esc(ph.n) + '</strong></div>' +
-      '<div class="say"><em>' + esc(l.say) + '</em>' + esc(ph.say) + '</div>' +
-      '<p style="font-size:13px"><b>' + esc(l.pupils) + '</b> ' + esc(ph.pupils) + '</p>' +
-      (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.expect) + '</b> ' + esc(ph.expect) + '</p>' : '') +
+      (DEPTH === 'full' ? '<div class="say"><em>' + esc(l.say) + '</em>' + esc(ph.say) + '</div>' : '') +
+      (DEPTH === 'brief' ? '' : '<p style="font-size:13px"><b>' + esc(l.pupils) + '</b> ' + esc(ph.pupils) + '</p>') +
+      (DEPTH === 'full' && ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.expect) + '</b> ' + esc(ph.expect) + '</p>' : '') +
       ((ph.checks||[]).length ? '<p style="font-size:13px;margin-bottom:3px"><b>' + esc(l.check) + '</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
         ph.checks.map(c=>'<li>'+esc(c.q)+'<br><span class="ans">'+esc(l.answer)+' '+esc(c.a)+'</span></li>').join('') + '</ul>' : '') +
       assistRow(ref, ph.n) + extrasFor(ref) + '</div>';
@@ -678,6 +775,21 @@ function render(d, keepScroll) {
 /* ── Student sheet: what the pupils see, never the answers ─── */
 let STUDENT_TXT = '';
 let QUICK = false, OFFLINE = false, COV = '', LEFT = '';
+
+/* ── How much is written out ─────────────────────────────
+   Substitutes are not interchangeable. One is eighteen and has never stood in
+   front of a class; another taught the subject for twenty years and needs the
+   outline, not a script. The same plan serves both by collapsing, rather than
+   being written three times — so a plan in the bank stays usable by anyone,
+   and the reader can change depth mid-lesson when confidence runs out at
+   minute thirty.
+
+   The control asks how much they want written out, never what they are
+   qualified to teach. Nobody should have to declare themselves untrained to a
+   web page, and a question like that gets answered dishonestly anyway. The
+   default is everything: the confident teacher opts up, the nervous teenager
+   does nothing and is covered. */
+let DEPTH = (() => { try { return localStorage.getItem('lk.depth') || 'full'; } catch { return 'full'; } })();
 function studentParts(which) {
   const l = L();
   const p = bodies(DATA)[LANG] || {};
@@ -735,7 +847,27 @@ document.addEventListener('click', async (e) => {
 
   const qk = e.target.closest('[data-quick]');
   if (qk && DATA) { QUICK = qk.getAttribute('data-quick') === '1'; render(DATA); window.scrollTo(0, 0); return; }
+
+  const dp = e.target.closest('[data-depth]');
+  if (dp && DATA) {
+    DEPTH = dp.getAttribute('data-depth');
+    try { localStorage.setItem('lk.depth', DEPTH); } catch { /* private window */ }
+    render(DATA, true);
+    return;
+  }
   if (e.target.closest('[data-pack]')) { window.print(); return; }
+
+  const tv = e.target.closest('[data-tv]');
+  const tn = e.target.closest('[data-tnote]');
+  if (tv || tn) {
+    const verdict = tv ? tv.getAttribute('data-tv') : null;
+    if (tv) [...$('tverdict').children].forEach((x) => x.classList.toggle('on', x === tv));
+    const { error } = await sb.rpc('lk_teacher_verdict', {
+      p_token: token, p_verdict: verdict, p_note: tn ? $('tnote').value.trim() : null,
+    });
+    $('tmsg').textContent = error ? L().saveFail + error.message : L().tThanks;
+    return;
+  }
 
   const lcov = e.target.closest('[data-lcov]');
   const lleft = e.target.closest('[data-lleft]');

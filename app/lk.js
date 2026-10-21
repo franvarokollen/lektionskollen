@@ -122,7 +122,7 @@ const ROWS = [
     cover: 'Mats Ek', plannable: true, practical: true },
 ];
 
-const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [], model: null, cap: 20, uses: [], share: {}, tab: 'bank' };
+const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [], model: null, cap: 20, uses: [], share: {}, tab: 'bank', checks: {} };
 
 /* ── No login in the test env ───────────────────────
    The lk_* functions fall back to the shared demo school for anonymous
@@ -258,6 +258,41 @@ function openPop(ref, x, y) {
   const w = 300, hGuess = 190;
   el.style.left = Math.min(x, window.innerWidth - w - 12) + 'px';
   el.style.top = Math.min(y, window.innerHeight - hGuess - 12) + 'px';
+}
+
+
+/* ── What the machine can check, so a person does not have to ───
+   A coordinator is not a chemist, a mathematician and a historian. Asking them
+   to approve subject correctness gets approval on trust, which is no check at
+   all. So the structural faults — a question with no answer, phases that do not
+   add up, a missing key — are found here and shown plainly, and the coordinator
+   is asked the question they can actually answer: can a substitute run this? */
+async function checkPlan(id) {
+  if (state.checks[id] !== undefined) return state.checks[id];
+  try {
+    const { data, error } = await sb.functions.invoke('lk-verify', { body: { plan_id: id } });
+    state.checks[id] = error ? null : data;
+  } catch {
+    state.checks[id] = null;
+  }
+  return state.checks[id];
+}
+
+/** The verdict, as a line the coordinator can act on. */
+function checkBanner(v) {
+  if (!v) return '';
+  if (v.ok && !v.warnings) {
+    return '<div class="flag chk ok"><span>✓</span><div>' + esc(t('chkClean')) +
+      (v.subject_checked ? ' ' + esc(t('chkSubject')) : '') + '</div></div>';
+  }
+  const lines = (v.problems || []).map((p) =>
+    '<li class="' + (p.level === 'blocker' ? 'bad' : 'warn') + '"><b>' + esc(p.where) + '</b> — ' +
+    esc(p.detail) + '</li>').join('');
+  return '<div class="flag chk ' + (v.ok ? 'warn' : 'bad') + '"><span>' + (v.ok ? '!' : '✕') + '</span>' +
+    '<div><b>' + esc(v.ok ? fillT('chkWarnings', { n: v.warnings })
+                          : fillT('chkBlockers', { n: v.blockers })) + '</b> ' +
+    esc(v.ok ? t('chkWarnBody') : t('chkBlockBody')) +
+    '<ul class="chklist">' + lines + '</ul></div></div>';
 }
 
 /* ── The plan line ───────────────────────────────────────
@@ -1076,6 +1111,9 @@ async function usePlan(id) {
   $('overlay').hidden = false;
   document.body.style.overflow = 'hidden';
   showPlan();
+  // Checked after the first paint: the plan is readable immediately and the
+  // verdict arrives a moment later, rather than the coordinator waiting on it.
+  checkPlan(data.id).then(() => { if (state.planId === data.id) showPlan(); }).catch(() => {});
 }
 
 function showPlan() {
@@ -1116,11 +1154,14 @@ function showPlan() {
   // long scroll below a whole lesson plan — far enough down that a coordinator
   // opening a draft reasonably concludes there is no way to approve it. The
   // decision belongs where they arrive, not where the document ends.
+  const check = state.checks[state.planId];
+  const checkNote = state.view === 'coordinator' ? checkBanner(check) : '';
   const approveNote = !state.approved && state.view === 'coordinator'
-    ? '<div class="approvebar"><div><b>' + esc(t('apTitle')) + '</b> ' + esc(t('apBody')) + '</div>' +
+    ? '<div class="approvebar"><div><b>' + esc(t('coordAsk')) + '</b> ' + esc(t('apBody')) +
+      '<br><span class="hint">' + esc(t('coordAskNote')) + '</span></div>' +
       '<button class="btn btn-ok btn-sm" data-approve>' + esc(t('approve')) + '</button></div>'
     : '';
-  $('addin-content').innerHTML = head + approveNote + simNote + fallbackNote + fbBox +
+  $('addin-content').innerHTML = head + checkNote + approveNote + simNote + fallbackNote + fbBox +
     (state.view === 'coordinator' ? coordView(p, r) : vikarieView(p, r)) + '</div>';
 }
 
