@@ -337,6 +337,41 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
+<meta name="lk-build" content="edd73f918c03">
+<script>
+// ── Is this page the one we deployed? ─────────────────────
+// GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
+// to change that, so a link opened the day after it was sent can render the
+// previous build. The page carries the build it was made from and asks.
+//
+// Two things make the answer trustworthy. cache:'no-store' keeps the browser
+// from answering out of its own cache, and the timestamp makes the URL one the
+// CDN has never seen, so it cannot answer from the edge either. Without the
+// timestamp version.txt would be cached for the same ten minutes as the page it
+// is meant to police.
+//
+// A failed fetch means offline, and offline is exactly when the cached page is
+// the right thing to show. So it is ignored.
+(function () {
+  var BUILD = document.querySelector('meta[name="lk-build"]').content;
+  if (!BUILD) return;
+  try { if (sessionStorage.getItem('lk.sawBuild') === BUILD) return; } catch (e) { /* private window */ }
+  fetch('./version.txt?_=' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.text() : null; })
+    .then(function (live) {
+      if (!live) return;
+      live = live.trim();
+      if (!live || live === BUILD) return;
+      // Remember the build we are leaving, so a reload that somehow lands on it
+      // again stops here instead of looping.
+      try { sessionStorage.setItem('lk.sawBuild', BUILD); } catch (e) { /* ignore */ }
+      var u = new URL(location.href);
+      u.searchParams.set('_v', live);
+      location.replace(u.toString());
+    })
+    .catch(function () { /* offline: the cached page is the point */ });
+})();
+</script>
 </head>
 <body>
 <div class="subwrap">

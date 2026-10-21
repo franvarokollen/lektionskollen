@@ -1,0 +1,7 @@
+#!/bin/sh
+# Keep the build stamp honest: anything staged under app/ restamps the pages.
+# Install once:  ln -s ../../tools/pre-commit .git/hooks/pre-commit
+if git diff --cached --name-only | grep -q '^app/'; then
+  node tools/stamp-build.mjs || exit 1
+  git add app/index.html app/plan.html app/version.txt
+fi
