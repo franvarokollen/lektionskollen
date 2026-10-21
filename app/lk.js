@@ -983,16 +983,21 @@ function showRequest() {
     '<div><div class="sect-h">' + esc(t('steer')) + '</div><div class="steer">' +
       '<label class="f full">' + esc(t('fTopic')) + '<input id="s-topic" placeholder="' + esc(t('fTopicPh')) + '"></label>' +
       '<label class="f full">' + esc(t('fNotes')) + '<textarea id="s-notes" rows="2" placeholder="' + esc(t('fNotesPh')) + '"></textarea></label>' +
+      // One choice left, from four. The other three asked the coordinator to
+      // decide things that belong to whoever ends up reading the plan, and that
+      // the plan can carry all of at once:
+      //   difficulty          -> three task tiers, picked in the plan
+      //   subject knowledge   -> the depth switch, picked in the plan
+      //   plan language       -> both are always generated; the plan toggles
+      // "New material" is gone too: a substitute who may not know the subject
+      // cannot teach it in small steps and re-teach what does not land. When a
+      // class genuinely must start something new, the class teacher links their
+      // own plan instead.
       '<label class="f">' + esc(t('fType')) + '<select id="s-type">' +
-        (r.practical ? ['typeTheory', 'typeContinue', 'typePractical'] : ['typeRevision', 'typeNew', 'typeDeep', 'typeQuiet'])
+        (r.practical ? ['typeTheory', 'typeContinue', 'typePractical'] : ['typeRevision', 'typeDeep', 'typeQuiet'])
           .map((k) => '<option>' + esc(t(k)) + '</option>').join('') +
       '</select></label>' +
-      '<label class="f">' + esc(t('fLevel')) + '<select id="s-level">' +
-        ['lvlStandard', 'lvlAdapted', 'lvlStretch'].map((k) => '<option>' + esc(t(k)) + '</option>').join('') + '</select></label>' +
-      '<label class="f">' + esc(t('fKnow')) + '<select id="s-know">' +
-        ['knowNone', 'knowSome', 'knowFull'].map((k) => '<option>' + esc(t(k)) + '</option>').join('') + '</select></label>' +
-      '<label class="f">' + esc(t('fLang')) + '<select id="s-lang">' +
-        '<option value="sv">' + esc(t('langSv')) + '</option><option value="en">' + esc(t('langEn')) + '</option></select></label>' +
+      '<p class="hint full" style="margin:2px 0 0">' + esc(t('fTypeHint')) + '</p>' +
       '<div class="full"><div class="sect-h" style="margin-bottom:6px">' + esc(t('fRes')) + '</div><div class="chips">' +
         ['resWhiteboard', 'resProjector', 'resComputers', 'resBooks', 'resMini']
           .map((k, i) => '<button class="tog' + (i === 0 ? ' on' : '') + '" data-res>' + esc(t(k)) + '</button>').join('') +
@@ -1020,9 +1025,9 @@ function gatherRequest() {
     topic: $('s-topic')?.value || '',
     notes: $('s-notes')?.value || '',
     lesson_type: $('s-type')?.value || '',
-    level: $('s-level')?.value || '',
-    sub_knowledge: $('s-know')?.value || '',
-    language: $('s-lang')?.value || 'sv',
+    // Always both languages: lk-generate writes one and translates it, so the
+    // plan carries sv and en and the reader toggles.
+    language: 'sv',
     resources: [...document.querySelectorAll('[data-res].on')].map((b) => b.textContent),
   };
 }

@@ -240,7 +240,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="5ea1f7ca2806">
+<meta name="lk-build" content="04b742f028ba">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -347,6 +347,8 @@ const SV_LABELS = {
   teachBtn: '▶ Starta lektionsläge', prepBtn: '← Hela planen', projBtn: 'Visa för klassen',
   nextPhase: 'Nästa', prevPhase: 'Tillbaka', phaseOf: 'av',
   projTitle: 'På tavlan', projHint: 'Stäng',
+  tierQ: 'Uppgifter:', tierSupport: 'Mer stöd', tierStandard: 'Standard', tierChallenge: 'Mer utmaning',
+  tierHint: 'Samma mål, tre nivåer. Byt när som helst — eleverna ser ingen nivå på sitt blad.',
   tKicker: 'Din lektion medan du var borta', tSubSaid: 'Vad vikarien sa', tQuestion: 'Var det här rätt för din klass?', tWhy: 'Du är den enda som kan avgöra om innehållet stämde. Samordnaren kan det inte, och vikarien kan bara säga om den gick att hålla.', tRight: 'Ja, rätt', tMostly: 'Mest rätt', tWrong: 'Nej', tNoteLbl: 'Vad var fel? (valfritt)', tNotePh: 'T.ex. ”Vi hade redan gjort det här” eller ”Facit på uppgift 2 är fel”', tNoteHint: 'Går till samordnaren. En plan du säger är fel plockas ur den delade poolen.', tThePlan: 'Planen de fick', tThanks: 'Tack — ditt svar är sparat.', covLeftLbl: 'Stannade vid',
   covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftLbl: 'Anteckning till ordinarie lärare (valfritt)', leftOff: 'T.ex. "Hann uppgift 1–4, tog slut på tid"', leftHint: 'Sparas så att ordinarie lärare kan läsa den.',
   forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
@@ -401,6 +403,8 @@ const EN_LABELS = {
   teachBtn: '▶ Start teach mode', prepBtn: '← Full plan', projBtn: 'Show to the class',
   nextPhase: 'Next', prevPhase: 'Back', phaseOf: 'of',
   projTitle: 'On the board', projHint: 'Close',
+  tierQ: 'Tasks:', tierSupport: 'More support', tierStandard: 'Standard', tierChallenge: 'More challenge',
+  tierHint: 'Same goal, three levels. Switch at any time — pupils see no level on their sheet.',
   tKicker: 'Your lesson while you were away', tSubSaid: 'What the substitute said', tQuestion: 'Was this right for your class?', tWhy: 'You are the only person who can judge whether the content was correct. The coordinator cannot, and the substitute can only say whether it could be delivered.', tRight: 'Yes, right', tMostly: 'Mostly right', tWrong: 'No', tNoteLbl: 'What was wrong? (optional)', tNotePh: 'e.g. “We had already covered this” or “The answer to task 2 is wrong”', tNoteHint: 'Goes to the coordinator. A plan you say is wrong is taken out of the shared pool.', tThePlan: 'The plan they were given', tThanks: 'Thank you — your answer is saved.', covLeftLbl: 'Stopped at',
   covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftLbl: 'Note for the class teacher (optional)', leftOff: 'e.g. "Finished tasks 1–4, ran out of time"', leftHint: 'Saved so the class teacher can read it.',
   forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
@@ -927,12 +931,18 @@ let TEACH = false, TPHASE = 0;
    default is everything: the confident teacher opts up, the nervous teenager
    does nothing and is covered. */
 let DEPTH = (() => { try { return localStorage.getItem('lk.depth') || 'full'; } catch { return 'full'; } })();
+// Which tier the pupil sheet prints. The sheet itself never says which — a
+// pupil handed "More support" at the top of the page has been told something
+// about themselves that they did not ask to be told.
+let STIER = 'core';
+
 function studentParts(which) {
   const l = L();
   const p = bodies(DATA)[LANG] || {};
   let title, board, tasks, mats = [], exit = '';
   if (which === 'lesson') {
-    title = p.title; board = p.board; tasks = (p.tasks || []).map((x) => x.q);
+    title = p.title; board = p.board;
+    tasks = (p.tasks || []).filter((x) => (x.tier || 'core') === STIER).map((x) => x.q);
     mats = p.materials || []; exit = p.exit?.q || '';
   } else {
     const x = EXTRAS.find((e) => String(e.id) === which.slice(2));
@@ -953,7 +963,17 @@ function openStudent(which) {
   const l = L();
   const { html, txt } = studentParts(which);
   STUDENT_TXT = txt;
-  const h = '<div class="in"><div class="stbar noprint"><button class="stbtn" data-stprint>' + esc(l.print) + '</button>' +
+  const p = bodies(DATA)[LANG] || {};
+  const has = (k) => (p.tasks || []).some((x) => (x.tier || 'core') === k);
+  const picker = which !== 'lesson' || !(has('support') || has('extension')) ? '' :
+    '<span class="stier">' + esc(l.tierQ) + '</span>' +
+    [['support', l.tierSupport], ['core', l.tierStandard], ['extension', l.tierChallenge]]
+      .filter((x) => has(x[0]))
+      .map((x) => '<button class="stbtn' + (STIER === x[0] ? ' on' : '') + '" data-stier="' + x[0] + '">' +
+        esc(x[1]) + '</button>').join('');
+  const h = '<div class="in"><div class="stbar noprint">' + picker +
+          '<span class="stsp"></span>' +
+          '<button class="stbtn" data-stprint>' + esc(l.print) + '</button>' +
           '<button class="stbtn" data-stcopy>' + esc(l.copyText) + '</button>' +
           '<button class="stbtn" data-stclose>' + esc(l.close) + '</button></div>' + html + '</div>';
   let el = document.getElementById('student');
@@ -982,6 +1002,9 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('click', async (e) => {
   const l = L();
+
+  const sti = e.target.closest('[data-stier]');
+  if (sti) { STIER = sti.getAttribute('data-stier'); openStudent('lesson'); return; }
 
   const st = e.target.closest('[data-student],[data-stprint],[data-stcopy],[data-stclose]');
   if (st) {

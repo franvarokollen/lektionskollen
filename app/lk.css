@@ -631,3 +631,26 @@ body.panelmode .seam{flex:0 0 auto}
 .reg-h-misc .n{background:#8a3b4e;color:#fff}
 .planview{display:block}
 .planview .reg:last-child{margin-bottom:0}
+
+/* ── Task tiers ───────────────────────────────────────────
+   Support, core and extension together, because a class needs all three at
+   once and the only person who can tell which pupil needs which is the one
+   in the room. The names are for the adult; a pupil sheet carries none. */
+.tiers{display:grid;gap:11px;margin:9px 0 0}
+@media (min-width:900px){ .tiers{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start} }
+.tier{border:1px solid var(--line-soft);border-radius:10px;padding:9px 10px;background:#fcfdfe}
+.tier h5{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;margin:0 0 7px;
+  display:flex;align-items:center;gap:6px}
+.tier h5::before{content:'';width:8px;height:8px;border-radius:50%;flex:none}
+.tier.t-support{border-color:#cfe0ef;background:#f6fafd}
+.tier.t-support h5{color:#1d5c93} .tier.t-support h5::before{background:#1d5c93}
+.tier.t-core h5{color:var(--ink-soft)} .tier.t-core h5::before{background:var(--ink-soft)}
+.tier.t-extension{border-color:#dcd3e8;background:#faf8fd}
+.tier.t-extension h5{color:#6b4fa0} .tier.t-extension h5::before{background:#6b4fa0}
+.tier .qa{margin-bottom:6px}
+.tier .qa:last-child{margin-bottom:0}
+@media (min-width:900px){ .tier .qa{grid-template-columns:1fr} .tier .qa .a{border-left:0;border-top:1px solid #cfe4d8} }
+.stbar .stier{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);
+  align-self:center;margin-right:2px}
+.stbar .stsp{flex:1}
+.stbar .stbtn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
