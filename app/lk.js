@@ -133,7 +133,7 @@ function boot() {
   renderNav();
   enterApp()
     .then(() => Promise.all([loadFeedback(), loadUses()]))
-    .then(() => { if (EMBED) openEmbed(); })
+    .then(() => (EMBED ? openEmbed() : loadCoverPlans().then(renderRows)))
     .catch(() => {});
 }
 
@@ -161,25 +161,259 @@ async function enterApp() {
 }
 
 /* ── Cover table ───────────────────────────────────── */
-function renderRows() {
-  $('rows').innerHTML = ROWS.map((r) => {
-    const action = !r.plannable
-      ? '<span class="nolesson">' + esc(t(r.whyKey)) + '</span>'
-      : '<button class="btn btn-primary btn-sm" data-open="' + r.id + '">' + esc(t('needPlan')) + '</button>';
-    return '<tr' + (r.plannable ? '' : ' class="muted"') + '>' +
-      '<td class="mono">' + esc(r.time) + '</td>' +
-      '<td class="who">' + esc(r.teacher) + '</td>' +
-      '<td>' + (r.group ? esc(r.group) : '<span class="nolesson">—</span>') + '</td>' +
-      '<td>' + (r.plannable
-        ? esc(r.subject) + ' <span class="nolesson" style="font-style:normal">(' + esc(r.raw) + ')</span>'
-        : esc(r.raw)) + '</td>' +
-      '<td>' + esc(r.room || '—') + '</td>' +
-      '<td>' + (r.cover
-        ? '<span class="chip chip-ok">' + esc(r.cover) + '</span>'
-        : '<span class="chip chip-warn">' + esc(t('uncovered')) + '</span>') + '</td>' +
-      '<td style="text-align:right">' + action + '</td></tr>';
-  }).join('');
+
+/* ── How loud should the add-on be? ──────────────────────
+   The question this replica exists to answer. The same integration at three
+   volumes, switchable live, so the choice is made by looking rather than by
+   arguing:
+
+     quiet   nothing on the grid at all; the plan is in the lesson popover,
+             which is where the coordinator already goes to assign cover.
+     marked  plus a dot on blocks that have a plan — ✓ approved, ○ draft.
+     nudge   plus a line in the header counting covered lessons with no plan.
+
+   Frånvarokollen's own screen is unchanged in all three: no new column, no
+   new tab, nothing moved. */
+let LOUD = (() => { try { return localStorage.getItem('lk.loud') || 'marked'; } catch { return 'marked'; } })();
+
+function setLoud(v) {
+  LOUD = v;
+  try { localStorage.setItem('lk.loud', v); } catch { /* private window */ }
+  renderRows();
+  renderLoudPicker();
 }
+
+function renderLoudPicker() {
+  const el = $('cv-loud');
+  if (!el) return;
+  el.innerHTML = '<span class="lbl">' + esc(t('cvHow')) + '</span>' +
+    [['quiet', 'cvQuiet'], ['marked', 'cvMarked'], ['nudge', 'cvNudge']].map(([v, k]) =>
+      '<button class="' + (LOUD === v ? 'on' : '') + '" data-loud="' + v + '">' + esc(t(k)) + '</button>').join('') +
+    '<span class="hint">' + esc(t('cvHowNote')) + '</span>';
+}
+
+/* ── Plans against cover rows ────────────────────────────
+   In Frånvarokollen this is lk_plan_for_cover, keyed on the cover's own id.
+   Held in a map here so the grid can paint without a request per block. */
+const PLANS = {};
+
+function planFor(ref) { return PLANS[ref] || null; }
+
+async function loadCoverPlans() {
+  await Promise.all(ROWS.filter((r) => r.plannable).map(async (r) => {
+    const { data } = await sb.rpc('lk_plan_for_cover', { p_absence_ref: r.id });
+    if (data) PLANS[r.id] = data;
+  }));
+}
+
+/* ── The lesson popover ──────────────────────────────────
+   Frånvarokollen's own, rebuilt: the cover pill, the notify menu, remove,
+   and for an uncovered lesson the assign control. The add-on contributes the
+   last item and nothing else. Disabled where the real one would act on real
+   data — this replica is for judging placement, not for assigning cover. */
+let POP = null;
+
+function closePop() { POP = null; $('cv-pop').hidden = true; }
+
+function openPop(ref, x, y) {
+  const r = ROWS.find((b) => b.id === ref);
+  if (!r) return;
+  POP = ref;
+  const plan = planFor(ref);
+  const el = $('cv-pop');
+  const planBtn = r.plannable
+    ? '<button class="planbtn ' + (plan ? (plan.approved ? 'done' : 'draft') : 'new') + '" data-planopen="' + esc(r.id) + '">' +
+        '<span>' + (plan && plan.approved ? '✓' : '📄') + '</span>' +
+        esc(plan ? (plan.approved ? t('cvOpenPlan') : t('cvPlanDraft')) : t('cvMakePlan')) +
+      '</button>'
+    : '<p class="pnote">' + esc(t(r.whyKey || 'whyRast')) + '</p>';
+
+  el.innerHTML =
+    '<div class="pophead">' +
+      '<p class="ph">' + esc([r.group, r.subject].filter(Boolean).join(' ') || r.raw) +
+        (r.room ? '<span class="rm">' + esc(r.room) + '</span>' : '') + '</p>' +
+      '<p class="pm">' + esc(t('cvWas')) + ': ' + esc(r.teacher) + ' • ' + esc(r.time) + ' • ' + r.mins + ' min</p>' +
+    '</div>' +
+    (r.cover
+      ? '<div class="poprow"><span class="covpill">✓ ' + esc(r.cover) + '</span>' +
+        '<span class="popicons"><button disabled title="' + esc(t('cvNotify')) + '">✉</button>' +
+        '<button disabled title="' + esc(t('cvRemove')) + '">×</button></span></div>'
+      : '<div class="poprow"><select disabled><option>' + esc(t('cvAssign')) + '</option></select></div>') +
+    planBtn;
+
+  el.hidden = false;
+  // Keep the panel on screen, as the real one does.
+  const w = 300, hGuess = 190;
+  el.style.left = Math.min(x, window.innerWidth - w - 12) + 'px';
+  el.style.top = Math.min(y, window.innerHeight - hGuess - 12) + 'px';
+}
+
+/* ── The Lektionskollen panel ────────────────────────────
+   What the drop-in component renders: a right-hand drawer over the cover
+   screen, our app inside it in embed mode. Here it is the same overlay the
+   rest of this prototype uses, dressed as that drawer, so the feel is right
+   without a second copy of the plan UI. */
+function openPlanPanel(ref) {
+  const r = ROWS.find((b) => b.id === ref);
+  if (!r) return;
+  closePop();
+  document.body.classList.add('panelmode');
+  openAddin(ref);
+}
+
+/* ── Daily Cover ─────────────────────────────────────────
+   A replica of Frånvarokollen's cover screen, close enough to judge the
+   add-on inside it: the coverage donut, the absent-staff chips, and the
+   timeline grid with one column per absent teacher and lessons positioned
+   by time. The block colours are FVK's own — green covered, amber
+   uncovered, red cancelled — and a block carries only what fits at its
+   height, as theirs does.
+
+   The add-on adds nothing to this screen. A lesson block is 22-60px tall
+   and has no room for a button, so the plan lives one click deep, in the
+   popover the coordinator already opens to assign cover. */
+
+const GRID = { gutter: 54, colMin: 150, pxPerHour: 76 };
+
+function hhmmToMins(t) {
+  const [h, m] = String(t || '0:0').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** Lessons that need a substitute, grouped into a column per absent teacher. */
+function gridModel() {
+  const cols = [];
+  ROWS.forEach((r) => {
+    let c = cols.find((x) => x.teacher === r.teacher);
+    if (!c) { c = { teacher: r.teacher, blocks: [] }; cols.push(c); }
+    c.blocks.push(r);
+  });
+  const all = ROWS.map((r) => [hhmmToMins(r.start), hhmmToMins(r.end)]);
+  const from = Math.floor(Math.min(...all.map((x) => x[0])) / 60) * 60;
+  const to = Math.ceil(Math.max(...all.map((x) => x[1])) / 60) * 60;
+  const marks = [];
+  for (let m = from; m <= to; m += 60) marks.push(m);
+  return { cols, from, to, span: Math.max(1, to - from), marks };
+}
+
+function coverageStats() {
+  const plannable = ROWS.filter((r) => r.plannable);
+  const covered = plannable.filter((r) => r.cover).length;
+  const teachers = new Set(ROWS.map((r) => r.teacher)).size;
+  return {
+    total: plannable.length,
+    covered,
+    uncovered: plannable.length - covered,
+    absent: teachers,
+    pct: plannable.length ? Math.round((covered / plannable.length) * 100) : 0,
+  };
+}
+
+/** FVK's donut: a red ring with the covered share drawn over it in green. */
+function donut(pct) {
+  const size = 72, sw = 7, r = (size - sw) / 2, c = 2 * Math.PI * r;
+  return '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="' + (pct === 0 ? '#e5e7eb' : '#fecaca') + '" stroke-width="' + sw + '"/>' +
+    (pct > 0
+      ? '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="#16a34a" stroke-width="' + sw +
+        '" stroke-dasharray="' + c + '" stroke-dashoffset="' + (c * (1 - pct / 100)) +
+        '" stroke-linecap="round" transform="rotate(-90 36 36)"/>'
+      : '') +
+    '<text x="36" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="var(--ink)">' + pct + '%</text>' +
+    '<text x="36" y="48" text-anchor="middle" font-size="8" font-weight="600" fill="' +
+      (pct >= 100 ? '#16a34a' : 'var(--ink-soft)') + '" letter-spacing="0.5">' +
+      esc(t('cvCovered').toUpperCase()) + '</text>';
+}
+
+function renderRows() {
+  const st = coverageStats();
+  const d = new Date('2026-10-21T12:00:00');
+  const loc = LANG === 'sv' ? 'sv-SE' : 'en-GB';
+  $('cv-kicker').textContent = t('cvToday') + ' · ' + t('cvWeek') + ' 43';
+  $('cv-day').innerHTML = esc(d.toLocaleDateString(loc, { weekday: 'long' })) +
+    ' <b>' + d.getDate() + '</b> ' + esc(d.toLocaleDateString(loc, { month: 'long' }));
+  $('cv-donut').innerHTML = donut(st.pct);
+  $('cv-need').textContent = st.uncovered
+    ? st.uncovered + ' ' + t(st.uncovered === 1 ? 'cvLesson' : 'cvLessons') + ' ' + t('cvNeedCover')
+    : t('cvAllCovered');
+  $('cv-counts').textContent =
+    st.absent + ' ' + t('cvAbsent') + ' · ' + st.total + ' ' + t('cvLessons') + ' · ' + st.covered + ' ' + t('cvCovered');
+
+  // Absent staff, one card each, with how far their day is covered.
+  const g = gridModel();
+  $('cv-chips').innerHTML = g.cols.map((c) => {
+    const mine = c.blocks.filter((b) => b.plannable);
+    const cov = mine.filter((b) => b.cover).length;
+    const all = mine.length > 0 && cov === mine.length;
+    return '<div class="schip' + (all ? ' done' : '') + '">' +
+      '<span class="sname">' + esc(c.teacher) + '</span>' +
+      (mine.length
+        ? '<span class="sstat' + (all ? ' ok' : '') + '">' + (all ? '✓ ' + esc(t('cvChipCovered')) : cov + '/' + mine.length + ' ' + esc(t('cvChipCoveredN'))) + '</span>' +
+          '<span class="sbar"><i class="' + (all ? 'ok' : '') + '" style="width:' + Math.round(cov / mine.length * 100) + '%"></i></span>'
+        : '<span class="sstat">' + esc(t('cvChipAbsent')) + '</span>') +
+      (all ? '<span class="stick">✓</span>' : '') + '</div>';
+  }).join('');
+
+  // The nudge: covered lessons whose substitute has nothing to teach from.
+  const gap = ROWS.filter((r) => r.plannable && r.cover && !planFor(r.id)).length;
+  $('cv-nudge').hidden = !(LOUD === 'nudge' && gap > 0);
+  if (LOUD === 'nudge' && gap > 0) {
+    $('cv-nudge').innerHTML = '<span>📄</span><div>' +
+      esc(fillT('cvGapLine', { n: gap === 1 ? t('cvGap1') : fillT('cvGapN', { n: gap }) })) + '</div>' +
+      '<button class="btn btn-soft btn-sm" data-planfirst>' + esc(t('cvGapBtn')) + '</button>';
+  }
+  renderLoudPicker();
+
+  // The grid itself.
+  const h = Math.round(g.span / 60 * GRID.pxPerHour);
+  const top = (m) => ((m - g.from) / g.span) * 100;
+  const lines = g.marks.map((m) => '<div class="hline" style="top:' + top(m) + '%"></div>').join('');
+
+  $('cv-grid').style.minWidth = (GRID.gutter + g.cols.length * GRID.colMin) + 'px';
+  $('cv-grid').innerHTML =
+    '<div class="gutter" style="width:' + GRID.gutter + 'px">' +
+      '<div class="colhead"></div><div class="canvas" style="height:' + h + 'px">' +
+      g.marks.map((m) => '<span class="hmark" style="top:calc(' + top(m) + '% - 6px)">' + minsToHHMM(m) + '</span>').join('') +
+      '</div></div>' +
+    '<div class="cols">' + g.cols.map((c) =>
+      '<div class="col" style="min-width:' + GRID.colMin + 'px">' +
+        '<div class="colhead"><span>' + esc(c.teacher) + '</span></div>' +
+        '<div class="canvas" style="height:' + h + 'px">' + lines +
+        c.blocks.map((b) => blockHtml(b, g, h)).join('') +
+        '</div></div>').join('') + '</div>';
+}
+
+/** What a block calls itself. Break duty and working time have no class or
+ *  subject, so they show the timetable's own word for them. */
+function blockTitle(b) {
+  const parts = [b.group, b.subject].filter((x) => x && x !== '—');
+  return parts.length ? parts.join(' ') : b.raw;
+}
+
+function minsToHHMM(m) {
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+/** One lesson. Status decides the colour; height decides how much it can say. */
+function blockHtml(b, g, gridH) {
+  const s = hhmmToMins(b.start), e = hhmmToMins(b.end);
+  const topPct = ((s - g.from) / g.span) * 100;
+  const hPct = ((e - s) / g.span) * 100;
+  const px = hPct / 100 * gridH;
+  const status = !b.plannable ? 'nonteach' : b.cover ? 'covered' : 'uncovered';
+  const plan = planFor(b.id);
+  return '<div class="blk ' + status + '" role="button" tabindex="0" data-blk="' + esc(b.id) + '"' +
+    ' style="top:calc(' + topPct + '% + 1px);height:calc(' + hPct + '% - 3px);min-height:22px"' +
+    ' title="' + esc([b.group, b.subject].filter(Boolean).join(' ') + ' · ' + b.time + (b.cover ? ' · ✓ ' + b.cover : '')) + '">' +
+    '<p class="bt">' + esc(blockTitle(b)) + '</p>' +
+    (px >= 34 ? '<p class="bm">' + esc(b.time) + '</p>' : '') +
+    (px >= 48 && b.cover ? '<p class="bc">✓ ' + esc(b.cover) + '</p>' : '') +
+    (plan && LOUD !== 'quiet' && px >= 30
+      ? '<span class="bplan' + (plan.approved ? ' ok' : '') + '" title="' + esc(t(plan.approved ? 'cvHasPlan' : 'cvPlanDraft')) + '">' +
+        (plan.approved ? '✓' : '○') + '</span>'
+      : '') +
+    '</div>';
+}
+
 
 /* ── Bank ──────────────────────────────────────────── */
 async function loadBank() {
@@ -431,6 +665,8 @@ function closeAddin() {
   if (EMBED) { toParent('lk:close', {}); return; }
   $('overlay').hidden = true;
   document.body.style.overflow = '';
+  document.body.classList.remove('panelmode');
+  if (state.screen === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
 }
 
 function showRequest() {
@@ -817,6 +1053,18 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  const blk = e.target.closest('[data-blk]');
+  if (blk) { const r = blk.getBoundingClientRect(); return openPop(blk.getAttribute('data-blk'), r.right + 6, r.top); }
+  const loud = e.target.closest('[data-loud]');
+  if (loud) return setLoud(loud.getAttribute('data-loud'));
+  const po = e.target.closest('[data-planopen]');
+  if (po) return openPlanPanel(po.getAttribute('data-planopen'));
+  if (e.target.closest('[data-planfirst]')) {
+    const first = ROWS.find((r) => r.plannable && r.cover && !planFor(r.id));
+    if (first) return openPlanPanel(first.id);
+  }
+  if (POP && !e.target.closest('#cv-pop')) closePop();
+
   const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el;
@@ -1050,6 +1298,7 @@ function showScreen(which) {
   $('screen-bank').hidden = which !== 'bank';
   $('screen-feedback').hidden = which !== 'feedback';
   renderNav();
+  if (which === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
   if (which === 'bank') { loadUses().then(renderBank).catch(() => {}); loadBank(); }
   if (which === 'feedback') loadFeedback();
   setTitles();

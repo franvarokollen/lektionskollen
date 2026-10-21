@@ -63,17 +63,48 @@
           <button disabled data-t="tabSubs">Vikarier</button>
           <button disabled data-t="tabLongTerm">Långtidsfrånvaro</button>
         </div>
-        <div class="panel"><div class="tablewrap">
-          <table>
-            <thead><tr>
-              <th data-t="thTime">Tid</th><th data-t="thAbsent">Frånvarande</th>
-              <th data-t="thGroup">Grupp</th><th data-t="thSubject">Ämne</th>
-              <th data-t="thRoom">Rum</th><th data-t="thCover">Vikarie</th>
-              <th style="text-align:right" data-t="thPlan">Lektionsplan</th>
-            </tr></thead>
-            <tbody id="rows"></tbody>
-          </table>
-        </div></div>
+        <!-- Cover header: date, coverage donut, counts, day actions -->
+        <div class="cvhead">
+          <div class="cvdate">
+            <p class="cvkicker" id="cv-kicker">IDAG · VECKA 43</p>
+            <h1 id="cv-day"></h1>
+          </div>
+          <div class="cvright">
+            <div class="cvstats">
+              <svg id="cv-donut" width="72" height="72" viewBox="0 0 72 72"></svg>
+              <div>
+                <p class="cvneed" id="cv-need"></p>
+                <p class="cvcounts" id="cv-counts"></p>
+              </div>
+            </div>
+            <div class="cvacts">
+              <button class="btn btn-ghost btn-sm" disabled data-t="cvAddAbsence">Lägg till frånvaro</button>
+              <button class="btn btn-cta btn-sm" disabled data-t="cvCoverExt">Täck allt externt</button>
+              <button class="btn btn-ghost btn-sm" disabled data-t="cvDayNotes">Dagsanteckningar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Covered lessons with no plan — the loudest of the three placements -->
+        <div class="nudge" id="cv-nudge" hidden></div>
+
+        <!-- Absent staff chips -->
+        <div class="chipstrip" id="cv-chips"></div>
+
+        <!-- View toggle -->
+        <div class="cvtoggle">
+          <button class="on" data-t="cvTimeline">Tidslinje</button>
+          <button disabled data-t="cvByTeacher">Per lärare</button>
+          <span class="spacer"></span>
+          <button class="addlesson" disabled>+ <span data-t="cvAddLesson">Lägg till lektion</span></button>
+        </div>
+
+        <!-- Timeline grid: one column per absent teacher -->
+        <div class="gridwrap card-elevated"><div class="gridinner" id="cv-grid"></div></div>
+        <p class="note" data-t="cvGridNote"></p>
+
+        <!-- Not part of Frånvarokollen: the design question this replica asks -->
+        <div class="loudpick" id="cv-loud"></div>
       </section>
 
       <section id="screen-bank" hidden>
@@ -127,5 +158,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="./i18n.js"></script>
 <script src="./lk.js"></script>
+<!-- Frånvarokollen's lesson popover -->
+<div class="cvpop" id="cv-pop" hidden></div>
+
 </body>
 </html>
