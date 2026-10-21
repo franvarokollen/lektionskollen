@@ -1267,48 +1267,41 @@ async function previewAssist(opts) {
 }
 
 function vikarieView(p, r) {
-  const L = (x) => esc(x);
+  // One renderer, shared with the substitute's own page. This used to be a
+  // second, parallel implementation; the two drifted and this was the stale
+  // one, which is the one everybody looked at — it is what the FVK iframe
+  // shows. The only coupling left is the label lookup, because the two hosts
+  // carry different i18n.
+  const MAP = {
+    goal: 'goalShort', need: 'youNeed', expect: 'expected',
+    tasks: 'tasksTitle', stuck: 'stuckL', ahead: 'aheadL', wrong: 'goesWrong',
+  };
   const HEAT = fbHeatMap();
-  let h = '<div class="plan">';
-  h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + esc(t('first90')) + '</b>' +
-       '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90 || []).map((x) => '<li>' + L(x) + '</li>').join('') + '</ul></div></div>';
-  h += '<div class="ps"><h4>' + esc(t('overview')) + '</h4><p>' + L(p.summary) + '</p>' +
-       '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(t('goalShort')) + '</b> ' + L(p.goal) + '</p></div>';
-  h += '<div class="ps"><h4>' + esc(t('boardTitle')) + '</h4><div class="board">' + L(p.board) + '</div>' +
-       '<p style="margin-top:8px;font-size:13px"><b>' + esc(t('youNeed')) + '</b> ' + L(p.equipment?.need) + '<br>' +
-       '<span style="color:var(--ink-soft)">' + L(p.equipment?.fallback) + '</span></p></div>';
+  const lbl = (k) => t(MAP[k] || k);
 
-  h += '<div class="ps"><h4>' + esc(t('lessonClock')) + '</h4>';
-  (p.phases || []).forEach((ph, i) => {
-    h += '<div class="phase' + (HEAT['phase:' + i] ? ' flagged' : '') + '"><div class="phase-h"><span class="clock">' + L(ph.t) + '</span><strong>' + L(ph.n) + '</strong>' + fbFlag(HEAT, 'phase:' + i) + '</div>' +
-      '<div class="say"><em>' + esc(t('say')) + '</em>' + L(ph.say) + '</div>' +
-      '<p style="font-size:13px"><b>' + esc(t('pupils')) + '</b> ' + L(ph.pupils) + '</p>' +
-      (ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(t('expected')) + '</b> ' + L(ph.expect) + '</p>' : '') +
-      ((ph.checks || []).length
-        ? '<p style="font-size:13px;margin-bottom:3px"><b>' + esc(t('checkQ')) + '</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
-          ph.checks.map((c) => '<li>' + L(c.q) + '<br><span class="ans">' + esc(t('answer')) + ' ' + L(c.a) + '</span></li>').join('') + '</ul>'
-        : '') + assistRow('phase:' + i, ph.n) + '</div>';
-  });
-  h += '</div>';
+  let h = '<div class="plan"><div class="planview">' +
+    LKPlan.render(p, {
+      lbl,
+      assistRow: (ref, name) => assistRow(ref, name),
+      flag: (ref) => fbFlag(HEAT, ref),
+      // The coordinator is previewing, not teaching: no projector, and the
+      // depth switch belongs to the person in front of the class.
+      projector: false,
+    }) + '</div>';
 
-  h += '<div class="ps"><h4>' + esc(t('handouts')) + '</h4>' +
-    (p.materials || []).map((m) => '<div class="mat"><h5>' + L(m.h) + '</h5><div>' + L(m.body) + '</div></div>').join('') + '</div>';
-  h += '<div class="ps' + (HEAT.tasks ? ' flagged' : '') + '"><h4>' + esc(t('tasksTitle')) + ' ' + fbFlag(HEAT, 'tasks') + '</h4><ol style="font-size:13.5px">' +
-    (p.tasks || []).map((x) => '<li>' + L(x.q) + ' <span class="ans">' + L(x.a) + '</span></li>').join('') + '</ol>' +
-    assistRow('tasks', t('tasksTitle')) + '</div>';
-  h += '<div class="ps"><h4>' + esc(t('earlyStuck')) + '</h4><div class="twocol">' +
-    '<div class="callout"><strong>' + esc(t('stuckL')) + '</strong>' + L(p.stuck) + '</div>' +
-    '<div class="callout"><strong>' + esc(t('aheadL')) + '</strong>' + L(p.ahead) + '</div></div></div>';
-  h += '<div class="ps"><h4>' + esc(t('goesWrong')) + '</h4><p>' + L(p.wrong) + '</p></div>';
-  h += '<div class="ps"><h4>' + esc(t('exitTicket')) + '</h4><p>' + L(p.exit?.q) + '<br><span class="ans">' + L(p.exit?.a) + '</span></p></div>';
-  h += '<div class="ps"><h4>' + esc(t('whoToCall')) + '</h4><p><b>' + esc(t('coordinator')) + '</b> · ' + esc(state.me?.school || '') +
-       '<br><span style="color:var(--ink-soft);font-size:13px">' + esc(t('phoneNote')) + '</span></p></div>';
-  h += '<div class="ps"><h4>' + esc(t('handoverT')) + '</h4><p style="white-space:pre-wrap">' + L(p.handover) + '</p></div>';
-  h += '<div class="ps"><h4>' + esc(t('assistTitle')) + '</h4>' +
+  h += LKPlan.after(p, lbl) +
+    '<section class="reg reg-plain"><div class="reg-h"><span class="n">&#9742;</span>' +
+    esc(t('whoToCall')) + '</div>' +
+    '<p style="font-size:13px"><b>' + esc(t('coordinator')) + '</b> · ' + esc(state.me?.school || '') +
+    '<br><span style="color:var(--ink-soft)">' + esc(t('phoneNote')) + '</span></p></section>';
+
+  h += '<section class="reg reg-plain"><div class="reg-h"><span class="n">+</span>' +
+       esc(t('assistTitle')) + '</div>' +
        '<p class="hint" style="margin:0 0 9px">' + esc(t('assistNote')) + '</p>' +
        '<div class="assist noprint"><span class="hint" style="align-self:center">' + esc(t('minLeft')) + '</span>' +
        [5, 10, 15, 20].map((m) => '<button data-fill="' + m + '">' + m + '</button>').join('') +
-       '</div></div>';
+       '</div></section>';
+
   h += '<div class="foot"><span class="hint">' + esc(t('subSeesThis')) + '</span><span class="spacer"></span>' +
        '<button class="btn btn-ghost" data-view="coordinator">' + esc(t('back')) + '</button></div></div>';
   return h;
