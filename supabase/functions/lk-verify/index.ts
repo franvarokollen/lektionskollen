@@ -2,16 +2,17 @@
 //
 // Two passes, in order of cost and certainty.
 //
-// 1. STRUCTURE — lk_validate_plan in the database. Deterministic, free, and
-//    catches the faults that need no subject knowledge to spot: a question
+// 1. STRUCTURE AND TEACHING — lk_validate_full in the database. Deterministic,
+//    free, and catches the faults that need no subject knowledge to spot: a question
 //    whose answer only points at another answer, phases that do not add up to
-//    the lesson, an exit ticket with no key. This runs always.
+//    the lesson, an exit ticket with no key, a script that promises a worked
+//    example the plan does not contain. This runs always.
 //
 // 2. SUBJECT — a second model call whose only job is to check the answers.
 //    Verification is a far easier task than generation and its output is a
 //    short verdict, so the strongest model available costs almost nothing here.
 //    Skipped when no model is configured, and when the plan came from the
-//    written library, where the answers were written by a person.
+//    authored library, where the answers were written by a person.
 //
 // What this deliberately does NOT do is decide. It reports. A coordinator may
 // know something the checker does not, and a plan held back by a machine with
@@ -62,6 +63,13 @@ async function checkSubject(
   ((body.tasks ?? []) as Record<string, string>[]).forEach((t, i) => {
     pairs.push({ where: `task ${i + 1}`, q: t.q, a: t.a });
   });
+  const rec = body.recall as Record<string, unknown> | undefined;
+  ((rec?.qs ?? []) as Record<string, string>[]).forEach((q, i) => {
+    pairs.push({ where: `recap question ${i + 1}`, q: q.q, a: q.a });
+  });
+  const mo = body.model as Record<string, string> | undefined;
+  if (mo?.p) pairs.push({ where: 'worked example', q: mo.p, a: mo.a });
+  if (mo?.tq) pairs.push({ where: 'one together', q: mo.tq, a: mo.ta });
   const ex = body.exit as Record<string, string> | undefined;
   if (ex?.q) pairs.push({ where: 'exit ticket', q: ex.q, a: ex.a });
   if (!pairs.length) return { ran: false, findings: [], note: 'nothing to check' };
@@ -142,16 +150,17 @@ Deno.serve(async (req) => {
   }
   if (!body) return json({ error: 'no_plan' }, 400);
 
-  const { data: structure, error: vErr } = await db.rpc('lk_validate_plan', {
+  const { data: structure, error: vErr } = await db.rpc('lk_validate_full', {
     p_body: body, p_minutes: minutes,
   });
   if (vErr) return json({ error: vErr.message }, 500);
 
-  // The written library's answers were written by a person; there is nothing
-  // for a model to second-guess, and a check that always passes teaches a
-  // coordinator to ignore checks.
+  // "canned" means the plan was assembled from the authored content library,
+  // where every question and answer was written by a person rather than
+  // generated. There is nothing for a model to second-guess, and a check that
+  // always passes teaches a coordinator to ignore checks.
   const subjectPass = model === 'canned'
-    ? { ran: false, findings: [] as Finding[], note: 'written library — answers are human-written' }
+    ? { ran: false, findings: [] as Finding[], note: 'authored library — answers are human-written' }
     : await checkSubject(body, subject, year);
 
   const problems = [...(structure.problems ?? []), ...subjectPass.findings];

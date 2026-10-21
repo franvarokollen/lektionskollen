@@ -25,6 +25,183 @@
   .subhead-row > div:first-child{flex:1;min-width:0}
   .ratebox h3{font-size:15px;margin-bottom:4px}
 
+  /* ── Layout: the page stops being a column ────────────────
+     The old page was 720px centred, which left half a desktop screen empty
+     while the "if it goes wrong" card sat three screens down — unreachable at
+     exactly the moment it is needed. The margins now carry the two things a
+     substitute looks sideways for: where they are in the lesson, and help. */
+  /* render() writes into #out, so #out is the thing between .subwrap and the
+     columns. display:contents lets its children be the grid items. */
+  @media (min-width:1180px){
+    .subwrap{max-width:1320px;display:grid;gap:26px 26px;align-items:start;
+      grid-template-columns:210px minmax(0,1fr) 290px}
+    #out{display:contents}
+    .subwrap > .full{grid-column:1 / -1}
+    .rail{position:sticky;top:18px;align-self:start}
+    .rail-l{grid-column:1}
+    .rail-r{grid-column:3}
+  }
+  @media (max-width:1179px){ .rail-l{display:none} .rail-r{order:99} }
+
+  /* ── Four registers, not one ──────────────────────────────
+     Everything used to be .ps: a top border and a heading, from the overview to
+     the handover. Nothing told you where the lesson began or ended. */
+  .reg{border-radius:14px;padding:16px 18px;margin-bottom:16px}
+  .reg-h{display:flex;align-items:center;gap:9px;margin-bottom:11px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+  .reg-h .n{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;
+    font-size:11px;font-weight:700;letter-spacing:0}
+
+  /* Before the bell: read once, standing at the door. */
+  .reg-before{background:#eef4fb;border:1px solid #cddff2}
+  .reg-before .reg-h{color:#14407a}
+  .reg-before .reg-h .n{background:#14407a;color:#fff}
+
+  /* Help: amber, and in the margin so it is never scrolled past. */
+  .reg-help{background:var(--warn-bg,#fdf4e3);border:1px solid #e9d4a8}
+  .reg-help .reg-h{color:#7a4f10}
+  .reg-help .reg-h .n{background:#7a4f10;color:#fff}
+  .reg-help .callout{background:rgba(255,255,255,.65);border-radius:9px;padding:9px 11px;
+    font-size:13px;margin-bottom:7px}
+  .reg-help .callout:last-child{margin-bottom:0}
+  .reg-help .callout strong{display:block;font-size:11.5px;text-transform:uppercase;
+    letter-spacing:.06em;color:#7a4f10;margin-bottom:2px}
+
+  /* After: below a hard rule, so the lesson visibly ends. */
+  .after-rule{grid-column:1 / -1;border:0;border-top:2px solid var(--line);margin:30px 0 20px}
+  .reg-after{background:#f4f6f8;border:1px solid var(--line)}
+  .reg-after .reg-h{color:var(--ink-soft)}
+  .reg-after .reg-h .n{background:var(--ink-soft);color:#fff}
+
+  /* ── The lesson: five phases with real boundaries ─────────*/
+  .lesson-h{display:flex;align-items:baseline;gap:10px;margin:4px 0 12px}
+  .lesson-h h2{font-size:17px;letter-spacing:-.01em}
+  .lesson-h span{font-size:12.5px;color:var(--ink-soft)}
+  .ph{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent,#14407a);
+    border-radius:12px;padding:15px 17px;margin-bottom:13px}
+  .ph.k-recall{border-left-color:#7b61a8} .ph.k-model{border-left-color:#14407a}
+  .ph.k-together{border-left-color:#1d7a5f} .ph.k-indep{border-left-color:#b07515}
+  .ph.k-exit{border-left-color:#8a3b4e}
+  .ph-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .ph-n{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;flex:none;
+    background:var(--ink);color:var(--paper);font-size:12px;font-weight:700}
+  .ph.k-recall .ph-n{background:#7b61a8} .ph.k-model .ph-n{background:#14407a}
+  .ph.k-together .ph-n{background:#1d7a5f} .ph.k-indep .ph-n{background:#b07515}
+  .ph.k-exit .ph-n{background:#8a3b4e}
+  .ph-h strong{font-size:15px;letter-spacing:-.01em}
+  .ph-t{margin-left:auto;font:500 12px/1 'Geist Mono',ui-monospace,monospace;
+    color:var(--ink-soft);background:var(--line-soft);padding:4px 8px;border-radius:6px}
+  .ph .say{background:#f7f9fb;border-left:2px solid var(--line);border-radius:0 8px 8px 0;
+    padding:8px 11px;margin:9px 0;font-size:14px}
+  .ph .say em{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-soft);font-style:normal;margin-bottom:2px}
+  .ph .meta{font-size:12.5px;color:var(--ink-soft);margin-top:7px}
+  .ph .meta b{color:var(--ink)}
+
+  /* ── Answers travel with their questions ──────────────────
+     Sweller's split-attention effect: separating a question from its answer
+     makes the reader hold one in working memory while hunting for the other.
+     They used to be in different sections, a scroll apart. */
+  .qa{display:grid;gap:0;border:1px solid var(--line-soft);border-radius:9px;
+    overflow:hidden;margin-bottom:7px}
+  @media (min-width:640px){ .qa{grid-template-columns:1fr minmax(170px,.75fr)} }
+  .qa .q{padding:9px 11px;font-size:13.5px}
+  .qa .a{padding:9px 11px;font-size:13px;background:#eef6f1;border-left:1px solid #cfe4d8;
+    color:#17503c}
+  @media (max-width:639px){ .qa .a{border-left:0;border-top:1px solid #cfe4d8} }
+  .qa .a b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+    opacity:.65;margin-bottom:2px}
+  .qa.num .q{counter-increment:qn}
+  .qa.num .q::before{content:counter(qn) '. ';font-weight:600;color:var(--ink-soft)}
+  .qalist{counter-reset:qn}
+
+  /* ── The worked example ───────────────────────────────────
+     Lemov's double planning, made visible: what goes on the board and what to
+     say while writing it, side by side, so neither has to be invented. */
+  .model{border:1px solid #cddff2;border-radius:11px;overflow:hidden;margin:10px 0}
+  .model-p{background:#14407a;color:#fff;padding:10px 13px;font-size:14px;font-weight:600}
+  .model-st{display:grid;border-top:1px solid #cddff2}
+  @media (min-width:700px){ .model-st{grid-template-columns:minmax(180px,.85fr) 1fr} }
+  .model-st:first-of-type{border-top:0}
+  .model-b{background:#10233b;color:#dce9f7;padding:10px 13px;
+    font:500 13.5px/1.55 'Geist Mono',ui-monospace,monospace;white-space:pre-wrap}
+  .model-s{padding:10px 13px;font-size:13px;background:#fff}
+  .model-a{background:#eef6f1;color:#17503c;padding:9px 13px;font-size:13px;font-weight:600;
+    border-top:1px solid #cfe4d8}
+  .model-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em}
+  .model-lbl span{padding:5px 13px;background:#dce7f4;color:#14407a;font-weight:700}
+  @media (max-width:699px){ .model-lbl{display:none} }
+
+  /* ── Misconceptions ───────────────────────────────────────*/
+  .misc{border:1px solid #e6d2d6;border-radius:10px;overflow:hidden;margin-bottom:8px}
+  .misc .t{background:#fbeff1;color:#8a3b4e;padding:8px 12px;font-size:13.5px;font-weight:600}
+  .misc .w{padding:8px 12px;font-size:12.5px;color:var(--ink-soft);background:#fff}
+  .misc .s{padding:8px 12px;font-size:13px;background:#f7f9fb;border-top:1px solid var(--line-soft)}
+  .misc .s b{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);
+    display:block;margin-bottom:2px}
+
+  /* ── The margin rail ──────────────────────────────────────*/
+  .nav{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+  .nav h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);
+    margin:2px 4px 8px}
+  .nav a{display:block;text-decoration:none;color:inherit;border-radius:8px;padding:7px 9px;
+    font-size:12.5px;line-height:1.35;border-left:3px solid transparent}
+  .nav a:hover{background:var(--line-soft)}
+  .nav a .t{display:block;font:500 11px/1 'Geist Mono',ui-monospace,monospace;color:var(--ink-soft);
+    margin-top:3px}
+  .nav a.k-recall{border-left-color:#7b61a8} .nav a.k-model{border-left-color:#14407a}
+  .nav a.k-together{border-left-color:#1d7a5f} .nav a.k-indep{border-left-color:#b07515}
+  .nav a.k-exit{border-left-color:#8a3b4e}
+  .where{font-size:12.5px;line-height:1.5}
+  .where b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--ink-soft);margin-bottom:3px}
+
+  /* ── Teach mode ───────────────────────────────────────────
+     A substitute mid-lesson is not reading, they are performing. One phase,
+     large type, answers in place, and a bar that does not move. */
+  /* #out is the render target, so the teach view is a grandchild of .subwrap —
+     hiding .subwrap's children would hide it too. In teach mode render() emits
+     nothing else, so showing the view is all that is needed. */
+  .teachview{display:none}
+  body.teach .teachview{display:block}
+  body.teach .subwrap{display:block;max-width:none;padding:0}
+  body.teach{background:var(--paper)}
+  .tv{max-width:900px;margin:0 auto;padding:18px 18px 110px}
+  .tv .ph{border-left-width:6px;padding:22px 24px}
+  .tv .ph-h strong{font-size:22px}
+  .tv .ph-n{width:30px;height:30px;font-size:14px}
+  .tv .ph-t{font-size:14px}
+  .tv .say{font-size:18px;line-height:1.55;padding:13px 16px}
+  .tv .qa .q{font-size:16px;padding:12px 14px}
+  .tv .qa .a{font-size:15px;padding:12px 14px}
+  .tv .model-b{font-size:16px;padding:13px 16px}
+  .tv .model-s{font-size:15px;padding:13px 16px}
+  .tv .meta{font-size:14px}
+  .tvbar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--navy-deep);
+    color:#e8edf2;display:flex;align-items:center;gap:12px;padding:11px 16px;
+    padding-bottom:max(11px,env(safe-area-inset-bottom,0px))}
+  .tvbar .pos{font:500 13px/1 'Geist Mono',ui-monospace,monospace;color:#9fb3c8}
+  .tvbar .sp{flex:1}
+  .tvbar button{border:0;border-radius:9px;padding:10px 16px;font:inherit;font-size:14px;
+    font-weight:600;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}
+  .tvbar button:disabled{opacity:.35;cursor:default}
+  .tvbar button.pri{background:#fff;color:var(--navy-deep)}
+  .tvdots{display:flex;gap:5px}
+  .tvdots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.28)}
+  .tvdots i.on{background:#fff}
+
+  /* ── Projector ────────────────────────────────────────────
+     What the class sees. Answers never appear here. */
+  .proj{position:fixed;inset:0;z-index:90;background:#0b1a2d;color:#f2f7fc;
+    display:grid;place-items:center;padding:5vh 5vw}
+  .proj pre{font:500 clamp(22px,4.2vw,56px)/1.45 'Geist Mono',ui-monospace,monospace;
+    white-space:pre-wrap;margin:0;max-width:100%}
+  .proj .cl{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.14);color:#fff;
+    border:0;border-radius:9px;padding:9px 15px;font:inherit;font-size:14px;cursor:pointer}
+  .proj .ttl{position:absolute;top:18px;left:22px;font-size:14px;color:#8fa9c4;letter-spacing:.04em}
+
+  @media print{ .rail,.tvbar,.proj{display:none!important} .subwrap{display:block;max-width:none} }
+
   /* ── Live assist ───────────────────────────────────────────
      Buttons sit ON the thing they act on, because the hard part
      mid-lesson is saying WHICH bit you mean. Placement answers it. */
@@ -222,6 +399,15 @@ const SV_LABELS = {
   qReuse: 'Skulle du använda den här planen igen?', aReuseYes: 'Ja, som den är', aReuseChanges: 'Ja, med ändringar', aReuseNo: 'Nej', qClarity: 'Gick den att hålla utan förberedelse?', aClearFull: 'Helt tydlig', aClearMost: 'Mestadels', aClearNeeded: 'Behövde arbete', qTime: 'Räckte innehållet till lektionen?', aTimeRight: 'Lagom', aTimeLittle: 'För lite', aTimeMuch: 'För mycket', savedSoFar: 'Sparat. Svara gärna på de andra också.',
   noCode: 'Länken saknar kod.', notFound: 'Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.',
   depthQ: 'Hur mycket vill du ha utskrivet?', depthFull: 'Allt', depthGuided: 'Huvuddragen', depthBrief: 'Bara ramen',
+  beforeBell: 'Innan lektionen börjar', theLesson: 'Lektionen', ifWrong: 'Om något går snett', afterH: 'Efter lektionen',
+  recallH: 'Repetition — vad de redan kan', recallWhy: 'Bygger på',
+  modelH: 'Räknat exempel — du visar först', modelWrite: 'Skriv på tavlan', modelSay: 'Säg medan du skriver',
+  modelAns: 'Svar', togetherH: 'Ett tillsammans',
+  miscH: 'Vanliga fel — och vad du säger', miscWhy: 'Varför de svarar så', miscSay: 'Säg då',
+  whereH: 'Var sakerna finns', railWhere: 'Du är här',
+  teachBtn: '▶ Starta lektionsläge', prepBtn: '← Hela planen', projBtn: 'Visa för klassen',
+  nextPhase: 'Nästa', prevPhase: 'Tillbaka', phaseOf: 'av',
+  projTitle: 'På tavlan', projHint: 'Stäng',
   tKicker: 'Din lektion medan du var borta', tSubSaid: 'Vad vikarien sa', tQuestion: 'Var det här rätt för din klass?', tWhy: 'Du är den enda som kan avgöra om innehållet stämde. Samordnaren kan det inte, och vikarien kan bara säga om den gick att hålla.', tRight: 'Ja, rätt', tMostly: 'Mest rätt', tWrong: 'Nej', tNoteLbl: 'Vad var fel? (valfritt)', tNotePh: 'T.ex. ”Vi hade redan gjort det här” eller ”Facit på uppgift 2 är fel”', tNoteHint: 'Går till samordnaren. En plan du säger är fel plockas ur den delade poolen.', tThePlan: 'Planen de fick', tThanks: 'Tack — ditt svar är sparat.', covLeftLbl: 'Stannade vid',
   covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftLbl: 'Anteckning till ordinarie lärare (valfritt)', leftOff: 'T.ex. "Hann uppgift 1–4, tog slut på tid"', leftHint: 'Sparas så att ordinarie lärare kan läsa den.',
   forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
@@ -267,6 +453,15 @@ const EN_LABELS = {
   qReuse: 'Would you use this plan again?', aReuseYes: 'Yes, as it is', aReuseChanges: 'Yes, with changes', aReuseNo: 'No', qClarity: 'Could you teach it without preparing?', aClearFull: 'Completely clear', aClearMost: 'Mostly', aClearNeeded: 'Needed work', qTime: 'Was there enough to fill the lesson?', aTimeRight: 'About right', aTimeLittle: 'Too little', aTimeMuch: 'Too much', savedSoFar: 'Saved. Please answer the others too.',
   noCode: 'The link is missing its code.', notFound: 'The plan could not be found. It may have been removed, or not approved yet. Get in touch with the school.',
   depthQ: 'How much do you want written out?', depthFull: 'Everything', depthGuided: 'The main points', depthBrief: 'Just the outline',
+  beforeBell: 'Before the lesson starts', theLesson: 'The lesson', ifWrong: 'If something goes wrong', afterH: 'After the lesson',
+  recallH: 'Recap — what they already know', recallWhy: 'Builds on',
+  modelH: 'Worked example — you go first', modelWrite: 'Write on the board', modelSay: 'Say while you write',
+  modelAns: 'Answer', togetherH: 'One together',
+  miscH: 'Common wrong answers — and what to say', miscWhy: 'Why they say it', miscSay: 'Then say',
+  whereH: 'Where things are', railWhere: 'You are here',
+  teachBtn: '▶ Start teach mode', prepBtn: '← Full plan', projBtn: 'Show to the class',
+  nextPhase: 'Next', prevPhase: 'Back', phaseOf: 'of',
+  projTitle: 'On the board', projHint: 'Close',
   tKicker: 'Your lesson while you were away', tSubSaid: 'What the substitute said', tQuestion: 'Was this right for your class?', tWhy: 'You are the only person who can judge whether the content was correct. The coordinator cannot, and the substitute can only say whether it could be delivered.', tRight: 'Yes, right', tMostly: 'Mostly right', tWrong: 'No', tNoteLbl: 'What was wrong? (optional)', tNotePh: 'e.g. “We had already covered this” or “The answer to task 2 is wrong”', tNoteHint: 'Goes to the coordinator. A plan you say is wrong is taken out of the shared pool.', tThePlan: 'The plan they were given', tThanks: 'Thank you — your answer is saved.', covLeftLbl: 'Stopped at',
   covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftLbl: 'Note for the class teacher (optional)', leftOff: 'e.g. "Finished tasks 1–4, ran out of time"', leftHint: 'Saved so the class teacher can read it.',
   forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
@@ -658,7 +853,71 @@ function render(d, keepScroll) {
     return;
   }
 
+  const K = ['k-recall','k-model','k-together','k-indep','k-exit'];
+  const kind = (i) => K[i] || 'k-indep';
+
+  // A question and its answer, side by side. Separating them is the
+  // split-attention effect, and mid-lesson it is a scroll the substitute
+  // cannot afford.
+  const qa = (q, a, num) => !q ? '' :
+    '<div class="qa' + (num ? ' num' : '') + '"><div class="q">' + esc(q) + '</div>' +
+    '<div class="a"><b>' + esc(l.answer) + '</b>' + esc(a || '') + '</div></div>';
+
+  // The worked example: board and script in step pairs, so a substitute with
+  // no subject knowledge has both halves without inventing either.
+  const modelBlock = (m) => !m || !m.p ? '' :
+    '<div class="model"><div class="model-p">' + esc(m.p) + '</div>' +
+    '<div class="model-st model-lbl"><span>' + esc(l.modelWrite) + '</span>' +
+      '<span>' + esc(l.modelSay) + '</span></div>' +
+    (m.st || []).map((st) =>
+      '<div class="model-st"><div class="model-b">' + esc(st.b || '') + '</div>' +
+      '<div class="model-s">' + esc(st.s || '') + '</div></div>').join('') +
+    '<div class="model-a">' + esc(l.modelAns) + ': ' + esc(m.a || '') + '</div></div>';
+
+  const phaseCard = (ph, i, teach) => {
+    const ref = 'phase:' + i;
+    const isModel = i === 1, isTog = i === 2;
+    return '<div class="ph ' + kind(i) + '" id="ph' + i + '">' +
+      '<div class="ph-h"><span class="ph-n">' + (i + 1) + '</span>' +
+      '<strong>' + esc(ph.n) + '</strong><span class="ph-t">' + esc(ph.t) + '</span></div>' +
+      (DEPTH === 'full' && ph.say ? '<div class="say"><em>' + esc(l.say) + '</em>' + esc(ph.say) + '</div>' : '') +
+      (isModel ? modelBlock(p.model) : '') +
+      (i === 0 && p.recall && p.recall.why
+        ? '<p class="meta"><b>' + esc(l.recallWhy) + ':</b> ' + esc(p.recall.why) + '</p>' : '') +
+      (isModel ? '' : (ph.checks || []).map((c) => qa(c.q, c.a)).join('')) +
+      (i === 3 ? '<div class="qalist">' + (p.tasks || []).map((t) => qa(t.q, t.a, true)).join('') + '</div>' : '') +
+      (DEPTH !== 'brief' && ph.pupils ? '<p class="meta"><b>' + esc(l.pupils) + '</b> ' + esc(ph.pupils) + '</p>' : '') +
+      (DEPTH === 'full' && ph.expect && ph.expect !== '—'
+        ? '<p class="meta"><b>' + esc(l.expect) + '</b> ' + esc(ph.expect) + '</p>' : '') +
+      (ph.board ? '<div class="strow noprint" style="margin-top:9px">' +
+        '<button class="stbtn" data-proj="' + i + '">' + esc(l.projBtn) + '</button></div>' : '') +
+      (teach ? '' : assistRow(ref, ph.n) + extrasFor(ref)) +
+      '</div>';
+  };
+
+  const phases = p.phases || [];
+
+  // ── Teach mode: one phase, nothing else ──────────────────
+  if (TEACH) {
+    const i = Math.max(0, Math.min(TPHASE, phases.length - 1));
+    $('out').innerHTML =
+      '<div class="teachview"><div class="tv">' + phaseCard(phases[i], i, true) + '</div>' +
+      '<div class="tvbar"><button data-teach="0">' + esc(l.prepBtn) + '</button>' +
+      '<div class="tvdots">' + phases.map((_, j) =>
+        '<i class="' + (j === i ? 'on' : '') + '"></i>').join('') + '</div>' +
+      '<span class="pos">' + (i + 1) + ' ' + esc(l.phaseOf) + ' ' + phases.length + '</span>' +
+      '<span class="sp"></span>' +
+      '<button data-tph="' + (i - 1) + '"' + (i === 0 ? ' disabled' : '') + '>' + esc(l.prevPhase) + '</button>' +
+      '<button class="pri" data-tph="' + (i + 1) + '"' + (i >= phases.length - 1 ? ' disabled' : '') + '>' +
+        esc(l.nextPhase) + '</button></div></div>';
+    document.body.classList.add('teach');
+    $('bar').hidden = true;
+    return;
+  }
+  document.body.classList.remove('teach');
+
   let h =
+    '<div class="full">' +
     (d.model === 'canned' ? '<div class="offl noprint">' + esc(l.simBanner) + '</div>' : '') +
     (OFFLINE ? '<div class="offl noprint">' + esc(l.offlineNote) + '</div>' : '') +
     '<div class="subhead"><div class="subhead-row"><div>' +
@@ -669,64 +928,74 @@ function render(d, keepScroll) {
       ? '<div class="langpick noprint">' + choices.map((c) =>
           '<button data-pick="' + c + '"' + (c === LANG ? ' class="on"' : '') + '>' + (c === 'sv' ? 'SV' : 'EN') + '</button>').join('') + '</div>'
       : '') +
+    '</div></div>' +
+    '<div class="strow noprint"><button class="stbtn pri" data-teach="1">' + esc(l.teachBtn) + '</button>' +
+    '<button class="stbtn" data-quick="1">' + esc(l.quickBtn) + '</button>' +
+    '<button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button>' +
+    '<button class="stbtn" data-pack>' + esc(l.packBtn) + '</button></div>' +
+    '<div class="depthrow noprint"><span class="dl">' + esc(l.depthQ) + '</span>' +
+    [['full', l.depthFull], ['guided', l.depthGuided], ['brief', l.depthBrief]].map((x) =>
+      '<button data-depth="' + x[0] + '"' + (DEPTH === x[0] ? ' class="on"' : '') + '>' + esc(x[1]) + '</button>').join('') +
     '</div></div>';
 
-  // "Stand at the door and say good morning" is exactly right for someone who
-  // has never done this, and faintly insulting to someone who has done it for
-  // twenty years. It goes at the outline depth.
-  if (DEPTH !== 'brief') {
-    h += '<div class="flag" style="background:#f0f5fb;color:#14407a"><span>①</span><div><b>' + esc(l.first90) + '</b>' +
-         '<ul style="margin:6px 0 0;padding-left:18px">' + (p.first90||[]).map(x=>'<li>'+esc(x)+'</li>').join('') + '</ul></div></div>';
+  // ── Rail: where you are, and help, both always reachable ──
+  h += '<aside class="rail rail-l noprint"><div class="nav"><h4>' + esc(l.railWhere) + '</h4>' +
+    phases.map((ph, i) => '<a href="#ph' + i + '" class="' + kind(i) + '">' + esc(ph.n) +
+      '<span class="t">' + esc(ph.t) + '</span></a>').join('') + '</div></aside>';
+
+  // ── Register 1: before the bell ───────────────────────────
+  h += '<main class="col"><section class="reg reg-before">' +
+    '<div class="reg-h"><span class="n">1</span>' + esc(l.beforeBell) + '</div>' +
+    (DEPTH !== 'brief' && (p.first90 || []).length
+      ? '<ul style="margin:0 0 12px;padding-left:18px;font-size:13.5px">' +
+        p.first90.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+    '<p style="font-size:13.5px;margin-bottom:10px">' + esc(p.summary) + '</p>' +
+    '<p style="font-size:13px;margin-bottom:12px"><b>' + esc(l.goal) + '</b> ' + esc(p.goal) + '</p>' +
+    '<div class="board">' + esc(p.board) + '</div>' +
+    '<p style="margin-top:10px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment && p.equipment.need) +
+    '<br><span style="color:var(--ink-soft)">' + esc(p.equipment && p.equipment.fallback) + '</span></p>' +
+    '</section>';
+
+  // ── Register 2: the lesson ────────────────────────────────
+  h += '<div class="lesson-h"><h2>' + esc(l.theLesson) + '</h2><span>' + d.minutes + ' min</span></div>' +
+    phases.map((ph, i) => phaseCard(ph, i, false)).join('');
+
+  if ((p.misconceptions || []).length) {
+    h += '<section class="reg" style="background:var(--card);border:1px solid var(--line)">' +
+      '<div class="reg-h" style="color:#8a3b4e"><span class="n" style="background:#8a3b4e;color:#fff">!</span>' +
+      esc(l.miscH) + '</div>' +
+      p.misconceptions.map((m) => '<div class="misc"><div class="t">' + esc(m.t) + '</div>' +
+        (m.w ? '<div class="w">' + esc(l.miscWhy) + ': ' + esc(m.w) + '</div>' : '') +
+        '<div class="s"><b>' + esc(l.miscSay) + '</b>' + esc(m.s) + '</div></div>').join('') +
+      '</section>';
   }
 
-  h += '<div class="ps"><h4>' + esc(l.overview) + '</h4><p>' + esc(p.summary) + '</p>' +
-       '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.goal) + '</b> ' + esc(p.goal) + '</p></div>';
+  if ((p.materials || []).length) {
+    h += '<section class="reg" style="background:var(--card);border:1px solid var(--line)">' +
+      '<div class="reg-h"><span class="n">' + esc(l.handouts.slice(0, 1)) + '</span>' + esc(l.handouts) + '</div>' +
+      p.materials.map((m) => '<div class="mat"><h5>' + esc(m.h) + '</h5><div>' + esc(m.body) + '</div></div>').join('') +
+      assistRow('tasks', l.tasks) + extrasFor('tasks') + '</section></main>';
+  } else { h += '</main>'; }
 
-  h += '<div class="ps"><h4>' + esc(l.board) + '</h4><div class="board">' + esc(p.board) + '</div>' +
-       '<p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment?.need) + '<br>' +
-       '<span style="color:var(--ink-soft)">' + esc(p.equipment?.fallback) + '</span></p></div>';
+  // ── Register 3: help, in the margin ───────────────────────
+  h += '<aside class="rail rail-r">' +
+    '<section class="reg reg-help"><div class="reg-h"><span class="n">?</span>' + esc(l.ifWrong) + '</div>' +
+    '<div class="callout"><strong>' + esc(l.stuck) + '</strong>' + esc(p.stuck) + '</div>' +
+    '<div class="callout"><strong>' + esc(l.ahead) + '</strong>' + esc(p.ahead) + '</div>' +
+    '<div class="callout"><strong>' + esc(l.wrong) + '</strong>' + esc(p.wrong) + '</div></section>' +
+    (p.equipment && p.equipment.where
+      ? '<div class="nav where" style="margin-top:14px"><b>' + esc(l.whereH) + '</b>' +
+        esc(p.equipment.where) + '</div>' : '') +
+    '</aside>';
 
-  h += '<div class="strow noprint"><button class="stbtn" data-quick="1">' + esc(l.quickBtn) + '</button>' +
-       '<button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button>' +
-       '<button class="stbtn" data-pack>' + esc(l.packBtn) + '</button></div>' +
-       '<p class="hint noprint" style="margin:0 0 10px">' + esc(l.forStudentsHint) + '</p>';
+  // ── Register 4: after the lesson, below a hard rule ───────
+  h += '<hr class="after-rule noprint">' +
+    '<div class="full"><section class="reg reg-after">' +
+    '<div class="reg-h"><span class="n">4</span>' + esc(l.afterH) + '</div>' +
+    '<p style="font-size:13px;white-space:pre-wrap">' + esc(p.handover) + '</p>' +
+    extrasFor('lesson') + '</section></div>';
 
-  h += '<div class="depthrow noprint"><span class="dl">' + esc(l.depthQ) + '</span>' +
-    [['full', l.depthFull], ['guided', l.depthGuided], ['brief', l.depthBrief]].map((d) =>
-      '<button data-depth="' + d[0] + '"' + (DEPTH === d[0] ? ' class="on"' : '') + '>' + esc(d[1]) + '</button>').join('') +
-    '</div>';
-
-  h += '<div class="ps"><h4>' + esc(l.clock) + '</h4>';
-  (p.phases||[]).forEach((ph, i) => {
-    const ref = 'phase:' + i;
-    // The answers survive every depth. A teacher who needs no script still
-    // wants the key, and a key is the thing a substitute cannot improvise.
-    h += '<div class="phase"><div class="phase-h"><span class="clock">' + esc(ph.t) + '</span><strong>' + esc(ph.n) + '</strong></div>' +
-      (DEPTH === 'full' ? '<div class="say"><em>' + esc(l.say) + '</em>' + esc(ph.say) + '</div>' : '') +
-      (DEPTH === 'brief' ? '' : '<p style="font-size:13px"><b>' + esc(l.pupils) + '</b> ' + esc(ph.pupils) + '</p>') +
-      (DEPTH === 'full' && ph.expect && ph.expect !== '—' ? '<p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.expect) + '</b> ' + esc(ph.expect) + '</p>' : '') +
-      ((ph.checks||[]).length ? '<p style="font-size:13px;margin-bottom:3px"><b>' + esc(l.check) + '</b></p><ul style="margin:0;padding-left:18px;font-size:13px">' +
-        ph.checks.map(c=>'<li>'+esc(c.q)+'<br><span class="ans">'+esc(l.answer)+' '+esc(c.a)+'</span></li>').join('') + '</ul>' : '') +
-      assistRow(ref, ph.n) + extrasFor(ref) + '</div>';
-  });
-  h += '</div>';
-
-  h += '<div class="ps"><h4>' + esc(l.handouts) + '</h4>' +
-    (p.materials||[]).map(m=>'<div class="mat"><h5>'+esc(m.h)+'</h5><div>'+esc(m.body)+'</div></div>').join('') + '</div>';
-
-  h += '<div class="ps"><h4>' + esc(l.tasks) + '</h4><ol style="font-size:13.5px">' +
-    (p.tasks||[]).map(x=>'<li>'+esc(x.q)+' <span class="ans">'+esc(x.a)+'</span></li>').join('') + '</ol>' +
-    assistRow('tasks', l.tasks) + extrasFor('tasks') + '</div>';
-
-  h += '<div class="ps"><h4>' + esc(l.earlyStuck) + '</h4><div class="twocol">' +
-    '<div class="callout"><strong>' + esc(l.stuck) + '</strong>'+esc(p.stuck)+'</div>' +
-    '<div class="callout"><strong>' + esc(l.ahead) + '</strong>'+esc(p.ahead)+'</div></div></div>';
-  h += '<div class="ps"><h4>' + esc(l.wrong) + '</h4><p>' + esc(p.wrong) + '</p></div>';
-  h += '<div class="ps"><h4>' + esc(l.exit) + '</h4><p>' + esc(p.exit?.q) + '<br><span class="ans">' + esc(p.exit?.a) + '</span></p></div>';
-  h += '<div class="ps"><h4>' + esc(l.handover) + '</h4><p style="white-space:pre-wrap">' + esc(p.handover) + '</p>' +
-       extrasFor('lesson') + '</div>';
-
-  h += '<div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts('lesson').html + '</div></div>';
+  h += '<div class="full"><div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts('lesson').html + '</div></div>';
 
   h += '<div class="ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' +
        ['all', 'part', 'none'].map((k) => '<button data-cov="' + k + '"' + (COV === k ? ' class="on"' : '') + '>' +
@@ -775,6 +1044,9 @@ function render(d, keepScroll) {
 /* ── Student sheet: what the pupils see, never the answers ─── */
 let STUDENT_TXT = '';
 let QUICK = false, OFFLINE = false, COV = '', LEFT = '';
+// Teach mode is deliberately NOT remembered across visits: it is a thing you
+// start when the class walks in, not a setting you live in.
+let TEACH = false, TPHASE = 0;
 
 /* ── How much is written out ─────────────────────────────
    Substitutes are not interchangeable. One is eighteen and has never stood in
@@ -832,6 +1104,17 @@ function closeStudent() {
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStudent(); });
 
 /* ── Events ──────────────────────────────────────────── */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const b = document.querySelector('.proj');
+    if (b) { b.remove(); return; }
+    if (TEACH && DATA) { TEACH = false; render(DATA); return; }
+  }
+  if (!TEACH || !DATA || document.querySelector('.proj')) return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') { TPHASE++; render(DATA); window.scrollTo(0, 0); }
+  if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   { TPHASE = Math.max(0, TPHASE - 1); render(DATA); window.scrollTo(0, 0); }
+});
+
 document.addEventListener('click', async (e) => {
   const l = L();
 
@@ -847,6 +1130,39 @@ document.addEventListener('click', async (e) => {
 
   const qk = e.target.closest('[data-quick]');
   if (qk && DATA) { QUICK = qk.getAttribute('data-quick') === '1'; render(DATA); window.scrollTo(0, 0); return; }
+
+  const tm = e.target.closest('[data-teach]');
+  if (tm && DATA) {
+    TEACH = tm.getAttribute('data-teach') === '1';
+    if (TEACH) TPHASE = 0;
+    render(DATA); window.scrollTo(0, 0); return;
+  }
+
+  const tp = e.target.closest('[data-tph]');
+  if (tp && DATA) {
+    TPHASE = parseInt(tp.getAttribute('data-tph'), 10) || 0;
+    render(DATA); window.scrollTo(0, 0); return;
+  }
+
+  // The projector view shows what the class should see, and never an answer.
+  const pj = e.target.closest('[data-proj]');
+  if (pj && DATA) {
+    const all = bodies(DATA); const pp = all[LANG] || {};
+    const ph = (pp.phases || [])[parseInt(pj.getAttribute('data-proj'), 10)];
+    if (!ph || !ph.board) return;
+    const l2 = L();
+    const box = document.createElement('div');
+    box.className = 'proj';
+    box.innerHTML = '<span class="ttl">' + esc(l2.projTitle) + ' — ' + esc(ph.n) + '</span>' +
+      '<button class="cl" data-projclose>' + esc(l2.projHint) + '</button>' +
+      '<pre>' + esc(ph.board) + '</pre>';
+    document.body.appendChild(box);
+    return;
+  }
+  if (e.target.closest('[data-projclose]')) {
+    const b = document.querySelector('.proj'); if (b) b.remove();
+    return;
+  }
 
   const dp = e.target.closest('[data-depth]');
   if (dp && DATA) {
