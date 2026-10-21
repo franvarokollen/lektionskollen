@@ -360,3 +360,94 @@ body.embed .main{margin:0;padding:0}
 body.embed .overlay{position:static;background:none;padding:0}
 body.embed .addin{max-width:none;width:100%;border-radius:0;box-shadow:none;max-height:none}
 body.embed{overflow:auto}
+
+/* ── Daily Cover: a replica of Frånvarokollen's own screen ───────────── */
+.cvhead{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+.cvkicker{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 4px}
+.cvdate h1{font-size:34px;font-weight:300;letter-spacing:-.02em;margin:0;color:var(--ink)}
+.cvdate h1 b{font-size:42px;font-weight:700}
+.cvright{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.cvstats{display:flex;align-items:center;gap:12px}
+.cvneed{font-size:14px;font-weight:600;margin:0;white-space:nowrap;color:var(--ink)}
+.cvcounts{font-size:12px;color:var(--ink-soft);margin:2px 0 0}
+.cvacts{display:flex;gap:8px;flex-wrap:wrap}
+.btn-cta{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+.chipstrip{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px}
+.schip{position:relative;display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:10px;
+  background:#fee2e2;border:1px solid #fca5a5}
+.schip.done{background:#fef2f2;border-color:#fecaca}
+.sname{font-size:12px;font-weight:600;color:#7f1d1d}
+.sstat{font-size:10px;color:#b91c1c}
+.sstat.ok{color:#15803d}
+.sbar{display:block;height:4px;border-radius:999px;background:#fecaca;overflow:hidden}
+.sbar i{display:block;height:4px;border-radius:999px;background:#ef4444}
+.sbar i.ok{background:#22c55e}
+.stick{position:absolute;right:6px;bottom:5px;color:#16a34a;font-size:12px}
+
+.cvtoggle{display:flex;align-items:center;gap:4px;margin-bottom:14px}
+.cvtoggle button{padding:6px 12px;font-size:12px;border-radius:8px;border:1px solid var(--line);
+  background:#fff;color:var(--ink-soft);cursor:pointer}
+.cvtoggle button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.cvtoggle button:disabled{opacity:.55;cursor:default}
+.cvtoggle .addlesson{border-color:#a5b4fc;color:#4338ca;background:#eef2ff}
+
+.gridwrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+.gridinner{display:flex}
+.gutter{position:sticky;left:0;z-index:3;background:#fff;border-right:1px solid var(--line);flex:0 0 auto}
+.cols{display:flex;flex:1}
+.col{border-right:1px solid var(--line);flex:1}
+.col:last-child{border-right:0}
+.colhead{height:40px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  padding:0 8px;background:rgba(250,248,245,.6)}
+.colhead span{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.canvas{position:relative}
+.hmark{position:absolute;right:8px;font-size:10px;color:var(--ink-soft)}
+.hline{position:absolute;left:0;right:0;border-top:1px solid rgba(226,221,214,.5)}
+.blk{position:absolute;left:2px;right:2px;border-radius:6px;border:1px solid;padding:2px 6px;overflow:hidden;
+  cursor:pointer;transition:box-shadow .15s}
+.blk:hover{box-shadow:0 4px 8px -2px rgba(13,35,64,.14);z-index:5}
+.blk.covered{background:#f0fdf4;border-color:#86efac}
+.blk.uncovered{background:#fffbeb;border-color:#fcd34d}
+.blk.nonteach{background:var(--line-soft);border-color:var(--line);opacity:.7}
+.blk .bt{font-size:11px;font-weight:600;line-height:1.2;margin:0;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk .bm{font-size:10px;line-height:1.2;margin:0;color:var(--ink-soft)}
+.blk .bc{font-size:10px;line-height:1.2;margin:0;font-weight:500;color:#15803d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk .bplan{position:absolute;top:2px;right:4px;font-size:10px;color:var(--ink-faint)}
+.blk .bplan.ok{color:#16a34a}
+
+.nudge{display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:14px;border-radius:12px;
+  background:#eef2ff;border:1px solid #c7d2fe;font-size:13px;color:#312e81}
+.nudge div{flex:1}
+
+/* The lesson popover — Frånvarokollen's, with one line added */
+.cvpop{position:fixed;z-index:60;width:300px;background:#fff;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 12px 28px rgba(13,35,64,.18);padding:12px;display:grid;gap:8px}
+.cvpop .ph{font-size:13px;font-weight:600;margin:0;color:var(--ink)}
+.cvpop .ph .rm{font-size:11px;font-weight:400;color:var(--ink-soft);margin-left:8px}
+.cvpop .pm{font-size:11px;color:var(--ink-soft);margin:2px 0 0}
+.poprow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.covpill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:10px;font-size:13px;
+  font-weight:600;color:#166534;background:#dcfce7;border:1px solid #86efac}
+.popicons button{border:0;background:none;color:var(--ink-soft);cursor:default;font-size:14px;padding:4px 6px;border-radius:7px}
+.poprow select{flex:1;font:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.cvpop .pnote{margin:0;font-size:11.5px;color:var(--ink-soft)}
+.planbtn{width:100%;display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:9px;font:inherit;
+  font-size:12px;font-weight:600;text-align:left;cursor:pointer;transition:background .15s}
+.planbtn.new{background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca}
+.planbtn.new:hover{background:#e0e7ff}
+.planbtn.draft{background:var(--warn-bg);border:1px solid #fcd34d;color:#92400e}
+.planbtn.done{background:#f0fdf4;border:1px solid #86efac;color:#166534}
+
+/* The design question, not part of FVK */
+.loudpick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:20px;padding:12px 14px;
+  border:1px dashed var(--line);border-radius:12px;background:#fff}
+.loudpick .lbl{font-size:12px;font-weight:600;color:var(--ink)}
+.loudpick button{padding:5px 11px;font-size:12px;border-radius:8px;border:1px solid var(--line);background:#fff;
+  color:var(--ink-soft);cursor:pointer}
+.loudpick button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.loudpick .hint{flex-basis:100%;font-size:11.5px;color:var(--ink-soft)}
+
+/* The add-on's panel sits over the cover screen, as the drop-in renders it */
+body.panelmode .overlay{justify-content:flex-end;padding:0}
+body.panelmode .addin{max-width:720px;width:100%;height:100vh;max-height:100vh;border-radius:0}
