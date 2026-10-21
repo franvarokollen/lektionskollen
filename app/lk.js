@@ -251,7 +251,10 @@ function openPop(ref, x, y) {
     planBtn;
 
   el.hidden = false;
-  // Keep the panel on screen, as the real one does.
+  // On a phone a 300px panel pinned to a finger lands half off the screen and
+  // over the block it describes, so it docks to the bottom instead. Above that
+  // width it follows the block, as Frånvarokollen's does.
+  if (window.innerWidth < 640) { el.style.left = ''; el.style.top = ''; return; }
   const w = 300, hGuess = 190;
   el.style.left = Math.min(x, window.innerWidth - w - 12) + 'px';
   el.style.top = Math.min(y, window.innerHeight - hGuess - 12) + 'px';
@@ -355,6 +358,13 @@ function openPlanPanel(ref) {
   }
   closePop();
   document.body.classList.add('panelmode');
+  // "Open lesson plan" has to open the plan. Only a slot with nothing on it
+  // yet starts at the request form.
+  if (p && p.kind === 'generated' && p.plan_id) {
+    state.row = r;
+    usePlan(p.plan_id);
+    return;
+  }
   openAddin(ref);
 }
 
