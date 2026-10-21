@@ -25,7 +25,7 @@ export const SCHEMA = `{
                 "expect": string, "board": string,
                 "checks": [ { "q": string, "a": string } ] } ],
   "materials": [ { "h": string, "body": string } ],
-  "tasks": [ { "q": string, "a": string } ],
+  "tasks": [ { "q": string, "a": string, "tier": "support" | "core" | "extension" } ],
   "stuck": string, "ahead": string, "wrong": string,
   "exit": { "q": string, "a": string },
   "handover": string
@@ -81,6 +81,18 @@ export function buildMessages(r: Record<string, unknown>) {
     '',
     'WHERE THINGS ARE. "equipment.where" says where the handouts and kit physically are in the',
     'room. A substitute cannot find the markers.',
+    '',
+    'THREE TIERS OF TASK, and all three are required. Every task carries a "tier":',
+    '  support    2 tasks. The same goal, with the first step given, smaller numbers, or a',
+    '             sentence starter. Reachable by a pupil who did not follow the explanation.',
+    '  core       3 tasks. What most of the class does. These are the ones that go on the',
+    '             board and on the printed handout.',
+    '  extension  2 tasks. The same goal, asked harder: reverse the problem, apply it to a',
+    '             real situation, or ask the pupil to justify. Never just more of the same.',
+    'They are not three difficulties to choose between. All three are on the page at once,',
+    'because thirty pupils need three levels in the same lesson and the person who can tell',
+    'which pupil needs which is the substitute standing in the room.',
+    'The tier is for the adult. Never write a tier name into a task a pupil reads.',
     '6. Check understanding without hands-up (cold call, mini-whiteboards, exit ticket).',
     '7. Structure follows explicit instruction (Skolverket strukturerad undervisning / Rosenshine).',
     `8. "t" on every phase is a REAL CLOCK RANGE starting at ${start}, e.g. "${start}-...". The phases must fill exactly ${r.minutes} minutes.`,
@@ -104,8 +116,10 @@ export function buildMessages(r: Record<string, unknown>) {
     `Topic: ${(r.topic as string)?.trim() || 'Not specified - choose a self-contained topic from the central content that does not depend on the previous lesson.'}`,
     (r.notes as string)?.trim() ? `Notes from the school: ${r.notes}` : '',
     r.lesson_type ? `Lesson type: ${r.lesson_type}` : '',
-    r.level ? `Difficulty: ${r.level}` : '',
-    r.sub_knowledge ? `The substitute's subject knowledge: ${r.sub_knowledge}` : '',
+    // Difficulty and the substitute's subject knowledge used to be asked here.
+    // Both are now answered inside the plan instead, by the person who can see
+    // the class: the three task tiers and the depth switch. Asking a
+    // coordinator to pick one level for thirty pupils was the wrong question.
     `Available in the room: ${Array.isArray(r.resources) && r.resources.length ? (r.resources as string[]).join(', ') : 'whiteboard, paper and pens only'}`,
   ].filter(Boolean).join('\n')
 

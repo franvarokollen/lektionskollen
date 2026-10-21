@@ -78,6 +78,37 @@
         '<div class="model-a">' + esc(t('modelAns')) + ': ' + esc(m.a || '') + '</div></div>';
     }
 
+
+    // ── The three tiers, all on the page at once ───────────
+    // The form used to ask the coordinator to pick one difficulty for the whole
+    // class, in words ("Adapted", "Stretch") that mean nothing outside a
+    // staffroom. Thirty pupils need three levels at the same moment, and the
+    // person who can tell which pupil needs which is the one standing in the
+    // room. So all three are here, each with its answers, and the substitute
+    // points a pupil at the right one.
+    //
+    // The tier names are for the adult. A pupil's sheet never carries one.
+    function tiers(tasks) {
+      var order = ['support', 'core', 'extension'];
+      var names = { support: 'tierSupport', core: 'tierStandard', extension: 'tierChallenge' };
+      var groups = order.map(function (k) {
+        return { k: k, items: tasks.filter(function (x) { return (x.tier || 'core') === k; }) };
+      }).filter(function (g) { return g.items.length; });
+      if (!groups.length) return '';
+      // One tier and no labels is the honest rendering of an untiered plan:
+      // naming a level implies the others exist somewhere.
+      if (groups.length === 1) {
+        return '<div class="qalist">' +
+          groups[0].items.map(function (x) { return qa(x.q, x.a, true); }).join('') + '</div>';
+      }
+      return '<div class="tiers">' + groups.map(function (g) {
+        return '<div class="tier t-' + g.k + '"><h5>' + esc(t(names[g.k])) + '</h5>' +
+          '<div class="qalist">' +
+          g.items.map(function (x) { return qa(x.q, x.a, true); }).join('') + '</div></div>';
+      }).join('') + '</div>' +
+      '<p class="hint" style="margin:8px 0 0">' + esc(t('tierHint')) + '</p>';
+    }
+
     function phaseCard(ph, i) {
       var ref = 'phase:' + i;
       var isModel = i === 1;
@@ -93,8 +124,7 @@
         // The worked example already prints its own problem and answer; printing
         // the phase's check as well said the same thing twice.
         (isModel ? '' : (ph.checks || []).map(function (c) { return qa(c.q, c.a); }).join('')) +
-        (i === 3 ? '<div class="qalist">' +
-          (p.tasks || []).map(function (x) { return qa(x.q, x.a, true); }).join('') + '</div>' : '') +
+        (i === 3 ? tiers(p.tasks || []) : '') +
         (depth !== 'brief' && ph.pupils
           ? '<p class="meta"><b>' + esc(t('pupils')) + '</b> ' + esc(ph.pupils) + '</p>' : '') +
         (depth === 'full' && ph.expect && ph.expect !== '—'

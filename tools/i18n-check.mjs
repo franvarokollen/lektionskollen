@@ -27,9 +27,9 @@ const ok = (msg) => console.log('  ✓ ' + msg);
 
 /** Words that really are spelled the same in both languages. */
 const SAME_BY_DESIGN = new Set([
-  'lvlStandard', 'resWhiteboard', 'exitTicket', 'showInSv', 'showInEn',
-  'langSv', 'langEn', 'min', 'ok',
+  'resWhiteboard', 'exitTicket', 'showInSv', 'showInEn', 'min', 'ok',
   'exit',          // "Exit ticket" is used as-is in Swedish schools
+  'tierStandard',  // "Standard" is the Swedish word too
 ]);
 
 /** Keys declared more than once in one object literal — the silent overwrite. */
