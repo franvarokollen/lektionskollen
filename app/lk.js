@@ -313,6 +313,7 @@ function openLinkBox(ref) {
       '<p class="hint">' + esc(blockTitle(r)) + ' · ' + esc(r.time) + ' · ' + esc(r.teacher) + '</p>' +
       '<label class="f full">' + esc(t('cvPlUrl')) +
         '<input id="lb-url" type="url" placeholder="https://…" value="' + esc(p.url || '') + '"></label>' +
+      '<p class="linkstate" id="lb-state" hidden></p>' +
       '<label class="f full">' + esc(t('cvPlNoteLbl')) +
         '<textarea id="lb-note" rows="3" placeholder="' + esc(t('cvPlNotePh')) + '">' + esc(p.note || '') + '</textarea></label>' +
       '<label class="f full">' + esc(t('cvPlLabel')) +
@@ -322,6 +323,46 @@ function openLinkBox(ref) {
         '<button class="btn btn-primary btn-sm" data-lbsave="' + esc(ref) + '">' + esc(t('save')) + '</button></div>' +
     '</div>';
   $('linkbox').hidden = false;
+  const urlField = $('lb-url');
+  urlField.addEventListener('blur', () => checkLink(urlField.value));
+  if (p.url) checkLink(p.url);
+}
+
+/* ── Is this link any good? ──────────────────────────────
+   Checked when the coordinator pastes it, because they are the only person
+   who can fix it — the substitute meets it at 08:15 with no way to put it
+   right. Advice, never a gate: they may well know the link is fine and the
+   checker wrong.
+
+   What it cannot tell us is said out loud rather than papered over. A private
+   document answers with a perfectly healthy sign-in page, so "reachable" never
+   means "the substitute will get in". */
+async function checkLink(url) {
+  const box = $('lb-state');
+  if (!box) return;
+  const u = (url || '').trim();
+  if (!u) { box.hidden = true; return; }
+  box.hidden = false;
+  box.className = 'linkstate busy';
+  box.textContent = t('lkChecking');
+  let r;
+  try {
+    const { data, error } = await sb.functions.invoke('lk-checklink', { body: { url: u } });
+    r = error ? { status: 'unreachable' } : data;
+  } catch {
+    r = { status: 'unreachable' };
+  }
+  const map = {
+    ok: ['ok', 'lkOk'],
+    missing: ['bad', 'lkMissing'],
+    private: ['warn', 'lkPrivate'],
+    slow: ['warn', 'lkSlow'],
+    unreachable: ['warn', 'lkUnreachable'],
+    bad: ['bad', r && r.reason === 'not_http' ? 'lkNotHttp' : r && r.reason === 'private_address' ? 'lkPrivateAddr' : 'lkNotUrl'],
+  };
+  const m = map[(r && r.status) || 'unreachable'] || map.unreachable;
+  box.className = 'linkstate ' + m[0];
+  box.textContent = t(m[1]);
 }
 
 async function saveLink(ref) {

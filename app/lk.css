@@ -505,3 +505,10 @@ body.panelmode .seam{flex:0 0 auto}
 .approvebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:12px;
   background:var(--warn-bg);border:1px solid #fcd34d;color:#7c4a02;font-size:13px}
 .approvebar div{flex:1;min-width:200px}
+
+/* Advice on a pasted link — never a gate */
+.linkstate{margin:-4px 0 0;font-size:12.5px;line-height:1.4}
+.linkstate.busy{color:var(--ink-faint)}
+.linkstate.ok{color:var(--ok);font-weight:600}
+.linkstate.warn{color:#9a4d00}
+.linkstate.bad{color:#b91c1c;font-weight:600}
