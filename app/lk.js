@@ -584,25 +584,19 @@ function renderBank() {
     g.innerHTML = '<p class="note">' + esc(scope === 'shared' ? t('bankNoneShared') : t('bankEmpty')) + '</p>';
     return;
   }
-  g.innerHTML = state.bank.map((b) =>
-    '<div class="bcard">' +
+  g.innerHTML = state.bank.map((b) => {
+    const st = b.st || {};
+    const sc = st.score != null ? Math.round(st.score * 100) : null;
+    return '<div class="bcard">' +
       '<h4>' + esc(rowTitle(b)) + '</h4>' +
       '<div class="tags">' +
         '<span class="chip chip-neutral">' + esc(b.subject) + '</span>' +
         '<span class="chip chip-neutral">' + esc(b.year_group) + '</span>' +
         '<span class="chip chip-neutral">' + b.minutes + ' min</span>' +
-        (b.shared ? '<span class="chip chip-blue">' + esc(t('shared')) + '</span>'
-                  : '<span class="chip chip-neutral">' + esc(t('onlyOurSchool')) + '</span>') +
+        (b.mine ? '' : '<span class="chip chip-blue">' + esc(b.school || '') + '</span>') +
         (b.approved ? '' : '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>') +
       '</div>' +
-      '<div class="stat">' +
-        (b.n_v > 0
-          ? '<span><b>' + b.yes_v + '/' + b.n_v + '</b> ' + esc(t('wouldReuse')) + '</span>'
-          : '<span class="muted">' + esc(t('noSubRatings')) + '</span>') +
-        (b.is_new && b.approved && !b.shared ? '<span class="chip chip-blue">' + esc(t('newPlan')) + '</span>' : '') +
-        (b.assists > 0 ? '<span class="chip chip-warn">' + b.assists + '× ' + esc(t('neededHelp')) + '</span>' : '') +
-      '</div>' +
-      (() => { const l = shareLine(b); return '<p class="shline ' + l.cls + '">' + esc(l.text) + '</p>'; })() +
+      scoreBlock(b, st, sc) +
       usedLine(b.id) +
       '<details class="whybox" data-why="' + b.id + '"><summary>' +
         esc(b.shared ? t('whyShared') : t('whyNotShared')) + '</summary><div class="whybody">' +
@@ -611,7 +605,53 @@ function renderBank() {
         '<button class="btn btn-soft btn-sm" data-viewplan="' + b.id + '">' + esc(t('open')) + '</button>' +
         (b.approved ? '<button class="btn btn-ghost btn-sm" data-copylink="' + esc(b.share_token) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '') +
       '</div>' +
-    '</div>').join('');
+    '</div>';
+  }).join('');
+}
+
+/* ── What a plan's grade looks like ──────────────────────
+   One number so cards can be compared at a glance, then the three answers it
+   is made of, because "68" on its own tells a coordinator nothing about what
+   to fix. The bars are counts rather than percentages: with four ratings a
+   percentage overstates what is known. */
+function scoreBlock(b, st, sc) {
+  const n = st.n || 0;
+  if (!b.approved) return '<p class="shline muted">' + esc(t('shNotApproved')) + '</p>';
+  if (!n) {
+    return '<div class="scorerow"><span class="scorenew">' + esc(t('scNew')) + '</span>' +
+      '<span class="scoremeta">' + esc(t('scNoneYet')) + '</span></div>';
+  }
+  const band = sc >= 75 ? 'hi' : sc >= 55 ? 'mid' : sc >= 40 ? 'lo' : 'bad';
+  const parts = [
+    ['scReuse',   st.reuse,   [['yes', 'ok'], ['changes', 'mid'], ['no', 'bad']]],
+    ['scClarity', st.clarity, [['complete', 'ok'], ['mostly', 'mid'], ['needed', 'bad']]],
+    ['scTime',    st.timefit, [['right', 'ok'], ['much', 'mid'], ['little', 'bad']]],
+  ];
+  return '<div class="scorerow">' +
+      '<span class="score ' + band + '">' + sc + '<small>/100</small></span>' +
+      '<span class="scoremeta">' + esc(fillT(n === 1 ? 'scOne' : 'scMany', { n: n })) +
+        (st.assists ? ' · ' + esc(fillT('scAssists', { n: st.assists })) : '') + '</span>' +
+      (b.shared ? '<span class="chip chip-ok">' + esc(t('scInPool')) + '</span>'
+                : '<span class="chip chip-warn">' + esc(t('scOutPool')) + '</span>') +
+    '</div>' +
+    '<div class="aspects">' + parts.map(function (part) {
+      const c = part[1] || {}, opts = part[2];
+      const tot = opts.reduce(function (a, o) { return a + (c[o[0]] || 0); }, 0) || 1;
+      return '<div class="asp"><span class="al">' + esc(t(part[0])) + '</span>' +
+        '<span class="ab">' + opts.map(function (o) {
+          return c[o[0]] ? '<i class="' + o[1] + '" style="width:' + (c[o[0]] / tot * 100) + '%" title="' +
+            esc(t('sc_' + o[0])) + ': ' + c[o[0]] + '"></i>' : '';
+        }).join('') + '</span>' +
+        '<span class="av">' + esc(topAnswer(c, opts)) + '</span></div>';
+    }).join('') + '</div>' +
+    (st.burnt ? '<p class="fbwarn">' + esc(fillT('scBurnt', { s: st.worst_label || t('wholeLesson'), c: st.worst_explains })) + '</p>' : '');
+}
+
+/** The answer most substitutes gave — what a coordinator reads first. */
+function topAnswer(counts, opts) {
+  let best = null, n = 0;
+  opts.forEach(function (o) { if ((counts[o[0]] || 0) > n) { n = counts[o[0]]; best = o[0]; } });
+  return best ? t('sc_' + best) : '—';
 }
 
 
@@ -648,25 +688,32 @@ function shareLine(b) {
 
 function fillT(k, o) { return t(k).replace(/\{(\w+)\}/g, (_, x) => o[x]); }
 
-/** The full checklist, straight from the database so nothing can drift. */
+/** Why a plan is in the pool or out of it, read live so it cannot drift from
+ *  the rule. There is no entry test any more: an approved plan is available,
+ *  and the only way out is evidence against it. */
 async function shareWhy(id, box) {
   if (!state.share[id]) {
-    const { data, error } = await sb.rpc('lk_share_state', { p_id: id });
-    if (error || !data) { box.innerHTML = '<p class="hint">' + esc(error?.message || '—') + '</p>'; return; }
+    const { data, error } = await sb.rpc('lk_plan_standing', { p_id: id });
+    if (error || !data) { box.innerHTML = '<p class="hint">' + esc((error && error.message) || '—') + '</p>'; return; }
     state.share[id] = data;
   }
   const d = state.share[id];
   const row = (pass, text, detail) =>
     '<li class="' + (pass ? 'pass' : 'fail') + '"><span>' + (pass ? '✓' : '✕') + '</span><div>' + esc(text) +
     (detail ? '<br><span class="muted">' + esc(detail) + '</span>' : '') + '</div></li>';
-  const n = d.n || 0, yes = d.yes || 0, conf = Number(d.confidence || 0);
+  const b = state.bank.find((x) => x.id === id) || {};
+  const n = d.n || 0;
+  const sc = d.score != null ? Math.round(d.score * 100) : null;
+  const scored = n >= 3 && sc != null && sc < 40;
   box.innerHTML = '<ul class="whylist">' +
-    row(d.approved, t('whyApproved'), d.approved ? '' : t('whyApprovedNo')) +
-    row(n >= SHARE_FLOOR, fillT('whyUsed', { n: n, floor: SHARE_FLOOR })) +
-    row(n >= SHARE_FLOOR && conf >= SHARE_BAR, fillT('whySaidYes', { yes: yes, n: n }),
-        n ? fillT('whyConfidence', { c: conf.toFixed(2), bar: SHARE_BAR.toFixed(2) }) : '') +
+    row(!!b.approved, t('whyApproved'), b.approved ? '' : t('whyApprovedNo')) +
+    row(!scored, t('whyScoreOk'),
+        n === 0 ? t('whyNoRatings')
+        : scored ? fillT('whyScoreBad', { s: sc })
+        : fillT('whyScoreIs', { s: sc, n: n })) +
     row(!d.burnt, t('whyNotBurnt'),
-        d.burnt ? fillT('whyBurntNo', { s: d.worst_label || t('wholeLesson'), c: d.worst_explains }) : '') +
+        d.burnt ? fillT('whyBurntNo', { s: d.worst_label || t('wholeLesson'), c: d.worst_explains })
+        : d.assists ? fillT('whyAssists', { n: d.assists }) : '') +
     '</ul><p class="hint">' + esc(t('whyFoot')) + '</p>';
 }
 
