@@ -451,3 +451,26 @@ body.embed{overflow:auto}
 /* The add-on's panel sits over the cover screen, as the drop-in renders it */
 body.panelmode .overlay{justify-content:flex-end;padding:0}
 body.panelmode .addin{max-width:720px;width:100%;height:100vh;max-height:100vh;border-radius:0}
+
+/* The plan line: one row of the popover in every state */
+.planrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.planrow .plbl{font-size:11.5px;font-weight:600;color:var(--ink-soft);margin-right:2px}
+.planrow.done .plbl{color:var(--ink-faint);font-style:italic}
+.plopt{padding:4px 9px;font:inherit;font-size:11.5px;font-weight:600;border-radius:7px;cursor:pointer;
+  border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca}
+.plopt:hover{background:#e0e7ff}
+.plopt.quiet{border-color:var(--line);background:#fff;color:var(--ink-soft);font-weight:500}
+.plopt.quiet:hover{background:var(--line-soft)}
+.planbtn.linked{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+
+/* Linking a plan the school already has */
+.linkbox{position:fixed;inset:0;z-index:70;background:rgba(13,35,64,.4);display:flex;align-items:center;justify-content:center;padding:20px}
+.lbx{width:100%;max-width:520px;background:#fff;border-radius:16px;padding:22px;display:grid;gap:12px;
+  box-shadow:0 24px 60px rgba(13,35,64,.3);max-height:90vh;overflow:auto}
+.lbx h3{margin:0;font-size:17px}
+.lbxfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+
+/* Bank and feedback, two tabs behind one sidebar item */
+.plantabs{margin-bottom:16px}
+.tbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;
+  margin-left:7px;border-radius:999px;background:var(--warn);color:#fff;font-size:10.5px;font-weight:700}

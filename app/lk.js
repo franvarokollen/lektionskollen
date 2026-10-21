@@ -44,12 +44,12 @@ function applyStatic() {
 }
 
 function setTitles() {
-  const onBank = !$('screen-bank').hidden;
-  const onFb = !$('screen-feedback').hidden;
-  $('pagetitle').textContent = onFb ? t('titleFeedback') : onBank ? t('titleBank') : t('titleCover');
+  const onPlans = state.screen === 'plans';
+  const onFb = onPlans && state.tab === 'feedback';
+  $('pagetitle').textContent = onPlans ? t('titlePlans') : t('titleCover');
   $('pagesub').textContent = onFb
     ? state.pending + ' ' + t('toReview') + ' · ' + state.fb.length + ' ' + t('plansCount')
-    : onBank
+    : onPlans
     ? state.bank.length + ' ' + t('plansCount') + ' · ' + state.bank.filter((b) => b.shared).length + ' ' + t('sharedBetween')
     : new Date().toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB',
         { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -68,8 +68,9 @@ const ICONS = {
    like the product rather than a demo with two links. */
 const NAV = [
   { id: 'cover', icon: 'users',     key: 'navCover',     real: true },
-  { id: 'bank',  icon: 'clipboard', key: 'navBank',      real: true, addon: true },
-  { id: 'feedback', icon: 'radar', key: 'navFeedback', real: true, addon: true, badge: true },
+  // One door for the add-on. The bank and the feedback queue are two views of
+  // the same thing, and a second sidebar entry made it look like two features.
+  { id: 'plans', icon: 'clipboard', key: 'navPlans', real: true, addon: true, badge: true },
   { id: 'hub',   icon: 'clipboard', key: 'navHub' },
   { id: 'radar', icon: 'radar',     key: 'navRadar' },
   { id: 'dash',  icon: 'grid',      key: 'navDashboard' },
@@ -121,7 +122,7 @@ const ROWS = [
     cover: 'Mats Ek', plannable: true, practical: true },
 ];
 
-const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [], model: null, cap: 20, uses: [], share: {} };
+const state = { me: null, row: null, plan: null, bodies: null, planId: null, view: 'coordinator', bank: [], screen: 'cover', fb: [], pending: 0, queue: [], model: null, cap: 20, uses: [], share: {}, tab: 'bank' };
 
 /* ── No login in the test env ───────────────────────
    The lk_* functions fall back to the shared demo school for anonymous
@@ -192,18 +193,31 @@ function renderLoudPicker() {
     '<span class="hint">' + esc(t('cvHowNote')) + '</span>';
 }
 
-/* ── Plans against cover rows ────────────────────────────
-   In Frånvarokollen this is lk_plan_for_cover, keyed on the cover's own id.
-   Held in a map here so the grid can paint without a request per block. */
-const PLANS = {};
+/* ── What each cover slot has ────────────────────────────
+   Most lessons are not waiting for a generated plan. A teacher emails "chapter
+   4, exercises 1-8"; another keeps the week in a shared document; a third
+   lesson is a test and needs nothing. One map answers the only question the
+   screen asks — does the substitute have something to teach from? — with the
+   source as a detail rather than the headline. */
+let PLANS = {};
 
 function planFor(ref) { return PLANS[ref] || null; }
 
+/** Is this slot settled, either way? Only unsettled slots are worth counting. */
+function planSettled(ref) {
+  const p = planFor(ref);
+  return !!p;
+}
+
+/** Ready to hand to a substitute right now. */
+function planReady(p) {
+  if (!p) return false;
+  return p.kind === 'generated' ? !!p.approved : p.kind !== 'not_needed';
+}
+
 async function loadCoverPlans() {
-  await Promise.all(ROWS.filter((r) => r.plannable).map(async (r) => {
-    const { data } = await sb.rpc('lk_plan_for_cover', { p_absence_ref: r.id });
-    if (data) PLANS[r.id] = data;
-  }));
+  const { data } = await sb.rpc('lk_cover_plans');
+  PLANS = data || {};
 }
 
 /* ── The lesson popover ──────────────────────────────────
@@ -221,12 +235,7 @@ function openPop(ref, x, y) {
   POP = ref;
   const plan = planFor(ref);
   const el = $('cv-pop');
-  const planBtn = r.plannable
-    ? '<button class="planbtn ' + (plan ? (plan.approved ? 'done' : 'draft') : 'new') + '" data-planopen="' + esc(r.id) + '">' +
-        '<span>' + (plan && plan.approved ? '✓' : '📄') + '</span>' +
-        esc(plan ? (plan.approved ? t('cvOpenPlan') : t('cvPlanDraft')) : t('cvMakePlan')) +
-      '</button>'
-    : '<p class="pnote">' + esc(t(r.whyKey || 'whyRast')) + '</p>';
+  const planBtn = r.plannable ? planRow(r, plan) : '<p class="pnote">' + esc(t(r.whyKey || 'whyRast')) + '</p>';
 
   el.innerHTML =
     '<div class="pophead">' +
@@ -248,6 +257,86 @@ function openPop(ref, x, y) {
   el.style.top = Math.min(y, window.innerHeight - hGuess - 12) + 'px';
 }
 
+/* ── The plan line ───────────────────────────────────────
+   One row of the popover, in every state, so the add-on never dominates a
+   card that is really about covering a lesson.
+
+     nothing yet   three small choices: make one, link one, not needed
+     linked        what it is and where it goes, with a way to change it
+     generated     open it
+     not needed    said once, quietly, with an undo
+
+   Marking a lesson as needing no plan is not a dismissal of the feature; it
+   is the answer that lets a coordinator finish. */
+function planRow(r, p) {
+  if (!p) {
+    return '<div class="planrow"><span class="plbl">' + esc(t('cvMakePlan')) + '</span>' +
+      '<button class="plopt" data-planopen="' + esc(r.id) + '">' + esc(t('cvPlMake')) + '</button>' +
+      '<button class="plopt" data-planlink="' + esc(r.id) + '">' + esc(t('cvPlLink')) + '</button>' +
+      '<button class="plopt quiet" data-plannot="' + esc(r.id) + '">' + esc(t('cvPlNot')) + '</button></div>';
+  }
+  if (p.kind === 'not_needed') {
+    return '<div class="planrow done"><span class="plbl">' + esc(t('cvPlNotSet')) + '</span>' +
+      '<button class="plopt quiet" data-planclear="' + esc(r.id) + '">' + esc(t('cvPlUndo')) + '</button></div>';
+  }
+  if (p.kind === 'generated') {
+    return '<button class="planbtn ' + (p.approved ? 'done' : 'draft') + '" data-planopen="' + esc(r.id) + '">' +
+      '<span>' + (p.approved ? '✓' : '📄') + '</span>' +
+      esc(p.approved ? t('cvOpenPlan') : t('cvPlanDraft')) + '</button>';
+  }
+  // The teacher's own: a link or a few typed lines.
+  const what = p.label || (p.kind === 'note' ? t('cvPlNoteKind') : hostOf(p.url) || t('cvPlLinkKind'));
+  return '<button class="planbtn linked" data-planopen="' + esc(r.id) + '">' +
+      '<span>🔗</span>' + esc(t('cvPlTeachers')) + ' — ' + esc(what) + '</button>' +
+    '<div class="planrow"><button class="plopt quiet" data-planlink="' + esc(r.id) + '">' + esc(t('cvPlChange')) + '</button>' +
+      '<button class="plopt quiet" data-planclear="' + esc(r.id) + '">' + esc(t('cvPlRemove')) + '</button></div>';
+}
+
+function hostOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
+}
+
+/* ── Linking the teacher's own plan ──────────────────────
+   Deliberately two fields. Most of these arrive as a sentence in an email, so
+   typing it is often faster than finding a document to link, and a substitute
+   reads it the same either way. */
+function openLinkBox(ref) {
+  const r = ROWS.find((b) => b.id === ref);
+  const p = planFor(ref) || {};
+  closePop();
+  $('linkbox').innerHTML =
+    '<div class="lbx">' +
+      '<h3>' + esc(t('cvPlLinkTitle')) + '</h3>' +
+      '<p class="hint">' + esc(blockTitle(r)) + ' · ' + esc(r.time) + ' · ' + esc(r.teacher) + '</p>' +
+      '<label class="f full">' + esc(t('cvPlUrl')) +
+        '<input id="lb-url" type="url" placeholder="https://…" value="' + esc(p.url || '') + '"></label>' +
+      '<label class="f full">' + esc(t('cvPlNoteLbl')) +
+        '<textarea id="lb-note" rows="3" placeholder="' + esc(t('cvPlNotePh')) + '">' + esc(p.note || '') + '</textarea></label>' +
+      '<label class="f full">' + esc(t('cvPlLabel')) +
+        '<input id="lb-label" maxlength="60" placeholder="' + esc(t('cvPlLabelPh')) + '" value="' + esc(p.label || '') + '"></label>' +
+      '<p class="hint">' + esc(t('cvPlWrapNote')) + '</p>' +
+      '<div class="lbxfoot"><button class="btn btn-ghost btn-sm" data-lbcancel>' + esc(t('cancel')) + '</button>' +
+        '<button class="btn btn-primary btn-sm" data-lbsave="' + esc(ref) + '">' + esc(t('save')) + '</button></div>' +
+    '</div>';
+  $('linkbox').hidden = false;
+}
+
+async function saveLink(ref) {
+  const url = $('lb-url').value.trim();
+  const note = $('lb-note').value.trim();
+  const label = $('lb-label').value.trim();
+  if (!url && !note) { toast(t('cvPlNeedOne')); return; }
+  const { error } = await sb.rpc('lk_set_cover_plan', {
+    p_absence_ref: ref, p_kind: url ? 'linked' : 'note',
+    p_url: url || null, p_note: note || null, p_label: label || null,
+  });
+  if (error) { toast(error.message); return; }
+  $('linkbox').hidden = true;
+  await loadCoverPlans();
+  renderRows();
+  toast(t('cvPlSaved'));
+}
+
 /* ── The Lektionskollen panel ────────────────────────────
    What the drop-in component renders: a right-hand drawer over the cover
    screen, our app inside it in embed mode. Here it is the same overlay the
@@ -256,6 +345,14 @@ function openPop(ref, x, y) {
 function openPlanPanel(ref) {
   const r = ROWS.find((b) => b.id === ref);
   if (!r) return;
+  const p = planFor(ref);
+  // The teacher's own plan has its own page — the same one the substitute
+  // gets, so the coordinator sees exactly what they will see.
+  if (p && (p.kind === 'linked' || p.kind === 'note')) {
+    closePop();
+    window.open(planUrl(p.share_token), '_blank', 'noopener');
+    return;
+  }
   closePop();
   document.body.classList.add('panelmode');
   openAddin(ref);
@@ -354,7 +451,9 @@ function renderRows() {
   }).join('');
 
   // The nudge: covered lessons whose substitute has nothing to teach from.
-  const gap = ROWS.filter((r) => r.plannable && r.cover && !planFor(r.id)).length;
+  // Only slots nobody has decided on. A coordinator who can never clear the
+  // list stops reading it.
+  const gap = ROWS.filter((r) => r.plannable && r.cover && !planSettled(r.id)).length;
   $('cv-nudge').hidden = !(LOUD === 'nudge' && gap > 0);
   if (LOUD === 'nudge' && gap > 0) {
     $('cv-nudge').innerHTML = '<span>📄</span><div>' +
@@ -389,6 +488,19 @@ function blockTitle(b) {
   return parts.length ? parts.join(' ') : b.raw;
 }
 
+/** The one glyph a block can spare. Nothing for a slot nobody has decided on,
+ *  and nothing for one deliberately marked as needing no plan: a grid that
+ *  marks everything marks nothing. */
+function planMark(p) {
+  const m = { generated: p.approved ? ['✓', 'ok', 'cvHasPlan'] : ['○', '', 'cvPlanDraft'],
+              linked: ['🔗', 'ok', 'cvHasLinked'],
+              note: ['🔗', 'ok', 'cvHasNote'],
+              authored: ['✓', 'ok', 'cvHasLinked'],
+              not_needed: null }[p.kind];
+  if (!m) return '';
+  return '<span class="bplan ' + m[1] + '" title="' + esc(t(m[2])) + '">' + m[0] + '</span>';
+}
+
 function minsToHHMM(m) {
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 }
@@ -407,10 +519,7 @@ function blockHtml(b, g, gridH) {
     '<p class="bt">' + esc(blockTitle(b)) + '</p>' +
     (px >= 34 ? '<p class="bm">' + esc(b.time) + '</p>' : '') +
     (px >= 48 && b.cover ? '<p class="bc">✓ ' + esc(b.cover) + '</p>' : '') +
-    (plan && LOUD !== 'quiet' && px >= 30
-      ? '<span class="bplan' + (plan.approved ? ' ok' : '') + '" title="' + esc(t(plan.approved ? 'cvHasPlan' : 'cvPlanDraft')) + '">' +
-        (plan.approved ? '✓' : '○') + '</span>'
-      : '') +
+    (plan && LOUD !== 'quiet' && px >= 30 ? planMark(plan) : '') +
     '</div>';
 }
 
@@ -1055,10 +1164,33 @@ document.addEventListener('click', async (e) => {
 
   const blk = e.target.closest('[data-blk]');
   if (blk) { const r = blk.getBoundingClientRect(); return openPop(blk.getAttribute('data-blk'), r.right + 6, r.top); }
+  const tab = e.target.closest('[data-tab]');
+  if (tab) return showPlansTab(tab.getAttribute('data-tab'));
   const loud = e.target.closest('[data-loud]');
   if (loud) return setLoud(loud.getAttribute('data-loud'));
   const po = e.target.closest('[data-planopen]');
   if (po) return openPlanPanel(po.getAttribute('data-planopen'));
+  const pl = e.target.closest('[data-planlink]');
+  if (pl) return openLinkBox(pl.getAttribute('data-planlink'));
+  const pn = e.target.closest('[data-plannot]');
+  if (pn) {
+    const ref = pn.getAttribute('data-plannot');
+    closePop();
+    await sb.rpc('lk_set_cover_plan', { p_absence_ref: ref, p_kind: 'not_needed' });
+    await loadCoverPlans(); renderRows(); toast(t('cvPlNotSaved'));
+    return;
+  }
+  const pc = e.target.closest('[data-planclear]');
+  if (pc) {
+    const ref = pc.getAttribute('data-planclear');
+    closePop();
+    await sb.rpc('lk_clear_cover_plan', { p_absence_ref: ref });
+    await loadCoverPlans(); renderRows();
+    return;
+  }
+  if (e.target.closest('[data-lbcancel]')) { $('linkbox').hidden = true; return; }
+  const lbs = e.target.closest('[data-lbsave]');
+  if (lbs) return saveLink(lbs.getAttribute('data-lbsave'));
   if (e.target.closest('[data-planfirst]')) {
     const first = ROWS.find((r) => r.plannable && r.cover && !planFor(r.id));
     if (first) return openPlanPanel(first.id);
@@ -1292,15 +1424,28 @@ function renderFeedback() {
     : '<p class="note">' + esc(t('fbEmpty')) + '</p>';
 }
 
-function showScreen(which) {
-  state.screen = which;
-  $('screen-cover').hidden = which !== 'cover';
-  $('screen-bank').hidden = which !== 'bank';
-  $('screen-feedback').hidden = which !== 'feedback';
-  renderNav();
-  if (which === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
+/** Bank or feedback, inside the one Lesson plans screen. */
+function showPlansTab(which) {
+  state.tab = which;
+  $('tab-bank').hidden = which !== 'bank';
+  $('tab-feedback').hidden = which !== 'feedback';
+  document.querySelectorAll('[data-tab]').forEach((b) =>
+    b.classList.toggle('on', b.getAttribute('data-tab') === which));
+  $('tabbadge').textContent = state.pending || '';
+  $('tabbadge').hidden = !state.pending;
   if (which === 'bank') { loadUses().then(renderBank).catch(() => {}); loadBank(); }
   if (which === 'feedback') loadFeedback();
+  setTitles();
+}
+
+function showScreen(which) {
+  state.screen = which;
+  const onPlans = which === 'plans';
+  $('screen-cover').hidden = which !== 'cover';
+  $('screen-plans').hidden = !onPlans;
+  if (onPlans) showPlansTab(state.tab);
+  renderNav();
+  if (which === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
   setTitles();
   window.scrollTo(0, 0);
 }
