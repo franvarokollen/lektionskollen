@@ -43,103 +43,6 @@
   }
   @media (max-width:1179px){ .rail-l{display:none} .rail-r{order:99} }
 
-  /* ── Four registers, not one ──────────────────────────────
-     Everything used to be .ps: a top border and a heading, from the overview to
-     the handover. Nothing told you where the lesson began or ended. */
-  .reg{border-radius:14px;padding:16px 18px;margin-bottom:16px}
-  .reg-h{display:flex;align-items:center;gap:9px;margin-bottom:11px;
-    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
-  .reg-h .n{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;
-    font-size:11px;font-weight:700;letter-spacing:0}
-
-  /* Before the bell: read once, standing at the door. */
-  .reg-before{background:#eef4fb;border:1px solid #cddff2}
-  .reg-before .reg-h{color:#14407a}
-  .reg-before .reg-h .n{background:#14407a;color:#fff}
-
-  /* Help: amber, and in the margin so it is never scrolled past. */
-  .reg-help{background:var(--warn-bg,#fdf4e3);border:1px solid #e9d4a8}
-  .reg-help .reg-h{color:#7a4f10}
-  .reg-help .reg-h .n{background:#7a4f10;color:#fff}
-  .reg-help .callout{background:rgba(255,255,255,.65);border-radius:9px;padding:9px 11px;
-    font-size:13px;margin-bottom:7px}
-  .reg-help .callout:last-child{margin-bottom:0}
-  .reg-help .callout strong{display:block;font-size:11.5px;text-transform:uppercase;
-    letter-spacing:.06em;color:#7a4f10;margin-bottom:2px}
-
-  /* After: below a hard rule, so the lesson visibly ends. */
-  .after-rule{grid-column:1 / -1;border:0;border-top:2px solid var(--line);margin:30px 0 20px}
-  .reg-after{background:#f4f6f8;border:1px solid var(--line)}
-  .reg-after .reg-h{color:var(--ink-soft)}
-  .reg-after .reg-h .n{background:var(--ink-soft);color:#fff}
-
-  /* ── The lesson: five phases with real boundaries ─────────*/
-  .lesson-h{display:flex;align-items:baseline;gap:10px;margin:4px 0 12px}
-  .lesson-h h2{font-size:17px;letter-spacing:-.01em}
-  .lesson-h span{font-size:12.5px;color:var(--ink-soft)}
-  .ph{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent,#14407a);
-    border-radius:12px;padding:15px 17px;margin-bottom:13px}
-  .ph.k-recall{border-left-color:#7b61a8} .ph.k-model{border-left-color:#14407a}
-  .ph.k-together{border-left-color:#1d7a5f} .ph.k-indep{border-left-color:#b07515}
-  .ph.k-exit{border-left-color:#8a3b4e}
-  .ph-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-  .ph-n{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;flex:none;
-    background:var(--ink);color:var(--paper);font-size:12px;font-weight:700}
-  .ph.k-recall .ph-n{background:#7b61a8} .ph.k-model .ph-n{background:#14407a}
-  .ph.k-together .ph-n{background:#1d7a5f} .ph.k-indep .ph-n{background:#b07515}
-  .ph.k-exit .ph-n{background:#8a3b4e}
-  .ph-h strong{font-size:15px;letter-spacing:-.01em}
-  .ph-t{margin-left:auto;font:500 12px/1 'Geist Mono',ui-monospace,monospace;
-    color:var(--ink-soft);background:var(--line-soft);padding:4px 8px;border-radius:6px}
-  .ph .say{background:#f7f9fb;border-left:2px solid var(--line);border-radius:0 8px 8px 0;
-    padding:8px 11px;margin:9px 0;font-size:14px}
-  .ph .say em{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
-    color:var(--ink-soft);font-style:normal;margin-bottom:2px}
-  .ph .meta{font-size:12.5px;color:var(--ink-soft);margin-top:7px}
-  .ph .meta b{color:var(--ink)}
-
-  /* ── Answers travel with their questions ──────────────────
-     Sweller's split-attention effect: separating a question from its answer
-     makes the reader hold one in working memory while hunting for the other.
-     They used to be in different sections, a scroll apart. */
-  .qa{display:grid;gap:0;border:1px solid var(--line-soft);border-radius:9px;
-    overflow:hidden;margin-bottom:7px}
-  @media (min-width:640px){ .qa{grid-template-columns:1fr minmax(170px,.75fr)} }
-  .qa .q{padding:9px 11px;font-size:13.5px}
-  .qa .a{padding:9px 11px;font-size:13px;background:#eef6f1;border-left:1px solid #cfe4d8;
-    color:#17503c}
-  @media (max-width:639px){ .qa .a{border-left:0;border-top:1px solid #cfe4d8} }
-  .qa .a b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
-    opacity:.65;margin-bottom:2px}
-  .qa.num .q{counter-increment:qn}
-  .qa.num .q::before{content:counter(qn) '. ';font-weight:600;color:var(--ink-soft)}
-  .qalist{counter-reset:qn}
-
-  /* ── The worked example ───────────────────────────────────
-     Lemov's double planning, made visible: what goes on the board and what to
-     say while writing it, side by side, so neither has to be invented. */
-  .model{border:1px solid #cddff2;border-radius:11px;overflow:hidden;margin:10px 0}
-  .model-p{background:#14407a;color:#fff;padding:10px 13px;font-size:14px;font-weight:600}
-  .model-st{display:grid;border-top:1px solid #cddff2}
-  @media (min-width:700px){ .model-st{grid-template-columns:minmax(180px,.85fr) 1fr} }
-  .model-st:first-of-type{border-top:0}
-  .model-b{background:#10233b;color:#dce9f7;padding:10px 13px;
-    font:500 13.5px/1.55 'Geist Mono',ui-monospace,monospace;white-space:pre-wrap}
-  .model-s{padding:10px 13px;font-size:13px;background:#fff}
-  .model-a{background:#eef6f1;color:#17503c;padding:9px 13px;font-size:13px;font-weight:600;
-    border-top:1px solid #cfe4d8}
-  .model-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em}
-  .model-lbl span{padding:5px 13px;background:#dce7f4;color:#14407a;font-weight:700}
-  @media (max-width:699px){ .model-lbl{display:none} }
-
-  /* ── Misconceptions ───────────────────────────────────────*/
-  .misc{border:1px solid #e6d2d6;border-radius:10px;overflow:hidden;margin-bottom:8px}
-  .misc .t{background:#fbeff1;color:#8a3b4e;padding:8px 12px;font-size:13.5px;font-weight:600}
-  .misc .w{padding:8px 12px;font-size:12.5px;color:var(--ink-soft);background:#fff}
-  .misc .s{padding:8px 12px;font-size:13px;background:#f7f9fb;border-top:1px solid var(--line-soft)}
-  .misc .s b{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);
-    display:block;margin-bottom:2px}
-
   /* ── The margin rail ──────────────────────────────────────*/
   .nav{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
   .nav h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);
@@ -337,7 +240,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="edd73f918c03">
+<meta name="lk-build" content="5ea1f7ca2806">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -395,6 +298,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   </div>
 </div>
 
+<script src="./plan-view.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 const sb = window.supabase.createClient(
@@ -888,55 +792,24 @@ function render(d, keepScroll) {
     return;
   }
 
-  const K = ['k-recall','k-model','k-together','k-indep','k-exit'];
-  const kind = (i) => K[i] || 'k-indep';
-
-  // A question and its answer, side by side. Separating them is the
-  // split-attention effect, and mid-lesson it is a scroll the substitute
-  // cannot afford.
-  const qa = (q, a, num) => !q ? '' :
-    '<div class="qa' + (num ? ' num' : '') + '"><div class="q">' + esc(q) + '</div>' +
-    '<div class="a"><b>' + esc(l.answer) + '</b>' + esc(a || '') + '</div></div>';
-
-  // The worked example: board and script in step pairs, so a substitute with
-  // no subject knowledge has both halves without inventing either.
-  const modelBlock = (m) => !m || !m.p ? '' :
-    '<div class="model"><div class="model-p">' + esc(m.p) + '</div>' +
-    '<div class="model-st model-lbl"><span>' + esc(l.modelWrite) + '</span>' +
-      '<span>' + esc(l.modelSay) + '</span></div>' +
-    (m.st || []).map((st) =>
-      '<div class="model-st"><div class="model-b">' + esc(st.b || '') + '</div>' +
-      '<div class="model-s">' + esc(st.s || '') + '</div></div>').join('') +
-    '<div class="model-a">' + esc(l.modelAns) + ': ' + esc(m.a || '') + '</div></div>';
-
-  const phaseCard = (ph, i, teach) => {
-    const ref = 'phase:' + i;
-    const isModel = i === 1, isTog = i === 2;
-    return '<div class="ph ' + kind(i) + '" id="ph' + i + '">' +
-      '<div class="ph-h"><span class="ph-n">' + (i + 1) + '</span>' +
-      '<strong>' + esc(ph.n) + '</strong><span class="ph-t">' + esc(ph.t) + '</span></div>' +
-      (DEPTH === 'full' && ph.say ? '<div class="say"><em>' + esc(l.say) + '</em>' + esc(ph.say) + '</div>' : '') +
-      (isModel ? modelBlock(p.model) : '') +
-      (i === 0 && p.recall && p.recall.why
-        ? '<p class="meta"><b>' + esc(l.recallWhy) + ':</b> ' + esc(p.recall.why) + '</p>' : '') +
-      (isModel ? '' : (ph.checks || []).map((c) => qa(c.q, c.a)).join('')) +
-      (i === 3 ? '<div class="qalist">' + (p.tasks || []).map((t) => qa(t.q, t.a, true)).join('') + '</div>' : '') +
-      (DEPTH !== 'brief' && ph.pupils ? '<p class="meta"><b>' + esc(l.pupils) + '</b> ' + esc(ph.pupils) + '</p>' : '') +
-      (DEPTH === 'full' && ph.expect && ph.expect !== '—'
-        ? '<p class="meta"><b>' + esc(l.expect) + '</b> ' + esc(ph.expect) + '</p>' : '') +
-      (ph.board ? '<div class="strow noprint" style="margin-top:9px">' +
-        '<button class="stbtn" data-proj="' + i + '">' + esc(l.projBtn) + '</button></div>' : '') +
-      (teach ? '' : assistRow(ref, ph.n) + extrasFor(ref)) +
-      '</div>';
+  const phases = p.phases || [];
+  const hooks = {
+    lbl: (k) => l[k],
+    depth: DEPTH,
+    assistRow: (ref, name) => assistRow(ref, name),
+    extras: (ref) => extrasFor(ref),
+    projector: true,
+    help: false,                       // lifted into the margin rail below
   };
 
-  const phases = p.phases || [];
-
   // ── Teach mode: one phase, nothing else ──────────────────
+  // A substitute mid-lesson is not reading, they are performing.
   if (TEACH) {
     const i = Math.max(0, Math.min(TPHASE, phases.length - 1));
+    const one = LKPlan.render(p, Object.assign({}, hooks,
+      { only: i, assistRow: () => '', extras: () => '' }));
     $('out').innerHTML =
-      '<div class="teachview"><div class="tv">' + phaseCard(phases[i], i, true) + '</div>' +
+      '<div class="teachview"><div class="tv">' + one + '</div>' +
       '<div class="tvbar"><button data-teach="0">' + esc(l.prepBtn) + '</button>' +
       '<div class="tvdots">' + phases.map((_, j) =>
         '<i class="' + (j === i ? 'on' : '') + '"></i>').join('') + '</div>' +
@@ -973,62 +846,19 @@ function render(d, keepScroll) {
       '<button data-depth="' + x[0] + '"' + (DEPTH === x[0] ? ' class="on"' : '') + '>' + esc(x[1]) + '</button>').join('') +
     '</div></div>';
 
-  // ── Rail: where you are, and help, both always reachable ──
+  // Where you are in the lesson, in the left margin.
   h += '<aside class="rail rail-l noprint"><div class="nav"><h4>' + esc(l.railWhere) + '</h4>' +
-    phases.map((ph, i) => '<a href="#ph' + i + '" class="' + kind(i) + '">' + esc(ph.n) +
+    phases.map((ph, i) => '<a href="#ph' + i + '" class="' + LKPlan.kind(i) + '">' + esc(ph.n) +
       '<span class="t">' + esc(ph.t) + '</span></a>').join('') + '</div></aside>';
 
-  // ── Register 1: before the bell ───────────────────────────
-  h += '<main class="col"><section class="reg reg-before">' +
-    '<div class="reg-h"><span class="n">1</span>' + esc(l.beforeBell) + '</div>' +
-    (DEPTH !== 'brief' && (p.first90 || []).length
-      ? '<ul style="margin:0 0 12px;padding-left:18px;font-size:13.5px">' +
-        p.first90.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
-    '<p style="font-size:13.5px;margin-bottom:10px">' + esc(p.summary) + '</p>' +
-    '<p style="font-size:13px;margin-bottom:12px"><b>' + esc(l.goal) + '</b> ' + esc(p.goal) + '</p>' +
-    '<div class="board">' + esc(p.board) + '</div>' +
-    '<p style="margin-top:10px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment && p.equipment.need) +
-    '<br><span style="color:var(--ink-soft)">' + esc(p.equipment && p.equipment.fallback) + '</span></p>' +
-    '</section>';
+  h += '<main class="col">' + LKPlan.render(p, hooks) + '</main>';
 
-  // ── Register 2: the lesson ────────────────────────────────
-  h += '<div class="lesson-h"><h2>' + esc(l.theLesson) + '</h2><span>' + d.minutes + ' min</span></div>' +
-    phases.map((ph, i) => phaseCard(ph, i, false)).join('');
+  // Help lives in the right margin, because it is needed at the moment there is
+  // no time to go looking for it.
+  h += '<aside class="rail rail-r">' + LKPlan.help(p, hooks.lbl) + '</aside>';
 
-  if ((p.misconceptions || []).length) {
-    h += '<section class="reg" style="background:var(--card);border:1px solid var(--line)">' +
-      '<div class="reg-h" style="color:#8a3b4e"><span class="n" style="background:#8a3b4e;color:#fff">!</span>' +
-      esc(l.miscH) + '</div>' +
-      p.misconceptions.map((m) => '<div class="misc"><div class="t">' + esc(m.t) + '</div>' +
-        (m.w ? '<div class="w">' + esc(l.miscWhy) + ': ' + esc(m.w) + '</div>' : '') +
-        '<div class="s"><b>' + esc(l.miscSay) + '</b>' + esc(m.s) + '</div></div>').join('') +
-      '</section>';
-  }
-
-  if ((p.materials || []).length) {
-    h += '<section class="reg" style="background:var(--card);border:1px solid var(--line)">' +
-      '<div class="reg-h"><span class="n">' + esc(l.handouts.slice(0, 1)) + '</span>' + esc(l.handouts) + '</div>' +
-      p.materials.map((m) => '<div class="mat"><h5>' + esc(m.h) + '</h5><div>' + esc(m.body) + '</div></div>').join('') +
-      assistRow('tasks', l.tasks) + extrasFor('tasks') + '</section></main>';
-  } else { h += '</main>'; }
-
-  // ── Register 3: help, in the margin ───────────────────────
-  h += '<aside class="rail rail-r">' +
-    '<section class="reg reg-help"><div class="reg-h"><span class="n">?</span>' + esc(l.ifWrong) + '</div>' +
-    '<div class="callout"><strong>' + esc(l.stuck) + '</strong>' + esc(p.stuck) + '</div>' +
-    '<div class="callout"><strong>' + esc(l.ahead) + '</strong>' + esc(p.ahead) + '</div>' +
-    '<div class="callout"><strong>' + esc(l.wrong) + '</strong>' + esc(p.wrong) + '</div></section>' +
-    (p.equipment && p.equipment.where
-      ? '<div class="nav where" style="margin-top:14px"><b>' + esc(l.whereH) + '</b>' +
-        esc(p.equipment.where) + '</div>' : '') +
-    '</aside>';
-
-  // ── Register 4: after the lesson, below a hard rule ───────
   h += '<hr class="after-rule noprint">' +
-    '<div class="full"><section class="reg reg-after">' +
-    '<div class="reg-h"><span class="n">4</span>' + esc(l.afterH) + '</div>' +
-    '<p style="font-size:13px;white-space:pre-wrap">' + esc(p.handover) + '</p>' +
-    extrasFor('lesson') + '</section></div>';
+    '<div class="full">' + LKPlan.after(p, hooks.lbl, hooks.extras) + '</div>';
 
   h += '<div class="full"><div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts('lesson').html + '</div></div>';
 

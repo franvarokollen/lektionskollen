@@ -521,3 +521,113 @@ body.panelmode .seam{flex:0 0 auto}
 .chklist{margin:7px 0 0;padding-left:18px;font-size:12.5px;display:grid;gap:3px}
 .chklist li.bad{font-weight:600}
 .chklist li.warn{opacity:.85}
+
+
+/* ── The plan, as a substitute reads it ───────────────────
+   Shared by plan.html and the preview inside the coordinator app, which is
+   the same markup the FVK iframe renders. One renderer, one stylesheet: the
+   two drifted apart once and the stale one was the one people actually saw. */
+  /* ── Four registers, not one ──────────────────────────────
+     Everything used to be .ps: a top border and a heading, from the overview to
+     the handover. Nothing told you where the lesson began or ended. */
+  .reg{border-radius:14px;padding:16px 18px;margin-bottom:16px}
+  .reg-h{display:flex;align-items:center;gap:9px;margin-bottom:11px;
+    font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+  .reg-h .n{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;
+    font-size:11px;font-weight:700;letter-spacing:0}
+
+  /* Before the bell: read once, standing at the door. */
+  .reg-before{background:#eef4fb;border:1px solid #cddff2}
+  .reg-before .reg-h{color:#14407a}
+  .reg-before .reg-h .n{background:#14407a;color:#fff}
+
+  /* Help: amber, and in the margin so it is never scrolled past. */
+  .reg-help{background:var(--warn-bg,#fdf4e3);border:1px solid #e9d4a8}
+  .reg-help .reg-h{color:#7a4f10}
+  .reg-help .reg-h .n{background:#7a4f10;color:#fff}
+  .reg-help .callout{background:rgba(255,255,255,.65);border-radius:9px;padding:9px 11px;
+    font-size:13px;margin-bottom:7px}
+  .reg-help .callout:last-child{margin-bottom:0}
+  .reg-help .callout strong{display:block;font-size:11.5px;text-transform:uppercase;
+    letter-spacing:.06em;color:#7a4f10;margin-bottom:2px}
+
+  /* After: below a hard rule, so the lesson visibly ends. */
+  .after-rule{grid-column:1 / -1;border:0;border-top:2px solid var(--line);margin:30px 0 20px}
+  .reg-after{background:#f4f6f8;border:1px solid var(--line)}
+  .reg-after .reg-h{color:var(--ink-soft)}
+  .reg-after .reg-h .n{background:var(--ink-soft);color:#fff}
+
+  /* ── The lesson: five phases with real boundaries ─────────*/
+  .lesson-h{display:flex;align-items:baseline;gap:10px;margin:4px 0 12px}
+  .lesson-h h2{font-size:17px;letter-spacing:-.01em}
+  .lesson-h span{font-size:12.5px;color:var(--ink-soft)}
+  .ph{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent,#14407a);
+    border-radius:12px;padding:15px 17px;margin-bottom:13px}
+  .ph.k-recall{border-left-color:#7b61a8} .ph.k-model{border-left-color:#14407a}
+  .ph.k-together{border-left-color:#1d7a5f} .ph.k-indep{border-left-color:#b07515}
+  .ph.k-exit{border-left-color:#8a3b4e}
+  .ph-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .ph-n{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;flex:none;
+    background:var(--ink);color:var(--paper);font-size:12px;font-weight:700}
+  .ph.k-recall .ph-n{background:#7b61a8} .ph.k-model .ph-n{background:#14407a}
+  .ph.k-together .ph-n{background:#1d7a5f} .ph.k-indep .ph-n{background:#b07515}
+  .ph.k-exit .ph-n{background:#8a3b4e}
+  .ph-h strong{font-size:15px;letter-spacing:-.01em}
+  .ph-t{margin-left:auto;font:500 12px/1 'Geist Mono',ui-monospace,monospace;
+    color:var(--ink-soft);background:var(--line-soft);padding:4px 8px;border-radius:6px}
+  .ph .say{background:#f7f9fb;border-left:2px solid var(--line);border-radius:0 8px 8px 0;
+    padding:8px 11px;margin:9px 0;font-size:14px}
+  .ph .say em{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-soft);font-style:normal;margin-bottom:2px}
+  .ph .meta{font-size:12.5px;color:var(--ink-soft);margin-top:7px}
+  .ph .meta b{color:var(--ink)}
+
+  /* ── Answers travel with their questions ──────────────────
+     Sweller's split-attention effect: separating a question from its answer
+     makes the reader hold one in working memory while hunting for the other.
+     They used to be in different sections, a scroll apart. */
+  .qa{display:grid;gap:0;border:1px solid var(--line-soft);border-radius:9px;
+    overflow:hidden;margin-bottom:7px}
+  @media (min-width:640px){ .qa{grid-template-columns:1fr minmax(170px,.75fr)} }
+  .qa .q{padding:9px 11px;font-size:13.5px}
+  .qa .a{padding:9px 11px;font-size:13px;background:#eef6f1;border-left:1px solid #cfe4d8;
+    color:#17503c}
+  @media (max-width:639px){ .qa .a{border-left:0;border-top:1px solid #cfe4d8} }
+  .qa .a b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+    opacity:.65;margin-bottom:2px}
+  .qa.num .q{counter-increment:qn}
+  .qa.num .q::before{content:counter(qn) '. ';font-weight:600;color:var(--ink-soft)}
+  .qalist{counter-reset:qn}
+
+  /* ── The worked example ───────────────────────────────────
+     Lemov's double planning, made visible: what goes on the board and what to
+     say while writing it, side by side, so neither has to be invented. */
+  .model{border:1px solid #cddff2;border-radius:11px;overflow:hidden;margin:10px 0}
+  .model-p{background:#14407a;color:#fff;padding:10px 13px;font-size:14px;font-weight:600}
+  .model-st{display:grid;border-top:1px solid #cddff2}
+  @media (min-width:700px){ .model-st{grid-template-columns:minmax(180px,.85fr) 1fr} }
+  .model-st:first-of-type{border-top:0}
+  .model-b{background:#10233b;color:#dce9f7;padding:10px 13px;
+    font:500 13.5px/1.55 'Geist Mono',ui-monospace,monospace;white-space:pre-wrap}
+  .model-s{padding:10px 13px;font-size:13px;background:#fff}
+  .model-a{background:#eef6f1;color:#17503c;padding:9px 13px;font-size:13px;font-weight:600;
+    border-top:1px solid #cfe4d8}
+  .model-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em}
+  .model-lbl span{padding:5px 13px;background:#dce7f4;color:#14407a;font-weight:700}
+  @media (max-width:699px){ .model-lbl{display:none} }
+
+  /* ── Misconceptions ───────────────────────────────────────*/
+  .misc{border:1px solid #e6d2d6;border-radius:10px;overflow:hidden;margin-bottom:8px}
+  .misc .t{background:#fbeff1;color:#8a3b4e;padding:8px 12px;font-size:13.5px;font-weight:600}
+  .misc .w{padding:8px 12px;font-size:12.5px;color:var(--ink-soft);background:#fff}
+  .misc .s{padding:8px 12px;font-size:13px;background:#f7f9fb;border-top:1px solid var(--line-soft)}
+  .misc .s b{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);
+    display:block;margin-bottom:2px}
+
+
+/* Registers that are just a bounded block on the page (misconceptions, handouts). */
+.reg-plain{background:var(--card);border:1px solid var(--line)}
+.reg-h-misc{color:#8a3b4e}
+.reg-h-misc .n{background:#8a3b4e;color:#fff}
+.planview{display:block}
+.planview .reg:last-child{margin-bottom:0}
