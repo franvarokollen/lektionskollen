@@ -143,7 +143,7 @@ $('signout').addEventListener('click', () => location.reload());
 async function enterApp() {
   const { data, error } = await sb.rpc('lk_me');
   if (error) {
-    document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">Kunde inte nå databasen: ' + esc(error.message) + '</p>';
+    document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">' + esc(t('errDb')) + ' ' + esc(error.message) + '</p>';
     return;
   }
 
@@ -534,28 +534,62 @@ function blockHtml(b, g, gridH) {
 }
 
 
+
+/* ── Subject and year, in the reader's language ──────────
+   The timetable is Swedish and always will be: "Ma", "Tb7a" and "Svenska" are
+   what Frånvarokollen imports and what the plan row stores. Only the display
+   switches, so the stored value stays the one the school recognises and
+   nothing needs migrating when a new subject appears — an unknown subject
+   simply shows as written. */
+const SUBJECTS_EN = {
+  'Matematik': 'Mathematics', 'Svenska': 'Swedish', 'Engelska': 'English',
+  'Biologi': 'Biology', 'Fysik': 'Physics', 'Kemi': 'Chemistry',
+  'Historia': 'History', 'Geografi': 'Geography', 'Samhällskunskap': 'Civics',
+  'Religionskunskap': 'Religious education', 'Idrott': 'PE', 'Idrott och hälsa': 'PE',
+  'Slöjd': 'Craft and design', 'Teknik': 'Design and technology',
+  'Musik': 'Music', 'Bild': 'Art', 'Hem- och konsumentkunskap': 'Home economics',
+  'Moderna språk': 'Modern languages', 'Spanska': 'Spanish', 'Tyska': 'German',
+  'Franska': 'French', 'NO': 'Science', 'SO': 'Humanities',
+};
+
+function subjectLabel(s) {
+  if (LANG !== 'en' || !s) return s || '';
+  return SUBJECTS_EN[s] || s;
+}
+
+/** "Åk 7" is the Swedish school year. English readers get "Year 7". */
+function yearLabel(y) {
+  if (LANG !== 'en' || !y) return y || '';
+  const m = /^\s*Åk\s*(\d+)/.exec(y);
+  return m ? 'Year ' + m[1] : y;
+}
+
 /* ── Bank ──────────────────────────────────────────── */
 async function loadBank() {
   const subject = $('f-subject').value || null;
   const year = $('f-year').value || null;
   const scope = $('f-scope').value || 'all';
   const { data, error } = await sb.rpc('lk_bank_ranked', { p_subject: subject, p_year: year, p_scope: scope });
-  if (error) { $('bankgrid').innerHTML = '<p class="note">Kunde inte läsa banken: ' + esc(error.message) + '</p>'; return; }
+  if (error) { $('bankgrid').innerHTML = '<p class="note">' + esc(t('errBank')) + ' ' + esc(error.message) + '</p>'; return; }
   state.bank = data || [];
   fillFilterOptions();
   renderBank();
 }
 
 function fillFilterOptions() {
-  const subs = [...new Set(state.bank.map((b) => b.subject))].sort();
-  const yrs = [...new Set(state.bank.map((b) => b.year_group))].sort();
-  const keep = (sel, list, label) => {
+  // Sorted by what the reader sees, not by the Swedish the database stores.
+  const byLabel = (fmt) => (a, b) => fmt(a).localeCompare(fmt(b), LANG === 'en' ? 'en' : 'sv');
+  const subs = [...new Set(state.bank.map((b) => b.subject))].sort(byLabel(subjectLabel));
+  const yrs = [...new Set(state.bank.map((b) => b.year_group))].sort(byLabel(yearLabel));
+  const keep = (sel, list, label, fmt) => {
     const cur = sel.value;
+    // The value stays the Swedish one the database stores; only the label turns.
     sel.innerHTML = '<option value="">' + esc(label) + '</option>' +
-      list.map((x) => '<option' + (x === cur ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+      list.map((x) => '<option value="' + esc(x) + '"' + (x === cur ? ' selected' : '') + '>' +
+        esc(fmt ? fmt(x) : x) + '</option>').join('');
   };
-  keep($('f-subject'), subs, t('allSubjects'));
-  keep($('f-year'), yrs, t('allYears'));
+  keep($('f-subject'), subs, t('allSubjects'), subjectLabel);
+  keep($('f-year'), yrs, t('allYears'), yearLabel);
   // Fixed options: rebuilding them mid-load would drop a choice made while loading.
   const sc = $('f-scope'), cur = sc.value || 'all';
   const want = [['all', t('allSources')], ['mine', t('ourSchool')], ['shared', t('sharedOnly')]];
@@ -590,8 +624,8 @@ function renderBank() {
     return '<div class="bcard">' +
       '<h4>' + esc(rowTitle(b)) + '</h4>' +
       '<div class="tags">' +
-        '<span class="chip chip-neutral">' + esc(b.subject) + '</span>' +
-        '<span class="chip chip-neutral">' + esc(b.year_group) + '</span>' +
+        '<span class="chip chip-neutral">' + esc(subjectLabel(b.subject)) + '</span>' +
+        '<span class="chip chip-neutral">' + esc(yearLabel(b.year_group)) + '</span>' +
         '<span class="chip chip-neutral">' + b.minutes + ' min</span>' +
         (b.mine ? '' : '<span class="chip chip-blue">' + esc(b.school || '') + '</span>') +
         (b.approved ? '' : '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>') +
@@ -848,8 +882,8 @@ function showRequest() {
       '<button class="x" data-close aria-label="Stäng">✕</button></div>' +
 
     '<div class="derived">' +
-      '<div><dt>' + esc(t('subjectLbl')) + '</dt><dd>' + esc(r.subject) + '</dd><div class="from">' + esc(t('fromCode')) + ' "' + esc(r.raw) + '"</div></div>' +
-      '<div><dt>' + esc(t('yearLbl')) + '</dt><dd>' + esc(r.year) + '</dd><div class="from">' + esc(t('derivedFrom')) + ' "' + esc(r.group) + '"</div></div>' +
+      '<div><dt>' + esc(t('subjectLbl')) + '</dt><dd>' + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t('fromCode')) + ' "' + esc(r.raw) + '"</div></div>' +
+      '<div><dt>' + esc(t('yearLbl')) + '</dt><dd>' + esc(yearLabel(r.year)) + '</dd><div class="from">' + esc(t('derivedFrom')) + ' "' + esc(r.group) + '"</div></div>' +
       '<div><dt>' + esc(t('lengthLbl')) + '</dt><dd>' + r.mins + ' ' + esc(t('min')) + '</dd><div class="from">' + esc(r.start) + '–' + esc(r.end) + '</div></div>' +
     '</div>' +
 
@@ -863,7 +897,7 @@ function showRequest() {
           (had.length ? '<div class="hadwarn">⚠ ' + esc(fillT('hadIt', { g: r.group, d: fmtDate(had[0].used_on) })) + '</div>' : '') + '</div>' +
           '<span class="stars">' + stars(b.rating) + '</span>' +
           '<span class="btn btn-soft btn-sm">' + esc(t('use')) + '</span></button>'; }).join('') + '</div></div>'
-      : '<div><div class="sect-h">' + esc(t('fromBank')) + '</div><p class="hint">' + esc(t('bankNone')) + ' ' + esc(r.subject) + ' ' + esc(r.year) + ' ' + esc(t('bankNoneTail')) + '</p></div>') +
+      : '<div><div class="sect-h">' + esc(t('fromBank')) + '</div><p class="hint">' + esc(t('bankNone')) + ' ' + esc(subjectLabel(r.subject)) + ' ' + esc(yearLabel(r.year)) + ' ' + esc(t('bankNoneTail')) + '</p></div>') +
 
     (matches.length ? '<details class="steerbox"><summary>' + esc(t('noFit')) + '</summary>' : '') +
     '<div><div class="sect-h">' + esc(t('steer')) + '</div><div class="steer">' +
@@ -985,7 +1019,7 @@ function bodyIsFallback() {
 
 async function usePlan(id) {
   const { data, error } = await sb.rpc('lk_plan', { p_id: id });
-  if (error || !data) { toast('Kunde inte öppna planen'); return; }
+  if (error || !data) { toast(t('errOpen')); return; }
   state.bodies = { [data.language || 'sv']: data.body };
   if (data.body_alt && data.language_alt) state.bodies[data.language_alt] = data.body_alt;
   state.plan = pickBody();
@@ -1016,7 +1050,7 @@ function showPlan() {
   '<div class="addin-body">' +
     '<div class="addin-head"><div style="flex:1;min-width:0">' +
       '<h2 id="addin-title" class="plan-title">' + esc(p.title) + '</h2>' +
-      '<div class="plan-meta">' + esc(r.subject) + ' · ' + esc(r.year) + ' · ' + esc(r.group) +
+      '<div class="plan-meta">' + esc(subjectLabel(r.subject)) + ' · ' + esc(yearLabel(r.year)) + ' · ' + esc(r.group) +
       (r.start ? ' · ' + esc(r.start) + '–' + esc(r.end) : '') + '</div></div>' +
       '<button class="x" data-close aria-label="Stäng">✕</button></div>' +
     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
@@ -1323,7 +1357,7 @@ document.addEventListener('click', async (e) => {
 
   if (t2.hasAttribute('data-approve')) {
     const { error } = await sb.rpc('lk_approve', { p_id: state.planId });
-    if (error) { toast('Kunde inte godkänna: ' + error.message); return; }
+    if (error) { toast(t('errApprove') + ' ' + error.message); return; }
     await sb.rpc('lk_rate_v2', { p_id: state.planId, p_reuse: true, p_reasons: [] });
     const { data } = await sb.rpc('lk_plan', { p_id: state.planId });
     state.approved = true;
@@ -1338,7 +1372,7 @@ document.addEventListener('click', async (e) => {
     });
     showPlan();
     loadBank();
-    toast('Godkänd och sparad i banken');
+    toast(t('okApproved'));
     return;
   }
 });
@@ -1458,8 +1492,8 @@ function renderFeedback() {
   $('fbqueue').innerHTML = q.length
     ? q.map((x) =>
       '<div class="bcard fx">' +
-        '<div class="tags"><span class="chip chip-neutral">' + esc(x.subject) + '</span>' +
-          '<span class="chip chip-neutral">' + esc(x.year_group) + '</span>' +
+        '<div class="tags"><span class="chip chip-neutral">' + esc(subjectLabel(x.subject)) + '</span>' +
+          '<span class="chip chip-neutral">' + esc(yearLabel(x.year_group)) + '</span>' +
           '<span class="chip chip-blue">' + esc(kindLabel(x.kind, x.variant)) + '</span>' +
           (x.section_label ? '<span class="chip chip-neutral">' + esc(x.section_label) + '</span>' : '') +
           (x.model === 'canned' ? '<span class="chip chip-warn">' + esc(t('simTag')) + '</span>' : '') + '</div>' +
@@ -1474,7 +1508,7 @@ function renderFeedback() {
     ? state.fb.map((p) =>
       '<div class="bcard fx clickable" data-viewplan="' + p.id + '" title="' + esc(t('fbOpenHint')) + '">' +
         '<h4>' + esc(p.title || p.subject) + '</h4>' +
-        '<div class="tags"><span class="chip chip-neutral">' + esc(p.subject) + '</span><span class="chip chip-neutral">' + esc(p.year_group) + '</span></div>' +
+        '<div class="tags"><span class="chip chip-neutral">' + esc(subjectLabel(p.subject)) + '</span><span class="chip chip-neutral">' + esc(yearLabel(p.year_group)) + '</span></div>' +
         fbBody(p) +
         '<div><span class="btn btn-soft btn-sm">' + esc(t('openPlan')) + ' →</span></div>' +
       '</div>').join('')
