@@ -210,7 +210,7 @@ const $ = (id) => document.getElementById(id);
 const SV_LABELS = {
   quickBtn: '⏱ Har du 5 minuter?', fullBtn: 'Visa hela planen', quickTitle: 'Snabbstart', quickHint: 'Bara det du behöver innan eleverna kommer in.',
   packBtn: 'Skriv ut paket (plan + elevblad)', offlineNote: 'Sparad kopia – du är offline.', onlineAgain: '',
-  linkedKicker: 'Lektionsplan från skolan', linkedFrom: 'Ordinarie lärares plan', linkedNote: 'Instruktion från ordinarie lärare', linkedBody: 'Den här lektionen har en plan som skolan redan hade. Öppna den med knappen och berätta sedan hur långt ni kom.', linkedNoteH: 'Från ordinarie lärare', linkedOpen: 'Öppna planen', linkedPeek: 'Visa den här på sidan', linkedFallback: 'Syns inget eller fel sida? Använd knappen ovan — alla sidor går inte att visa inbäddade.', linkedNoRate: 'Den här planen betygsätts inte. Vi frågar bara hur långt ni kom, så att ordinarie lärare vet var klassen står.',
+  linkedKicker: 'Lektionsplan från skolan', linkedFrom: 'Ordinarie lärares plan', linkedNote: 'Instruktion från ordinarie lärare', linkedBody: 'Den här lektionen har en plan som skolan redan hade. Öppna den med knappen och berätta sedan hur långt ni kom.', noteBody: 'Ordinarie lärare lämnade de här instruktionerna. Berätta efteråt hur långt ni kom.', linkedNoteH: 'Från ordinarie lärare', linkedOpen: 'Öppna planen', linkedPeek: 'Visa den här på sidan', linkedFallback: 'Syns inget eller fel sida? Använd knappen ovan — alla sidor går inte att visa inbäddade.', linkedNoRate: 'Den här planen betygsätts inte. Vi frågar bara hur långt ni kom, så att ordinarie lärare vet var klassen står.',
   qReuse: 'Skulle du använda den här planen igen?', aReuseYes: 'Ja, som den är', aReuseChanges: 'Ja, med ändringar', aReuseNo: 'Nej', qClarity: 'Gick den att hålla utan förberedelse?', aClearFull: 'Helt tydlig', aClearMost: 'Mestadels', aClearNeeded: 'Behövde arbete', qTime: 'Räckte innehållet till lektionen?', aTimeRight: 'Lagom', aTimeLittle: 'För lite', aTimeMuch: 'För mycket', savedSoFar: 'Sparat. Svara gärna på de andra också.',
   noCode: 'Länken saknar kod.', notFound: 'Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.',
   covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftLbl: 'Anteckning till ordinarie lärare (valfritt)', leftOff: 'T.ex. "Hann uppgift 1–4, tog slut på tid"', leftHint: 'Sparas så att ordinarie lärare kan läsa den.',
@@ -253,7 +253,7 @@ const SV_LABELS = {
 const EN_LABELS = {
   quickBtn: '⏱ Got 5 minutes?', fullBtn: 'Show full plan', quickTitle: 'Quick start', quickHint: 'Only what you need before the pupils walk in.',
   packBtn: 'Print pack (plan + student sheet)', offlineNote: 'Saved copy – you are offline.', onlineAgain: '',
-  linkedKicker: 'Lesson plan from the school', linkedFrom: "The class teacher's plan", linkedNote: 'Instructions from the class teacher', linkedBody: 'This lesson has a plan the school already had. Open it with the button, then tell us how far you got.', linkedNoteH: 'From the class teacher', linkedOpen: 'Open the plan', linkedPeek: 'Show it on this page', linkedFallback: "Nothing showing, or the wrong page? Use the button above — not every page can be displayed embedded.", linkedNoRate: 'This plan is not rated. We only ask how far you got, so the class teacher knows where the class is.',
+  linkedKicker: 'Lesson plan from the school', linkedFrom: "The class teacher's plan", linkedNote: 'Instructions from the class teacher', linkedBody: 'This lesson has a plan the school already had. Open it with the button, then tell us how far you got.', noteBody: "The class teacher left these instructions. Tell us afterwards how far you got.", linkedNoteH: 'From the class teacher', linkedOpen: 'Open the plan', linkedPeek: 'Show it on this page', linkedFallback: "Nothing showing, or the wrong page? Use the button above — not every page can be displayed embedded.", linkedNoRate: 'This plan is not rated. We only ask how far you got, so the class teacher knows where the class is.',
   qReuse: 'Would you use this plan again?', aReuseYes: 'Yes, as it is', aReuseChanges: 'Yes, with changes', aReuseNo: 'No', qClarity: 'Could you teach it without preparing?', aClearFull: 'Completely clear', aClearMost: 'Mostly', aClearNeeded: 'Needed work', qTime: 'Was there enough to fill the lesson?', aTimeRight: 'About right', aTimeLittle: 'Too little', aTimeMuch: 'Too much', savedSoFar: 'Saved. Please answer the others too.',
   noCode: 'The link is missing its code.', notFound: 'The plan could not be found. It may have been removed, or not approved yet. Get in touch with the school.',
   covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftLbl: 'Note for the class teacher (optional)', leftOff: 'e.g. "Finished tasks 1–4, ran out of time"', leftHint: 'Saved so the class teacher can read it.',
@@ -331,7 +331,11 @@ function renderLinked(d) {
     '<div class="card">' +
       '<span class="kicker">' + esc(l.linkedKicker) + '</span>' +
       '<h1>' + esc(what) + '</h1>' +
-      '<p class="muted">' + esc(l.linkedBody) + '</p>' +
+      // Typed instructions have no button to press, so they must not be told
+      // to press one. The teacher's own words are never translated — they are
+      // the teacher's, and a rough translation of a safety instruction is worse
+      // than the original.
+      '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + '</p>' +
       (d.note ? '<div class="ps"><h3>' + esc(l.linkedNoteH) + '</h3><p style="white-space:pre-wrap">' + esc(d.note) + '</p></div>' : '') +
       (d.url
         // The button always works. The preview often does not — a document
