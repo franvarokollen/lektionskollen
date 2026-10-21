@@ -500,3 +500,8 @@ body.panelmode .seam{flex:0 0 auto}
 .asp .ab i{display:block;height:7px}
 .asp .ab i.ok{background:#22c55e}.asp .ab i.mid{background:#f59e0b}.asp .ab i.bad{background:#ef4444}
 .asp .av{color:var(--ink);font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Approve where the coordinator arrives, not where the document ends */
+.approvebar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:12px;
+  background:var(--warn-bg);border:1px solid #fcd34d;color:#7c4a02;font-size:13px}
+.approvebar div{flex:1;min-width:200px}

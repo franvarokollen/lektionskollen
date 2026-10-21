@@ -285,7 +285,7 @@ function planRow(r, p) {
   if (p.kind === 'generated') {
     return '<button class="planbtn ' + (p.approved ? 'done' : 'draft') + '" data-planopen="' + esc(r.id) + '">' +
       '<span>' + (p.approved ? '✓' : '📄') + '</span>' +
-      esc(p.approved ? t('cvOpenPlan') : t('cvPlanDraft')) + '</button>';
+      esc(p.approved ? t('cvOpenPlan') : t('cvPlReview')) + '</button>';
   }
   // The teacher's own: a link or a few typed lines.
   const what = p.label || (p.kind === 'note' ? t('cvPlNoteKind') : hostOf(p.url) || t('cvPlLinkKind'));
@@ -776,14 +776,18 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { day: 'numeric', month: 'short' });
 }
 
-/** Record that a plan went to a class. Silent: a failure here must never block a lesson. */
+/** Record that a plan went to a class. Silent: a failure here must never block
+ *  a lesson, and never the approval it rides along with. A Supabase query
+ *  builder is thenable but not a Promise, so it has no .catch to hang this on. */
 async function logUse(planId) {
   const r = state.row;
   if (!planId || !r || !r.group) return;
-  await sb.rpc('lk_log_use', {
-    p_plan_id: planId, p_group: r.group, p_absence_ref: r.id || null, p_substitute: r.cover || null,
-  }).catch(() => {});
-  await loadUses().catch(() => {});
+  try {
+    await sb.rpc('lk_log_use', {
+      p_plan_id: planId, p_group: r.group, p_absence_ref: r.id || null, p_substitute: r.cover || null,
+    });
+    await loadUses();
+  } catch { /* the lesson matters more than the bookkeeping */ }
 }
 
 /* ── Add-in ────────────────────────────────────────── */
@@ -1067,7 +1071,15 @@ function showPlan() {
       '<span class="hint">' +
       (state.view === 'coordinator' ? esc(t('coordHint')) : esc(t('subHint')) + ' ' + esc(p.readTime || '')) +
       '</span></div>';
-  $('addin-content').innerHTML = head + simNote + fallbackNote + fbBox +
+  // The approve button also sits in the footer, which in a side panel is a
+  // long scroll below a whole lesson plan — far enough down that a coordinator
+  // opening a draft reasonably concludes there is no way to approve it. The
+  // decision belongs where they arrive, not where the document ends.
+  const approveNote = !state.approved && state.view === 'coordinator'
+    ? '<div class="approvebar"><div><b>' + esc(t('apTitle')) + '</b> ' + esc(t('apBody')) + '</div>' +
+      '<button class="btn btn-ok btn-sm" data-approve>' + esc(t('approve')) + '</button></div>'
+    : '';
+  $('addin-content').innerHTML = head + approveNote + simNote + fallbackNote + fbBox +
     (state.view === 'coordinator' ? coordView(p, r) : vikarieView(p, r)) + '</div>';
 }
 
@@ -1363,6 +1375,7 @@ document.addEventListener('click', async (e) => {
     state.approved = true;
     state.shareToken = data?.share_token || null;
     await logUse(state.planId);
+    if (state.screen === 'cover') await loadCoverPlans().then(renderRows).catch(() => {});
     toParent('lk:plan', {
       planId: state.planId,
       ref: state.row?.id || null,
