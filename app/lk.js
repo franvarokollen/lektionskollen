@@ -13,7 +13,12 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 /* ── Language ───────────────────────────────────────
    Mirrors FVK's own sv/en toggle. The generated plan keeps the language
    it was written in; only the chrome switches. */
-let LANG = (() => { try { return localStorage.getItem('lk.lang') || 'sv'; } catch { return 'sv'; } })();
+let LANG = (() => {
+  // In a panel the host app owns the language; standalone we remember our own.
+  const q = new URLSearchParams(location.search).get('lang');
+  if (q === 'sv' || q === 'en') return q;
+  try { return localStorage.getItem('lk.lang') || 'sv'; } catch { return 'sv'; }
+})();
 const t = (k) => (window.LK_T[LANG] && window.LK_T[LANG][k]) || window.LK_T.sv[k] || k;
 
 function setLang(l) {
@@ -126,7 +131,10 @@ function boot() {
   document.documentElement.lang = LANG;
   applyStatic();
   renderNav();
-  enterApp().then(() => Promise.all([loadFeedback(), loadUses()])).catch(() => {});
+  enterApp()
+    .then(() => Promise.all([loadFeedback(), loadUses()]))
+    .then(() => { if (EMBED) openEmbed(); })
+    .catch(() => {});
 }
 
 $('signout').addEventListener('click', () => location.reload());
@@ -345,6 +353,73 @@ async function logUse(planId) {
 }
 
 /* ── Add-in ────────────────────────────────────────── */
+
+/** The substitute's link for a plan. Built from this page's own location so it
+ *  is right on GitHub Pages, on a school's own host, and inside an embed panel
+ *  (where the query string must not leak into the link). */
+function planUrl(token) {
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'plan.html?t=' + token;
+}
+
+/* ── Embed mode ─────────────────────────────────────────
+   Frånvarokollen opens this app in a panel beside its cover screen, passing the
+   lesson it is standing on. There is no second login and no duplicated plan UI:
+   the same screens the coordinator already knows, with the chrome hidden.
+
+   The lesson arrives in the query string rather than through postMessage so the
+   panel survives a reload and can be opened in a tab for debugging. Nothing
+   about a pupil is ever passed; the parameters below are the whole contract.
+
+     ?embed=1&ref=<cover key>&subject=&year=&group=&mins=&start=&end=&room=
+     &teacher=<absent teacher>&cover=<substitute>&lang=sv|en
+
+   Back to the parent go two messages, both namespaced: lk:ready once the panel
+   is up, and lk:plan when a plan is approved, carrying the share link that
+   Frånvarokollen puts in its cover notification. */
+const EMBED = (() => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('embed') !== '1') return null;
+  const num = (k, d) => { const n = parseInt(q.get(k) || '', 10); return Number.isFinite(n) ? n : d; };
+  return {
+    row: {
+      id: q.get('ref') || '',
+      subject: q.get('subject') || '—',
+      year: q.get('year') || '',
+      group: q.get('group') || '',
+      raw: q.get('code') || q.get('subject') || '',
+      mins: num('mins', 45),
+      start: q.get('start') || '',
+      end: q.get('end') || '',
+      time: [q.get('start'), q.get('end')].filter(Boolean).join('–'),
+      room: q.get('room') || '—',
+      teacher: q.get('teacher') || '—',
+      cover: q.get('cover') || null,
+      practical: q.get('practical') === '1',
+      plannable: true,
+    },
+    lang: q.get('lang') === 'en' ? 'en' : null,
+  };
+})();
+
+/** Tell Frånvarokollen what happened. Same-origin parents get nothing extra;
+ *  the targetOrigin stays '*' because the panel holds no secret worth guarding
+ *  — the share link it reports is one the coordinator is about to email anyway. */
+function toParent(type, payload) {
+  if (!EMBED || window.parent === window) return;
+  try { window.parent.postMessage({ source: 'lektionskollen', type, ...payload }, '*'); } catch { /* cross-origin */ }
+}
+
+/** Open the request straight onto the lesson Frånvarokollen passed. */
+function openEmbed() {
+  document.body.classList.add('embed');
+  state.row = EMBED.row;
+  state.plan = null; state.planId = null; state.view = 'coordinator';
+  $('overlay').hidden = false;
+  loadBank().then(() => { if (!state.planId) showRequest(); }).catch(() => showRequest());
+  showRequest();
+  toParent('lk:ready', { ref: EMBED.row.id });
+}
+
 function openAddin(id) {
   state.row = ROWS.find((x) => x.id === id);
   state.plan = null; state.planId = null; state.view = 'coordinator';
@@ -353,6 +428,7 @@ function openAddin(id) {
   showRequest();
 }
 function closeAddin() {
+  if (EMBED) { toParent('lk:close', {}); return; }
   $('overlay').hidden = true;
   document.body.style.overflow = '';
 }
@@ -569,7 +645,7 @@ const CHK = '<svg class="cl-ico" viewBox="0 0 24 24" width="14" height="14" fill
 function coordView(p, r) {
   const phases = p.phases || [];
   const sum = phases.reduce((a, ph) => { const m = String(ph.t || '').split('–'); return a + (m.length === 2 ? minDiff(m[0], m[1]) : 0); }, 0);
-  const link = state.shareToken ? location.href.replace(/index\.html.*$|\/?$/, '/') + 'plan.html?t=' + state.shareToken : null;
+  const link = state.shareToken ? planUrl(state.shareToken) : null;
   return '<div class="plan">' +
     '<div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t('whatItIs')) + '</h4><p>' + esc(p.summary) + '</p></div>' +
     '<div class="twocol">' +
@@ -784,7 +860,7 @@ document.addEventListener('click', async (e) => {
 
   if (t2.hasAttribute('data-copylink') || t2.hasAttribute('data-copymail')) {
     const tok = t2.getAttribute('data-copylink') || t2.getAttribute('data-copymail');
-    const url = location.href.replace(/[^/]*$/, '') + 'plan.html?t=' + tok;
+    const url = planUrl(tok);
     let text = url;
     if (t2.hasAttribute('data-copymail')) {
       const r = state.row || {};
@@ -816,6 +892,13 @@ document.addEventListener('click', async (e) => {
     state.approved = true;
     state.shareToken = data?.share_token || null;
     await logUse(state.planId);
+    toParent('lk:plan', {
+      planId: state.planId,
+      ref: state.row?.id || null,
+      shareToken: state.shareToken,
+      url: state.shareToken ? planUrl(state.shareToken) : null,
+      title: state.plan?.title || null,
+    });
     showPlan();
     loadBank();
     toast('Godkänd och sparad i banken');
