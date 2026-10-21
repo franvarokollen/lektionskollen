@@ -512,3 +512,12 @@ body.panelmode .seam{flex:0 0 auto}
 .linkstate.ok{color:var(--ok);font-weight:600}
 .linkstate.warn{color:#9a4d00}
 .linkstate.bad{color:#b91c1c;font-weight:600}
+
+/* What the machine checked, so the coordinator need not */
+.flag.chk{align-items:flex-start}
+.flag.chk.ok{background:var(--ok-bg);color:#14532d}
+.flag.chk.warn{background:var(--warn-bg);color:#7c4a02}
+.flag.chk.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+.chklist{margin:7px 0 0;padding-left:18px;font-size:12.5px;display:grid;gap:3px}
+.chklist li.bad{font-weight:600}
+.chklist li.warn{opacity:.85}
