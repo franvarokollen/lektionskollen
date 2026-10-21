@@ -55,3 +55,30 @@ supabase/
 docs/EMBED.md               the integration contract for FVK
 legacy/                     the old Vikarieplaneringen app
 ```
+
+## Both languages, every time
+
+Swedish and English are equal here: a coordinator may run the app in either,
+and a substitute opens the plan link in whichever they read. Three separate
+bugs shipped because a string was added to one side only, or pasted into the
+wrong block where a duplicate silently overwrote it.
+
+```
+node tools/i18n-check.mjs
+```
+
+Run it before any push that touches text. It fails on a key present in one
+language and not the other, on a duplicate key inside one block, and on a value
+identical in both (usually a forgotten translation — genuine same-in-both words
+are listed in the script).
+
+Three things the check cannot see, so they need remembering:
+
+- **Plan content.** A generated plan is written in both languages by
+  `lk-generate`; anything seeded by hand needs `body_alt` and `language_alt`
+  filling too, or the toggle leaves the reader on the Swedish text.
+- **Subject and year group.** Stored as the Swedish the timetable imports
+  (`Matematik`, `Åk 7`) and turned at display time by `subjectLabel()` and
+  `yearLabel()` in `app/lk.js`. A new subject needs a line in `SUBJECTS_EN`.
+- **Messages built in code.** Errors and toasts are easy to write as a bare
+  Swedish string. They belong in `i18n.js` like everything else.

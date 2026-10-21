@@ -206,6 +206,7 @@ const SV_LABELS = {
   packBtn: 'Skriv ut paket (plan + elevblad)', offlineNote: 'Sparad kopia – du är offline.', onlineAgain: '',
   linkedKicker: 'Lektionsplan från skolan', linkedFrom: 'Ordinarie lärares plan', linkedNote: 'Instruktion från ordinarie lärare', linkedBody: 'Den här lektionen har en plan som skolan redan hade. Öppna den nedan och berätta sedan hur långt ni kom.', linkedNoteH: 'Från ordinarie lärare', linkedOpen: 'Öppna planen', linkedFallback: 'Syns inget här? Använd knappen ovan — alla sidor går inte att visa inbäddade.', linkedNoRate: 'Den här planen betygsätts inte. Vi frågar bara hur långt ni kom, så att ordinarie lärare vet var klassen står.',
   qReuse: 'Skulle du använda den här planen igen?', aReuseYes: 'Ja, som den är', aReuseChanges: 'Ja, med ändringar', aReuseNo: 'Nej', qClarity: 'Gick den att hålla utan förberedelse?', aClearFull: 'Helt tydlig', aClearMost: 'Mestadels', aClearNeeded: 'Behövde arbete', qTime: 'Räckte innehållet till lektionen?', aTimeRight: 'Lagom', aTimeLittle: 'För lite', aTimeMuch: 'För mycket', savedSoFar: 'Sparat. Svara gärna på de andra också.',
+  noCode: 'Länken saknar kod.', notFound: 'Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.',
   covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftLbl: 'Anteckning till ordinarie lärare (valfritt)', leftOff: 'T.ex. "Hann uppgift 1–4, tog slut på tid"', leftHint: 'Sparas så att ordinarie lärare kan läsa den.',
   forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
@@ -248,6 +249,7 @@ const EN_LABELS = {
   packBtn: 'Print pack (plan + student sheet)', offlineNote: 'Saved copy – you are offline.', onlineAgain: '',
   linkedKicker: 'Lesson plan from the school', linkedFrom: "The class teacher's plan", linkedNote: 'Instructions from the class teacher', linkedBody: 'This lesson has a plan the school already had. Open it below, then tell us how far you got.', linkedNoteH: 'From the class teacher', linkedOpen: 'Open the plan', linkedFallback: "Nothing showing? Use the button above — not every page can be displayed embedded.", linkedNoRate: 'This plan is not rated. We only ask how far you got, so the class teacher knows where the class is.',
   qReuse: 'Would you use this plan again?', aReuseYes: 'Yes, as it is', aReuseChanges: 'Yes, with changes', aReuseNo: 'No', qClarity: 'Could you teach it without preparing?', aClearFull: 'Completely clear', aClearMost: 'Mostly', aClearNeeded: 'Needed work', qTime: 'Was there enough to fill the lesson?', aTimeRight: 'About right', aTimeLittle: 'Too little', aTimeMuch: 'Too much', savedSoFar: 'Saved. Please answer the others too.',
+  noCode: 'The link is missing its code.', notFound: 'The plan could not be found. It may have been removed, or not approved yet. Get in touch with the school.',
   covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftLbl: 'Note for the class teacher (optional)', leftOff: 'e.g. "Finished tasks 1–4, ran out of time"', leftHint: 'Saved so the class teacher can read it.',
   forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
@@ -347,7 +349,7 @@ function renderLinked(d) {
 
 /* ── Loading ─────────────────────────────────────────── */
 async function load() {
-  if (!token) { $('out').innerHTML = '<p class="muted">Länken saknar kod.</p>'; return; }
+  if (!token) { $('out').innerHTML = '<p class="muted">' + esc(L().noCode) + '</p>'; return; }
 
   // A teacher's own plan arrives through the same door as a generated one, so
   // the substitute never has to know which kind they were sent.
@@ -367,7 +369,7 @@ async function load() {
   }
   if (plan.error || !plan.data) {
     $('out').innerHTML =
-      '<p class="muted">Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.</p>';
+      '<p class="muted">' + esc(L().notFound) + '</p>';
     return;
   }
   EXTRAS = Array.isArray(extras.data) ? extras.data : [];
