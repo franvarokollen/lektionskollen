@@ -137,6 +137,15 @@
 a.openbtn{display:inline-flex;align-items:center;gap:6px;padding:11px 17px;border-radius:10px;font-weight:600;
   font-size:14px;background:var(--navy-deep);color:#fff;text-decoration:none;margin-top:4px}
 a.openbtn:hover{opacity:.92;color:#fff}
+
+/* Three questions, one tap each */
+.qrow{margin:0 0 12px}
+.qrow .ql{margin:0 0 6px;font-size:13.5px;font-weight:600;color:var(--ink)}
+.qpick{display:flex;gap:7px;flex-wrap:wrap}
+.qpick button{flex:1 1 30%;min-width:96px;padding:11px 10px;font:inherit;font-size:13px;font-weight:600;
+  border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);cursor:pointer}
+.qpick button:hover{background:var(--line-soft)}
+.qpick button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
 </head>
 <body>
@@ -171,6 +180,20 @@ const params = new URLSearchParams(location.search);
 const token = params.get('t');
 let DATA = null;
 let LINKED = null;
+const ASPECTS = { reuse: '', clarity: '', timefit: '' };
+
+/* The three questions save as they are tapped, so the second tap has to find
+   the row the first one made — without claiming to be the previous substitute,
+   whose answers must stand. A random id per share link, kept in this browser,
+   keeps one substitute's three answers together and the next one's apart. */
+const SESSION = (() => {
+  const k = 'lk.sess.' + token;
+  try {
+    let v = localStorage.getItem(k);
+    if (!v) { v = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(k, v); }
+    return v;
+  } catch { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+})();
 let EXTRAS = [];
 let REASONS = new Set();
 // The substitute may not read Swedish comfortably, so they pick, not the school.
@@ -182,6 +205,7 @@ const SV_LABELS = {
   quickBtn: '⏱ Har du 5 minuter?', fullBtn: 'Visa hela planen', quickTitle: 'Snabbstart', quickHint: 'Bara det du behöver innan eleverna kommer in.',
   packBtn: 'Skriv ut paket (plan + elevblad)', offlineNote: 'Sparad kopia – du är offline.', onlineAgain: '',
   linkedKicker: 'Lektionsplan från skolan', linkedFrom: 'Ordinarie lärares plan', linkedNote: 'Instruktion från ordinarie lärare', linkedBody: 'Den här lektionen har en plan som skolan redan hade. Öppna den nedan och berätta sedan hur långt ni kom.', linkedNoteH: 'Från ordinarie lärare', linkedOpen: 'Öppna planen', linkedFallback: 'Syns inget här? Använd knappen ovan — alla sidor går inte att visa inbäddade.', linkedNoRate: 'Den här planen betygsätts inte. Vi frågar bara hur långt ni kom, så att ordinarie lärare vet var klassen står.',
+  qReuse: 'Skulle du använda den här planen igen?', aReuseYes: 'Ja, som den är', aReuseChanges: 'Ja, med ändringar', aReuseNo: 'Nej', qClarity: 'Gick den att hålla utan förberedelse?', aClearFull: 'Helt tydlig', aClearMost: 'Mestadels', aClearNeeded: 'Behövde arbete', qTime: 'Räckte innehållet till lektionen?', aTimeRight: 'Lagom', aTimeLittle: 'För lite', aTimeMuch: 'För mycket', savedSoFar: 'Sparat. Svara gärna på de andra också.',
   covTitle: 'Hur långt kom ni?', covAll: 'Hela planen', covPart: 'En del', covNone: 'Knappt något', leftLbl: 'Anteckning till ordinarie lärare (valfritt)', leftOff: 'T.ex. "Hann uppgift 1–4, tog slut på tid"', leftHint: 'Sparas så att ordinarie lärare kan läsa den.',
   forStudents: 'Elevblad', forStudentsHint: 'Det eleverna får se – utan facit', print: 'Skriv ut', copyText: 'Kopiera text', close: 'Stäng', copiedTxt: 'Kopierad', studentSheet: 'Elevblad (utan facit)',
   first90: 'De första 90 sekunderna', overview: 'Översikt', goal: 'Mål:',
@@ -191,8 +215,8 @@ const SV_LABELS = {
   tasks: 'Uppgifter med facit', earlyStuck: 'Om de blir klara tidigt, om de fastnar',
   stuck: 'Fastnar', ahead: 'Klara tidigt', wrong: 'Om det går snett', exit: 'Exit ticket',
   handover: 'Överlämning till ordinarie lärare',
-  worked: 'Skulle du använda den här planen igen?',
-  ratingNote: 'Ett tryck räcker. Ditt svar avgör om planen används igen.',
+  worked: 'Tre snabba frågor',
+  ratingNote: 'Ett tryck per fråga. Dina svar avgör om planen används igen — och av vilken skola.',
   yes: 'Ja', no: 'Inte som den är',
   whyTitle: 'Vad var det som inte stämde? (frivilligt)',
   thanks: 'Tack — ditt svar är sparat.', saveFail: 'Kunde inte spara: ',
@@ -223,6 +247,7 @@ const EN_LABELS = {
   quickBtn: '⏱ Got 5 minutes?', fullBtn: 'Show full plan', quickTitle: 'Quick start', quickHint: 'Only what you need before the pupils walk in.',
   packBtn: 'Print pack (plan + student sheet)', offlineNote: 'Saved copy – you are offline.', onlineAgain: '',
   linkedKicker: 'Lesson plan from the school', linkedFrom: "The class teacher's plan", linkedNote: 'Instructions from the class teacher', linkedBody: 'This lesson has a plan the school already had. Open it below, then tell us how far you got.', linkedNoteH: 'From the class teacher', linkedOpen: 'Open the plan', linkedFallback: "Nothing showing? Use the button above — not every page can be displayed embedded.", linkedNoRate: 'This plan is not rated. We only ask how far you got, so the class teacher knows where the class is.',
+  qReuse: 'Would you use this plan again?', aReuseYes: 'Yes, as it is', aReuseChanges: 'Yes, with changes', aReuseNo: 'No', qClarity: 'Could you teach it without preparing?', aClearFull: 'Completely clear', aClearMost: 'Mostly', aClearNeeded: 'Needed work', qTime: 'Was there enough to fill the lesson?', aTimeRight: 'About right', aTimeLittle: 'Too little', aTimeMuch: 'Too much', savedSoFar: 'Saved. Please answer the others too.',
   covTitle: 'How far did you get?', covAll: 'All of it', covPart: 'Part of it', covNone: 'Hardly any', leftLbl: 'Note for the class teacher (optional)', leftOff: 'e.g. "Finished tasks 1–4, ran out of time"', leftHint: 'Saved so the class teacher can read it.',
   forStudents: 'Student sheet', forStudentsHint: 'What the pupils get to see – no answers', print: 'Print', copyText: 'Copy text', close: 'Close', copiedTxt: 'Copied', studentSheet: 'Student sheet (no answers)',
   first90: 'The first ninety seconds', overview: 'Overview', goal: 'Goal:',
@@ -232,8 +257,8 @@ const EN_LABELS = {
   tasks: 'Tasks with answers', earlyStuck: 'If they finish early, if they get stuck',
   stuck: 'Stuck', ahead: 'Finished early', wrong: 'If it goes wrong', exit: 'Exit ticket',
   handover: 'Handover to the class teacher',
-  worked: 'Would you use this plan again?',
-  ratingNote: 'One tap is enough. Your answer decides whether it gets used again.',
+  worked: 'Three quick questions',
+  ratingNote: 'One tap each. Your answers decide whether this plan gets used again — and by which school.',
   yes: 'Yes', no: 'Not as it is',
   whyTitle: 'What was off? (optional)',
   thanks: 'Thank you — your answer is saved.', saveFail: 'Could not save: ',
@@ -598,12 +623,21 @@ function render(d, keepScroll) {
 
   // One question, binary. A tired substitute at the end of a lesson gives
   // you one tap; reasons are optional and only appear after it.
+  // Three questions, one tap each, saved as they are answered. Not a number
+  // out of ten: at the end of a hard lesson nobody can tell 7 from 8, and a
+  // row of sliders gets straight-lined or abandoned. These get answered.
   h += '<div class="ratebox noprint"><h3>' + esc(l.worked) + '</h3>' +
        '<p class="muted" style="margin:0 0 10px">' + esc(l.ratingNote) + '</p>' +
-       '<div class="bigpick" id="verdict">' +
-         '<button data-reuse="1">' + esc(l.yes) + '</button>' +
-         '<button data-reuse="0">' + esc(l.no) + '</button>' +
-       '</div>' +
+       [['reuse', l.qReuse, [['yes', l.aReuseYes], ['changes', l.aReuseChanges], ['no', l.aReuseNo]]],
+        ['clarity', l.qClarity, [['complete', l.aClearFull], ['mostly', l.aClearMost], ['needed', l.aClearNeeded]]],
+        ['timefit', l.qTime, [['right', l.aTimeRight], ['little', l.aTimeLittle], ['much', l.aTimeMuch]]]]
+         .map(function (q) {
+           return '<div class="qrow"><p class="ql">' + esc(q[1]) + '</p><div class="qpick" id="q-' + q[0] + '">' +
+             q[2].map(function (o) {
+               return '<button data-asp="' + q[0] + ':' + o[0] + '"' + (ASPECTS[q[0]] === o[0] ? ' class="on"' : '') +
+                 '>' + esc(o[1]) + '</button>';
+             }).join('') + '</div></div>';
+         }).join('') +
        '<div id="why" hidden><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p>' +
          '<div class="reasons">' + Object.keys(l.reasons).map((k) =>
            '<button data-reason="' + k + '">' + esc(l.reasons[k]) + '</button>').join('') + '</div></div>' +
@@ -695,6 +729,24 @@ document.addEventListener('click', async (e) => {
     if (lleft) LEFT = $('leftoff').value.trim();
     const { error } = await sb.rpc('lk_linked_coverage', { p_token: token, p_coverage: COV || null, p_left_off: LEFT || null });
     $('lratemsg').textContent = error ? L().saveFail + error.message : L().thanks;
+    return;
+  }
+  const asp = e.target.closest('[data-asp]');
+  if (asp) {
+    const parts = asp.getAttribute('data-asp').split(':');
+    ASPECTS[parts[0]] = parts[1];
+    [...$('q-' + parts[0]).children].forEach((x) => x.classList.toggle('on', x === asp));
+    // "No" and "with changes" are the answers worth a reason, so ask then.
+    if (parts[0] === 'reuse') {
+      $('why').hidden = parts[1] === 'yes';
+      $('saybox').hidden = false;
+    }
+    const { error } = await sb.rpc('lk_rate_aspects_by_token', {
+      p_token: token, p_session: SESSION, p_reuse: ASPECTS.reuse || null,
+      p_clarity: ASPECTS.clarity || null, p_timefit: ASPECTS.timefit || null,
+    });
+    const done = ASPECTS.reuse && ASPECTS.clarity && ASPECTS.timefit;
+    $('ratemsg').textContent = error ? L().saveFail + error.message : (done ? L().thanks : L().savedSoFar);
     return;
   }
   const cov = e.target.closest('[data-cov]');
