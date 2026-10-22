@@ -25,6 +25,26 @@ import { parseModelJson } from './repair.ts'
 const AI_TEMP = Deno.env.get('AI_TEMPERATURE');
 const temperature = () => (AI_TEMP ? { temperature: Number(AI_TEMP) } : {});
 
+// Thinking is on by default on Claude 5 models and is billed against the same
+// max_tokens as the answer, so a plan this size ran out of budget mid-JSON:
+// completion_tokens came back at exactly the ceiling, three times running, with
+// the tasks truncated away. OpenAI's reasoning_effort is ignored by the
+// compatibility layer; the budget is set with a `thinking` field on the request
+// body instead.
+//
+// A provider that does not know the field may reject the whole request rather
+// than ignore it, so this is only sent to Anthropic — where leaving it out is
+// the broken case, not the safe one. Anywhere else it needs setting on purpose.
+const AI_THINK = Deno.env.get('AI_THINKING_BUDGET');
+const IS_ANTHROPIC = /api\.anthropic\.com/i.test(Deno.env.get('AI_BASE_URL') ?? '');
+const thinking = () => {
+  const budget = AI_THINK !== undefined ? Number(AI_THINK) : IS_ANTHROPIC ? 3000 : NaN;
+  if (!Number.isFinite(budget)) return {};
+  return budget > 0
+    ? { thinking: { type: 'enabled', budget_tokens: budget } }
+    : { thinking: { type: 'disabled' } };
+};
+
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -104,6 +124,7 @@ Deno.serve(async (req) => {
     const { data, repaired } = parseModelJson(content)
     return json({
       plan: data, model: out.model ?? model, source: 'model', repaired,
+      finish_reason: out?.choices?.[0]?.finish_reason,
       usage: out.usage, ms: Date.now() - t0,
     })
   } catch (e) {
