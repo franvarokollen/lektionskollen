@@ -742,3 +742,75 @@ body.panelmode .seam{flex:0 0 auto}
 .tpgrid tr.now td{background:var(--line-soft)}
 .tpgrid tr.now td.wk b::after{content:' ◂';color:var(--ink-soft)}
 .tpgrid td input{border-color:var(--line);background:var(--bg)}
+
+/* ── Substitute flow: get ready, first 90 seconds, numbered steps, feedback ── */
+.reg-before .rd{background:#fff;border:1px solid #cddff2;border-radius:10px;padding:10px 12px;margin-top:10px}
+.reg-before .rd-t{display:flex;align-items:center;gap:9px;font-size:14px}
+.reg-before .rd-tick{width:20px;height:20px;border-radius:50%;background:#1d7a5f;color:#fff;display:inline-flex;
+  align-items:center;justify-content:center;font-size:12px;flex:none}
+.reg-before .rd-tick.rd-empty{background:#fff;border:2px solid #8fb0d6}
+.reg-before .rd-btn{margin-left:auto;border:1px solid #b9cde4;background:#fff;color:#14407a;border-radius:8px;
+  padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.reg-before .rd-ok{background:#14407a;color:#fff;border-color:#14407a}
+.reg-before .rd-done{background:#f1f8f4;border-color:#c7e3d3;padding:7px 12px}
+.reg-before .rd-goal{font-size:14px;margin:0 0 2px}
+.reg-before .rd-hint,.rd-hint{font-size:13px;color:var(--ink-soft);margin:8px 0 0}
+.reg-before .rd-kit{font-size:13.5px;margin:8px 0 0}
+.reg-before .rd-all{margin:12px 0 0;font-weight:600;color:#1d7a5f}
+.reg-before .rd .board{margin-top:8px}
+.reg-before .rd .mat{margin-top:8px}
+.reg-first{background:#fff8e8;border:1px solid #f0dca8}
+.reg-first .reg-h{color:#7a5410}
+.reg-first .reg-h .n{background:#b07515;color:#fff}
+.f90{margin:0;padding-left:22px;font-size:14.5px;line-height:1.5}
+.f90 li{margin:4px 0}
+.lesson-h h2 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;
+  background:#14407a;color:#fff;font-size:12px;margin-right:8px;vertical-align:2px}
+.lesson-h{align-items:center;justify-content:space-between}
+.shortnote{background:#fff8e8;border:1px solid #f0dca8;border-radius:10px;padding:9px 12px;font-size:13px;margin:0 0 12px}
+.ph-step{font:500 11px/1 'Geist Mono',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-soft);margin-bottom:6px}
+.ph-step b{color:#14407a}
+.ph-step b.canskip{color:#b07515}
+.ph-cur{box-shadow:0 0 0 2px #14407a33,0 6px 18px rgba(20,64,122,.12)}
+.ph-skip{opacity:.62}
+.ph-done{padding:8px 14px!important;margin-bottom:8px;opacity:.75}
+.ph-done .ph-h{margin:0;align-items:center}
+.ph-done .ph-n{background:#1d7a5f!important;color:#fff!important}
+.ph-re{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;font:inherit;
+  font-size:12px;cursor:pointer}
+.ph-foot{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);flex-wrap:wrap}
+.ph-foot .nextup{font-size:13px;color:var(--ink-soft);flex:1;min-width:160px}
+.ph-foot .nextup b{color:var(--ink)}
+
+/* Feedback is not part of the lesson, so it is not dressed like it. */
+.fbpanel{background:#f6f1fb;border:2px dashed #b9a5d6;border-radius:16px;padding:18px 18px 20px;margin-top:34px}
+.fbpanel .fb-kick{display:inline-block;background:#5b3f8c;color:#fff;border-radius:999px;padding:3px 11px;
+  font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}
+.fbpanel h3{font-size:18px;margin:0 0 2px;color:#3f2a66}
+.fbpanel h4{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#5b3f8c;margin:20px 0 8px}
+.fbpanel .fb-intro{font-size:13px;color:#5b4b78;margin:0}
+.fbpanel .fb-row{background:#fff;border:1px solid #e1d6f0;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.fbpanel .fb-lbl{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin-bottom:8px}
+.fbpanel .fb-n{width:20px;height:20px;border-radius:50%;background:#e9defa;color:#3f2a66;display:inline-flex;
+  align-items:center;justify-content:center;font-size:11.5px;flex:none}
+.fbpanel .fb-t{margin-left:auto;font:500 11px 'Geist Mono',ui-monospace,monospace;color:var(--ink-soft)}
+.fbpanel .fb-pick{display:flex;gap:6px;flex-wrap:wrap}
+.fbpanel .fb-pick button{flex:1;min-width:104px;border:1px solid #d9cdea;background:#fff;border-radius:9px;padding:9px 8px;
+  font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.fbpanel .fb-pick button i{font-style:normal;font-weight:700}
+.fbpanel .fb-pick button.on.fb-worked{background:#e5f4ea;border-color:#1d7a5f;color:#13573f;font-weight:600}
+.fbpanel .fb-pick button.on.fb-changes{background:#fff1d6;border-color:#b07515;color:#7a5410;font-weight:600}
+.fbpanel .fb-pick button.on.fb-skipped{background:#eceff3;border-color:#6b7787;color:#38424f;font-weight:600}
+.fbpanel .fb-note{display:flex;gap:6px;margin-top:8px}
+.fbpanel .fb-note[hidden]{display:none}
+.fbpanel .fb-note input{flex:1;min-width:0}
+.fbpanel .ql{font-size:13.5px;font-weight:600;margin:10px 0 6px}
+.assistbar .fbjump{margin-left:auto;background:#5b3f8c;color:#fff;border-color:#5b3f8c}
+.subwrap > .full,.subwrap #out > .full{position:relative;z-index:2}
+.fbpanel .fb-note input,.fbpanel .noterow input{border:1px solid #cdbfe3;border-radius:9px;padding:9px 11px;font:inherit;font-size:13.5px;background:#fff}
+.fbpanel .fb-note button,.fbpanel .noterow button{border:0;background:#5b3f8c;color:#fff;border-radius:9px;padding:0 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.heat .secbar{display:flex;overflow:hidden;background:#eceff3}
+.heat .secbar i{display:block;height:100%}
+.secbar .sb-w{background:#1d7a5f}.secbar .sb-c{background:#d9921c}.secbar .sb-s{background:#6b7787}
+.secn{font-size:12.5px;white-space:nowrap}.sb-wt{color:#1d7a5f}.sb-ct{color:#b07515}.sb-st{color:#6b7787}

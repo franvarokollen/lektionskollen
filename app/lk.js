@@ -1744,8 +1744,19 @@ function fbHeatMap() {
   return m;
 }
 
+/** section_ref -> {worked, changes, skipped} from the substitute's per-step taps. */
+function fbSecMap() {
+  const r = fbRowForOpenPlan();
+  const m = {};
+  ((r && r.sections) || []).forEach((x) => { m[x.section_ref] = x; });
+  return m;
+}
+
 function fbFlag(map, ref) {
-  return map[ref] ? '<span class="chip chip-warn fbchip">' + esc(t('neededHelp')) + ' ' + map[ref] + '×</span>' : '';
+  const sec = fbSecMap()[ref];
+  return (map[ref] ? '<span class="chip chip-warn fbchip">' + esc(t('neededHelp')) + ' ' + map[ref] + '×</span>' : '') +
+    (sec && sec.changes ? '<span class="chip chip-warn fbchip">' + esc(t('fbChanges')) + ' ' + sec.changes + '×</span>' : '') +
+    (sec && sec.skipped ? '<span class="chip chip-neutral fbchip">' + esc(t('fbSkipped')) + ' ' + sec.skipped + '×</span>' : '');
 }
 
 function fbBody(p) {
@@ -1763,6 +1774,20 @@ function fbBody(p) {
       '<div class="heat"><span class="hl"><b>' + esc(x.section_label || t('wholeLesson')) + '</b><br><span class="muted">' + esc(kindLabel(x.kind, '')) + '</span></span>' +
       '<span class="hb"><i style="width:' + Math.round(x.n / max * 100) + '%"></i></span><b>' + x.n + '×</b></div>').join('');
     if (top && top.n >= 2) h += '<p class="fbwarn">' + esc(t('fbRewrite')) + '</p>';
+  }
+
+  // What substitutes said about each step, one tap per step per substitute.
+  if ((p.sections || []).length) {
+    h += '<div class="sect-h">' + esc(t('fbSecTitle')) + '</div>' + p.sections.map((x) => {
+      const n = x.worked + x.changes + x.skipped || 1;
+      const seg = (k, c) => x[k] ? '<i class="' + c + '" style="width:' + Math.round(x[k] / n * 100) + '%"></i>' : '';
+      return '<div class="heat"><span class="hl"><b>' + esc(x.section_label || x.section_ref) + '</b></span>' +
+        '<span class="hb secbar">' + seg('worked', 'sb-w') + seg('changes', 'sb-c') + seg('skipped', 'sb-s') + '</span>' +
+        '<span class="secn"><b class="sb-wt">' + x.worked + '</b> / <b class="sb-ct">' + x.changes + '</b> / <b class="sb-st">' + x.skipped + '</b></span></div>' +
+        (x.notes || []).map((nt) => '<blockquote>' + esc(nt) + '</blockquote>').join('');
+    }).join('') +
+      '<p class="muted" style="font-size:12px">' + esc(t('fbSecKey')) + '</p>';
+    if (p.sections.some((x) => x.changes >= 2)) h += '<p class="fbwarn">' + esc(t('fbRewrite')) + '</p>';
   }
 
   const said = [];
