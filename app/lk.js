@@ -1063,7 +1063,10 @@ async function generate() {
     // language the coordinator reads. A code on screen helps nobody, so the
     // ones we expect become a sentence that says what to do instead.
     const code = main.data?.error || '';
-    const said = { no_model: t('errNoModel') }[code];
+    const said = {
+      no_model: t('errNoModel'),
+      quota: fillT('errQuota', { n: main.data?.limit ?? '' }),
+    }[code];
     const msg = said || main.data?.detail || main.error?.message || t('errUnknown');
     $('addin-content').innerHTML =
       '<div class="addin-body"><div class="addin-head"><h2>' + esc(t('failed')) + '</h2>' +
@@ -1259,6 +1262,9 @@ async function previewAssist(opts) {
       section_text: opts.text || '',
       variant: opts.variant || '',
       language: LANG,
+      // So the extras cap applies to the right plan rather than pooling every
+      // plan's extras into one bucket.
+      plan_id: state.planId || p?.id || undefined,
       subject: r?.subject,
       year_group: r?.year,
       topic: p?.title,

@@ -66,6 +66,29 @@ Deno.serve(async (req) => {
     return json({ error: 'subject, year_group and minutes are required' }, 400)
   }
 
+  // ── The day's allowance ────────────────────────────────
+  // Plans are the meter, because a plan is what a school asks for and what it
+  // would recognise on a bill. Nobody plans their day in tokens.
+  //
+  // The call goes out as the caller, not as the service role, so the school is
+  // the one whose coordinator pressed the button rather than one the client
+  // could name for itself.
+  const fwd = {
+    apikey: req.headers.get('apikey') ?? '',
+    Authorization: req.headers.get('Authorization') ?? '',
+    'Content-Type': 'application/json',
+  }
+  const rpc = async (name: string, args: Record<string, unknown>) => {
+    const url = Deno.env.get('SUPABASE_URL')
+    if (!url) return null
+    try {
+      const res = await fetch(`${url}/rest/v1/rpc/${name}`, {
+        method: 'POST', headers: fwd, body: JSON.stringify(args),
+      })
+      return res.ok ? await res.json() : null
+    } catch { return null }
+  }
+
   const baseUrl = Deno.env.get('AI_BASE_URL')
   const bigModel = Deno.env.get('AI_MODEL')
   // A translation needs no planning, so it can run on the cheaper model.
@@ -77,6 +100,27 @@ Deno.serve(async (req) => {
   if (!baseUrl || !bigModel) {
     return json({ error: 'no_model', detail: 'The plan generator is not configured.' }, 503)
   }
+
+  // A translation is part of the plan it came with, so it does not take a
+  // second unit — the school asked for one plan and is getting one plan.
+  let took = false
+  let unchecked = false
+  if (!translate) {
+    const q = await rpc('lk_quota_take', { p_kind: 'plan' })
+    if (q && q.ok === false && q.reason === 'limit') {
+      return json({
+        error: 'quota', kind: 'plan',
+        limit: q.limit, resets_at: q.resets_at,
+      }, 429)
+    }
+    took = !!(q && q.ok)
+    // If the allowance could not be read, generate anyway: a school at ten to
+    // eight needs the plan more than we need the count. But say so in the
+    // response rather than letting the ceiling fail silently.
+    unchecked = !q
+  }
+  // Nothing is charged for a request that produced nothing.
+  const refund = async () => { if (took) await rpc('lk_quota_give_back', { p_kind: 'plan' }) }
 
   // ── Model configured ─────────────────────────────────────
   const ctl = new AbortController()
@@ -106,6 +150,7 @@ Deno.serve(async (req) => {
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')
+      await refund()
       return json({ error: `Model error ${res.status}: ${text.slice(0, 300)}` }, 502)
     }
     const out = await res.json()
@@ -115,6 +160,7 @@ Deno.serve(async (req) => {
       // useful thing it could say. The provider always explains itself in
       // finish_reason and usage; pass that on.
       const fin = out?.choices?.[0]?.finish_reason ?? 'unknown'
+      await refund()
       return json({
         error: `Model returned no content (finish_reason: ${fin})`,
         finish_reason: fin, usage: out?.usage, model: out?.model ?? model,
@@ -125,10 +171,12 @@ Deno.serve(async (req) => {
     return json({
       plan: data, model: out.model ?? model, source: 'model', repaired,
       finish_reason: out?.choices?.[0]?.finish_reason,
+      quota: unchecked ? 'unchecked' : undefined,
       usage: out.usage, ms: Date.now() - t0,
     })
   } catch (e) {
     clearTimeout(timer)
+    await refund()
     const msg = (e as Error).name === 'AbortError' ? 'Model timed out' : `Could not reach the model at ${baseUrl}`
     return json({ error: msg }, 502)
   }

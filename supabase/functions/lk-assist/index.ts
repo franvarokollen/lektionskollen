@@ -21,6 +21,21 @@ import type { AssistReq, Extra, ExtraPair } from './types.ts'
 const AI_TEMP = Deno.env.get('AI_TEMPERATURE');
 const temperature = () => (AI_TEMP ? { temperature: Number(AI_TEMP) } : {});
 
+// Thinking is on by default on Claude 5 models and is billed against the same
+// max_tokens as the answer. An extra is short — 2600 tokens — so without a cap
+// the reasoning used the whole budget and every call came back empty, which the
+// substitute saw as the written fallback rather than as an error. Worth knowing:
+// this failed quietly and looked like it was working.
+const AI_THINK = Deno.env.get('AI_THINKING_BUDGET');
+const IS_ANTHROPIC = /api\.anthropic\.com/i.test(Deno.env.get('AI_BASE_URL') ?? '');
+const thinking = () => {
+  const budget = AI_THINK !== undefined ? Number(AI_THINK) : IS_ANTHROPIC ? 1024 : NaN;
+  if (!Number.isFinite(budget)) return {};
+  return budget > 0
+    ? { thinking: { type: 'enabled', budget_tokens: budget } }
+    : { thinking: { type: 'disabled' } };
+};
+
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -67,6 +82,26 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
+  // The cache runs as the service role; the allowance must run as the caller,
+  // so the school is the one whose substitute pressed the button rather than
+  // one the client could name for itself.
+  const userRpc = async (name: string, args: Record<string, unknown>) => {
+    const url = Deno.env.get('SUPABASE_URL')
+    if (!url) return null
+    try {
+      const res = await fetch(`${url}/rest/v1/rpc/${name}`, {
+        method: 'POST',
+        headers: {
+          apikey: req.headers.get('apikey') ?? '',
+          Authorization: req.headers.get('Authorization') ?? '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(args),
+      })
+      return res.ok ? await res.json() : null
+    } catch { return null }
+  }
+
   let body: AssistReq
   try { body = await req.json() } catch { return json({ error: 'Invalid JSON body' }, 400) }
 
@@ -93,6 +128,20 @@ Deno.serve(async (req) => {
   }
 
   // ── Model configured ─────────────────────────────────────
+  // ── The plan's allowance for extras ─────────────────────
+  // Extras support a plan that already exists, so they do not spend the
+  // school's daily plan allowance. They have had their own cap all along —
+  // assist_quota_left, counting what a substitute actually created in the last
+  // day — and plan.html checks it before calling. This checks it again here,
+  // because a cap only the page enforces is a cap anyone can skip.
+  //
+  // Over it, the written move is still a good answer, so this falls back rather
+  // than refusing: a substitute mid-lesson gets help either way.
+  if (body.plan_id) {
+    const left = await userRpc('lk_assist_quota_by_plan', { p_plan: body.plan_id })
+    if (typeof left === 'number' && left <= 0) return fallback('library')
+  }
+
   // Short timeout on purpose. A substitute standing in front of a class
   // will not wait sixty seconds, and a written fallback beats a spinner.
   const ctl = new AbortController()
@@ -108,7 +157,10 @@ Deno.serve(async (req) => {
         model,
         messages: buildMessages(body),
         ...temperature(),
-        max_tokens: 2600,   // both languages in one response
+        ...thinking(),
+        // Both languages in one response, plus room for the thinking budget
+        // above it.
+        max_tokens: Number(Deno.env.get('AI_ASSIST_MAX_TOKENS') ?? 5000),
         stream: false,
         ...(Deno.env.get('AI_JSON_MODE') === 'json_object' ? { response_format: { type: 'json_object' } } : {}),
       }),

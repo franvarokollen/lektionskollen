@@ -14,6 +14,7 @@ secrets, set once under **Project Settings → Edge Functions → Secrets**.
 | `AI_TEMPERATURE` | no | Omitted when unset. See below. |
 | `AI_MAX_TOKENS` | no | Output ceiling for a generated plan. Default 16000. |
 | `AI_THINKING_BUDGET` | no | Tokens the model may spend reasoning. See below. |
+| `AI_ASSIST_MAX_TOKENS` | no | Output ceiling for one mid-lesson extra. Default 5000. |
 
 ## Anthropic
 
@@ -56,3 +57,24 @@ Source: https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-
 
 These speak `/chat/completions` natively. `AI_JSON_MODE=json_object` and
 `AI_TEMPERATURE` (e.g. `0.4`) both work.
+
+
+## Daily limits
+
+Plans are capped per school per day, in `lektionskollen.quota`. The default is
+**20 plans a day**; raise one school without a deploy:
+
+```sql
+insert into lektionskollen.quota (school_id, plans_per_day)
+values ('<school uuid>', 50)
+on conflict (school_id) do update set plans_per_day = excluded.plans_per_day;
+```
+
+A refused request answers `429 {"error":"quota"}` and never reaches the model,
+so it costs nothing. A request that reaches the model and fails gives its unit
+back. A translation is part of the plan it came with and does not take a second
+unit.
+
+Mid-lesson extras are **not** counted against that allowance. They have their
+own cap in `school_settings.assist_cap` (20 per plan per day by default), which
+predates this and is still the one that matters.
