@@ -685,7 +685,7 @@ function fillFilterOptions() {
   };
   fixed($('f-scope'), [['all', t('allSources')], ['mine', t('ourSchool')], ['shared', t('sharedOnly')]]);
   fixed($('f-approval'), [['any', t('filtAnyAppr')], ['approved', t('filtApproved')],
-                          ['teacher', t('filtTeacher')]]);
+                          ['teacher', t('filtTeacher')], ['qualified', t('filtQualified')]]);
 }
 
 /** A bank row's title in the reader's language, else the one it has. */
@@ -716,6 +716,24 @@ const SUBJECT_PALETTE = [
   '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5',
 ];
 
+/* ── The approval ladder ─────────────────────────────────
+   0 unconfirmed, 1 coordinator, 2 teacher, 3 qualified teacher. The database
+   decides the rung (live_rank, which already drops it to 0 if the plan changed
+   after it was signed); this only draws it. */
+const APPR_MAX = 3;
+function apprLevelName(n) { return t('apLvl' + n); }
+
+/** Stars and a number: how far up the ladder a plan has been signed off. It is
+ *  not the substitutes' score, which stays a number out of 100 beside it. */
+function apprStars(rank, who, bare) {
+  const n = Math.max(0, Math.min(APPR_MAX, Number(rank) || 0));
+  const tip = fillT('apLevel', { n: n, l: apprLevelName(n) }) + (who ? ' · ' + who : '');
+  let s = '';
+  for (let i = 1; i <= APPR_MAX; i++) s += '<i class="' + (i <= n ? 'on' : 'off') + '">★</i>';
+  return '<span class="apstars r' + n + '" role="img" aria-label="' + esc(tip) + '" title="' + esc(tip) + '">' +
+    s + (bare ? '' : '<b>' + n + '/' + APPR_MAX + '</b>') + '</span>';
+}
+
 /** One card — deliberately small. A coordinator scans a shelf of these, not
  *  one at a time: the card's job is "which plan, is it ready, click it",
  *  everything else (the full score breakdown, the why-shared checklist) is
@@ -725,15 +743,15 @@ function bankCard(b) {
   const st = b.st || {};
   const sc = st.score != null ? Math.round(st.score * 100) : null;
   const n = st.n || 0;
-  const status = !b.approved
-    ? '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>'
-    // A badge that no longer matches the plan it describes is worse than no
-    // badge, so an edit since approval overrides whichever kind approved it.
-    : b.approval_stale
-      ? '<span class="chip chip-warn">' + esc(t('chipStale')) + '</span>'
-      : b.approved_kind === 'teacher'
-        ? '<span class="chip chip-ok">' + esc(t('chipTeacher')) + '</span>'
-        : '<span class="chip chip-neutral">' + esc(t('chipApproved')) + '</span>';
+  // A rung that no longer matches the plan is worth nothing, so the database
+  // already reports it as 0 once the body has changed since it was signed.
+  const rank = b.approved ? (Number(b.approval_rank) || 0) : 0;
+  const who = [b.approved_name, rank >= 2 && b.approved_subject ? subjectLabel(b.approved_subject) : '']
+    .filter(Boolean).join(', ');
+  const status = apprStars(rank, who) +
+    (!b.approved ? '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>'
+     : b.approval_stale ? '<span class="chip chip-warn">' + esc(t('chipStale')) + '</span>'
+     : '<span class="aplvl">' + esc(apprLevelName(rank)) + '</span>');
   const score = !b.approved ? ''
     : n ? '<span class="pc-score ' + (sc >= 75 ? 'hi' : sc >= 55 ? 'mid' : sc >= 40 ? 'lo' : 'bad') + '">' + sc + '</span>' +
           '<span class="pc-n">' + esc(fillT(n === 1 ? 'scOne' : 'scMany', { n: n })) + '</span>'
@@ -767,7 +785,8 @@ function renderBank() {
     const scope = $('f-scope')?.value;
     const appr = $('f-approval')?.value;
     g.innerHTML = '<p class="note">' + esc(
-      appr === 'teacher' ? t('bankNoneTeacher')
+      appr === 'qualified' ? t('bankNoneQualified')
+      : appr === 'teacher' ? t('bankNoneTeacher')
       : scope === 'shared' ? t('bankNoneShared') : t('bankEmpty')) + '</p>';
     return;
   }
@@ -1131,7 +1150,7 @@ async function generate() {
   state.plan = pickBody();
   state.planId = pid || null;
   state.approved = false;
-  state.apprKind = null; state.apprSubject = null; state.apprStale = false;
+  applyApproval({});
   state.shareToken = null;
   state.model = main.data.model || null;
   showPlan();
@@ -1149,6 +1168,64 @@ function bodyIsFallback() {
   return !!(state.bodies && !state.bodies[LANG]);
 }
 
+/** One place that copies a plan's approval onto the open-plan state. */
+function applyApproval(d) {
+  state.approved = !!d.approved;
+  state.apprKind = d.approved_kind || null;
+  state.apprRank = Number(d.approval_rank) || 0;
+  state.apprBy = d.approved_name || null;
+  state.apprSubject = d.approved_subject || null;
+  state.apprStale = !!d.approval_stale;
+}
+
+/** The name is saved with the approval. Remembered on this device so the
+ *  second plan of the morning does not ask again. */
+const APPROVER_KEY = 'lk_approver';
+function apprNameValue() {
+  if (state.apprName != null) return state.apprName;
+  try { return localStorage.getItem(APPROVER_KEY) || ''; } catch { return ''; }
+}
+
+const APPR_RUNGS = [[1, 'coordinator', 'apprCoord', 'btn-ghost'],
+                    [2, 'teacher', 'apprTeacher', 'btn-ok'],
+                    [3, 'qualified', 'apprQualified', 'btn-primary']];
+const APPR_ERR = { gate_closed: 'errGate', already_approved: 'errAlready', name_required: 'errName' };
+
+function apprButtons(rank) {
+  return APPR_RUNGS.filter((r) => r[0] > rank).map((r) =>
+    '<button class="btn ' + r[3] + ' btn-sm" data-approve="' + r[1] + '">' +
+    apprStars(r[0], '', true) + ' ' + esc(t(r[2])) + '</button>').join('');
+}
+
+/** The ladder, where the coordinator arrives. Only rungs above the one the plan
+ *  already holds are offered, and at the top the bar is gone: the gate is
+ *  closed until the plan changes. */
+function approveBar() {
+  const rank = state.apprRank || 0;
+  if (rank >= APPR_MAX) return '';
+  const fresh = !state.approved;
+  return '<div class="approvebar' + (fresh ? '' : ' raise') + '"><div>' +
+    (fresh
+      ? '<b>' + esc(t('coordAsk')) + '</b> ' + esc(t('apBody')) +
+        '<br><span class="hint">' + esc(t('coordAskNote')) + '</span>'
+      : '<b>' + esc(rank ? fillT('apRaise', { l: apprLevelName(rank) }) : t('apReapprove')) + '</b> ' + esc(t('apRaiseBody'))) +
+    '<br><span class="hint">' + esc(t('apprKindNote')) + '</span>' +
+    '<label class="aprname"><span>' + esc(t('apprNameLabel')) + '</span>' +
+      '<input id="apr-name" type="text" maxlength="80" autocomplete="name" placeholder="' +
+      esc(t('apprNamePh')) + '" value="' + esc(apprNameValue()) + '"></label>' +
+    '</div><div class="ladder">' + apprButtons(rank) + '</div></div>';
+}
+
+/** "★★☆ Teacher · Engelska — approved by Tom", for the line under a plan. */
+function apprSignedLine() {
+  const rank = state.apprRank || 0;
+  if (!rank) return '';
+  return apprStars(rank) + ' ' + esc(apprLevelName(rank) +
+    (rank >= 2 && state.apprSubject ? ' · ' + subjectLabel(state.apprSubject) : '')) +
+    (state.apprBy ? ' — ' + esc(fillT('apprSignedBy', { n: state.apprBy })) : '') +
+    (rank >= APPR_MAX ? ' ' + esc(t('apprLocked')) : '');
+}
+
 async function usePlan(id) {
   const { data, error } = await sb.rpc('lk_plan', { p_id: id });
   if (error || !data) { toast(t('errOpen')); return; }
@@ -1156,10 +1233,7 @@ async function usePlan(id) {
   if (data.body_alt && data.language_alt) state.bodies[data.language_alt] = data.body_alt;
   state.plan = pickBody();
   state.planId = data.id;
-  state.approved = data.approved;
-  state.apprKind = data.approved_kind || null;
-  state.apprSubject = data.approved_subject || null;
-  state.apprStale = !!data.approval_stale;
+  applyApproval(data);
   state.shareToken = data.share_token;
   state.model = data.model || null;
   if (!state.row) state.row = { subject: data.subject, year: data.year_group, group: '—', mins: data.minutes, start: '', end: '', room: '—', teacher: '—', cover: null };
@@ -1218,13 +1292,7 @@ function showPlan() {
   // decision belongs where they arrive, not where the document ends.
   const check = state.checks[state.planId];
   const checkNote = state.view === 'coordinator' ? checkBanner(check) : '';
-  const approveNote = !state.approved && state.view === 'coordinator'
-    ? '<div class="approvebar"><div><b>' + esc(t('coordAsk')) + '</b> ' + esc(t('apBody')) +
-      '<br><span class="hint">' + esc(t('coordAskNote')) + '</span>' +
-      '<br><span class="hint">' + esc(t('apprKindNote')) + '</span></div>' +
-      '<button class="btn btn-ghost btn-sm" data-approve="coordinator">' + esc(t('apprCoord')) + '</button>' +
-      '<button class="btn btn-ok btn-sm" data-approve="teacher">' + esc(t('apprTeacher')) + '</button></div>'
-    : '';
+  const approveNote = state.view === 'coordinator' ? approveBar() : '';
   // An approval that no longer matches the plan is said out loud, in the place
   // a coordinator decides from. Silence here is how a stale badge gets trusted.
   const staleNote = state.apprStale
@@ -1261,9 +1329,7 @@ function coordView(p, r) {
     '</ul></div>' +
     (state.approved
       ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>✓</span><div><b>' + esc(t('approvedTitle')) + '</b> ' +
-        esc(state.apprKind === 'teacher'
-            ? fillT('apprByTeacher', { s: subjectLabel(state.apprSubject) || '' })
-            : t('apprByCoord')) + ' ' +
+        apprSignedLine() + ' ' +
         (link ? esc(t('subLink')) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(state.shareToken) + '" title="' + esc(t('copyLink')) + '">' + CHK + '<span class="cl-label">' + esc(link) + '</span></button>' : '') + '</div></div>'
       : '') +
     '<div class="foot">' +
@@ -1273,8 +1339,7 @@ function coordView(p, r) {
           (link ? '<button class="btn btn-primary" data-copylink="' + esc(state.shareToken) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '')
         : '<span class="hint">' + esc(t('nothingBefore')) + '</span><span class="spacer"></span>' +
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
-          '<button class="btn btn-ghost" data-approve="coordinator">' + esc(t('apprCoord')) + '</button>' +
-          '<button class="btn btn-ok" data-approve="teacher">' + esc(t('apprTeacher')) + '</button>') +
+          apprButtons(0)) +
     '</div></div>';
 }
 
@@ -1521,28 +1586,51 @@ document.addEventListener('click', async (e) => {
 
   if (t2.hasAttribute('data-approve')) {
     const kind = t2.getAttribute('data-approve') || 'coordinator';
+    const name = apprNameValue().trim();
+    if (name.length < 2) {
+      toast(t('errName'));
+      const f = $('apr-name');
+      if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); }
+      return;
+    }
+    const first = !state.approved;
     const { data: ap, error } = await sb.rpc('lk_approve_as',
-      { p_id: state.planId, p_kind: kind, p_subject: null });
+      { p_id: state.planId, p_kind: kind, p_subject: null, p_name: name });
     if (error) { toast(t('errApprove') + ' ' + error.message); return; }
-    if (ap && ap.ok === false) { toast(t('errApprove') + ' ' + ap.error); return; }
-    await sb.rpc('lk_rate_v2', { p_id: state.planId, p_reuse: true, p_reasons: [] });
     const { data } = await sb.rpc('lk_plan', { p_id: state.planId });
-    state.approved = true;
+    if (data) applyApproval(data);
+    if (ap && ap.ok === false) {
+      // Someone got there first, or the gate is closed: show what is true now.
+      toast(t('errApprove') + ' ' + t(APPR_ERR[ap.error] || 'errApprove'));
+      showPlan();
+      return;
+    }
+    try { localStorage.setItem(APPROVER_KEY, name); } catch { /* the name just is not remembered */ }
     state.shareToken = data?.share_token || null;
-    await logUse(state.planId);
-    if (state.screen === 'cover') await loadCoverPlans().then(renderRows).catch(() => {});
-    toParent('lk:plan', {
-      planId: state.planId,
-      ref: state.row?.id || null,
-      shareToken: state.shareToken,
-      url: state.shareToken ? planUrl(state.shareToken) : null,
-      title: state.plan?.title || null,
-    });
+    // Only the first approval counts as a "would reuse" rating and as the plan
+    // being given to a class. Climbing the ladder is the same plan, same lesson.
+    if (first) {
+      await sb.rpc('lk_rate_v2', { p_id: state.planId, p_reuse: true, p_reasons: [] });
+      await logUse(state.planId);
+      if (state.screen === 'cover') await loadCoverPlans().then(renderRows).catch(() => {});
+      toParent('lk:plan', {
+        planId: state.planId,
+        ref: state.row?.id || null,
+        shareToken: state.shareToken,
+        url: state.shareToken ? planUrl(state.shareToken) : null,
+        title: state.plan?.title || null,
+      });
+    }
     showPlan();
     loadBank();
     toast(t('okApproved'));
     return;
   }
+});
+
+// The approver's name survives the plan view re-rendering (view toggle, language).
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'apr-name') state.apprName = e.target.value;
 });
 
 // Escape closes the assist sheet first; only if nothing is over the plan
