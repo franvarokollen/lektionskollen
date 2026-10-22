@@ -30,6 +30,7 @@ export const SCHEMA = `{
   "exit": { "q": string, "a": string },
   "handover": string
 }`
+
 export function buildMessages(r: Record<string, unknown>) {
   const lang = (r.language as string) ?? 'sv'
   const start = (r.starts_at as string) ?? '08:00'
@@ -45,6 +46,15 @@ export function buildMessages(r: Record<string, unknown>) {
     '3. Exactly ONE lesson. No alternatives, no "choose A or B".',
     '4. Script the teacher: what the substitute SAYS goes in quotes in "say".',
     '5. Anticipate pupils: likely answers, the common misconception, and the recovery move.',
+    '6. Check understanding without hands-up (cold call, mini-whiteboards, exit ticket).',
+    '7. Structure follows explicit instruction (Skolverket strukturerad undervisning / Rosenshine).',
+    `8. "t" on every phase is a REAL CLOCK RANGE starting at ${start}, e.g. "${start}-...". The phases must fill exactly ${r.minutes} minutes.`,
+    '9. Only assume the listed resources.',
+    '10. "first90" is what the substitute does in the first ninety seconds: greeting, register, seating, expectations.',
+    '11. "wrong" is the fallback when the activity fails or the room will not settle. Be concrete.',
+    '12. Align to Skolverket LGR22 (grundskola) or Gy22 (gymnasiet) for this subject and year.',
+    '13. Swedish schools mostly have no bells. Never write "before the bell" or "innan det ringer" - say before the lesson starts.',
+
     '',
     'BE CONCISE. Every field earns its length. A substitute reads this standing up,',
     'and the whole plan has a hard output budget: a long \"summary\" is paid for by a',
@@ -99,14 +109,6 @@ export function buildMessages(r: Record<string, unknown>) {
     'The tier is for the adult. Never write a tier name into a task a pupil reads.',
     'WRITE "tasks" BEFORE the long prose fields if you are running short: a plan without its',
     'tiers cannot be used at all, while a terse "handover" still works.',
-    '6. Check understanding without hands-up (cold call, mini-whiteboards, exit ticket).',
-    '7. Structure follows explicit instruction (Skolverket strukturerad undervisning / Rosenshine).',
-    `8. "t" on every phase is a REAL CLOCK RANGE starting at ${start}, e.g. "${start}-...". The phases must fill exactly ${r.minutes} minutes.`,
-    '9. Only assume the listed resources.',
-    '10. "first90" is what the substitute does in the first ninety seconds: greeting, register, seating, expectations.',
-    '11. "wrong" is the fallback when the activity fails or the room will not settle. Be concrete.',
-    '12. Align to Skolverket LGR22 (grundskola) or Gy22 (gymnasiet) for this subject and year.',
-    '13. Swedish schools mostly have no bells. Never write "before the bell" or "innan det ringer" - say before the lesson starts.',
     '',
     'Respond with ONE JSON object only. No markdown, no code fences, no commentary:',
     SCHEMA, '',
