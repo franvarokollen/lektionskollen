@@ -24,6 +24,12 @@
 //     opts.projector   true to offer "show this to the class" per phase.
 //     opts.help        false to leave out the help register (the host puts it
 //                      in a margin rail instead).
+//     opts.interactive true on the substitute's page: tick boxes, "done" buttons
+//                      and the short-version switch. The coordinator's preview
+//                      leaves it off and shows the same order without controls.
+//     opts.ready       {sheet,board,kit} -> true once the substitute has ticked it
+//     opts.done        {phaseIndex: true} steps the substitute has finished
+//     opts.short       true when the short version is switched on
 //     opts.only        render just this phase index, and nothing else. Teach
 //                      mode shows one phase at a time, and a phase has to keep
 //                      its real index: phase 2 draws the worked example and
@@ -41,6 +47,13 @@
   // recap, worked example, one together, independent, exit.
   var KINDS = ['k-recall', 'k-model', 'k-together', 'k-indep', 'k-exit'];
   var kind = function (i) { return KINDS[i] || 'k-indep'; };
+  var fill = function (str, o) {
+    return String(str || '').replace(/\{(\w+)\}/g, function (_, k) { return o[k]; });
+  };
+  // Steps that a substitute short of time can leave out: the second recap
+  // question and the guided "one together" practice. The worked example, the
+  // pupils' own tasks and the exit question are what the lesson is for.
+  var SKIPPABLE = { 0: true, 2: true };
 
   function render(p, o) {
     p = p || {};
@@ -112,7 +125,22 @@
     function phaseCard(ph, i) {
       var ref = 'phase:' + i;
       var isModel = i === 1;
-      return '<div class="ph ' + kind(i) + '" id="ph' + i + '">' +
+      var isDone = !!(o.done && o.done[i]);
+      var isCur = o.interactive && !isDone && firstOpen() === i;
+      var skip = o.short && SKIPPABLE[i];
+      var stepTxt = fill(t('stepOf') || 'Step {i} of {n}', { i: i + 1, n: phases.length });
+      // A finished step folds to one line, so the one that is still to do is
+      // always the one on screen.
+      if (isDone) {
+        return '<div class="ph ' + kind(i) + ' ph-done" id="ph' + i + '">' +
+          '<div class="ph-h"><span class="ph-n">&#10003;</span><strong>' + esc(ph.n) + '</strong>' +
+          '<span class="ph-t">' + esc(ph.t) + '</span>' +
+          '<button class="ph-re noprint" data-stepre="' + i + '">' + esc(t('stepReopen') || 'Reopen') + '</button></div></div>';
+      }
+      return '<div class="ph ' + kind(i) + (isCur ? ' ph-cur' : '') + (skip ? ' ph-skip' : '') + '" id="ph' + i + '">' +
+        '<div class="ph-step">' + esc(stepTxt) +
+          (isCur ? ' · <b>' + esc(t('stepNow') || 'Now') + '</b>' : '') +
+          (skip ? ' · <b class="canskip">' + esc(t('canSkip') || 'Can skip') + '</b>' : '') + '</div>' +
         '<div class="ph-h"><span class="ph-n">' + (i + 1) + '</span>' +
         '<strong>' + esc(ph.n) + '</strong>' + flag(ref) +
         '<span class="ph-t">' + esc(ph.t) + '</span></div>' +
@@ -132,7 +160,20 @@
         (o.projector && ph.board
           ? '<div class="strow noprint" style="margin-top:9px">' +
             '<button class="stbtn presentbtn" data-proj="' + i + '"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 4.6v3.8L10 6.5z" fill="currentColor"/><path d="M5 14h6M8 11v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' + esc(t('projBtn')) + '</button></div>' : '') +
-        assistRow(ref, ph.n) + extras(ref) + '</div>';
+        assistRow(ref, ph.n) + extras(ref) +
+        '<div class="ph-foot">' +
+          (phases[i + 1]
+            ? '<span class="nextup">' + esc(t('nextUp') || 'Next up:') + ' <b>' + esc(phases[i + 1].n) + '</b> · ' + esc(phases[i + 1].t) + '</span>'
+            : '<span class="nextup">' + esc(t('lastStep') || 'Last step. Then: feedback.') + '</span>') +
+          (o.interactive
+            ? '<button class="stbtn pri noprint" data-stepdone="' + i + '">' + esc(t('stepDone') || 'Done – next step') + '</button>' : '') +
+        '</div></div>';
+    }
+
+    // The first step that has not been ticked off.
+    function firstOpen() {
+      for (var k = 0; k < phases.length; k++) { if (!(o.done && o.done[k])) return k; }
+      return -1;
     }
 
     if (typeof o.only === 'number') {
@@ -142,22 +183,59 @@
 
     var h = '';
 
-    // ── 1. Before the bell ─────────────────────────────────
-    h += '<section class="reg reg-before">' +
-      '<div class="reg-h"><span class="n">1</span>' + esc(t('beforeBell')) + '</div>' +
-      (depth !== 'brief' && (p.first90 || []).length
-        ? '<ul style="margin:0 0 12px;padding-left:18px;font-size:13.5px">' +
-          p.first90.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') +
-      '<p style="font-size:13.5px;margin-bottom:10px">' + esc(p.summary) + '</p>' +
-      '<p style="font-size:13px;margin-bottom:12px"><b>' + esc(t('goal')) + '</b> ' + esc(p.goal) + '</p>' +
-      '<div class="board">' + esc(p.board) + '</div>' +
-      '<p style="margin-top:10px;font-size:13px"><b>' + esc(t('need')) + '</b> ' +
-        esc(p.equipment && p.equipment.need) +
-      '<br><span style="color:var(--ink-soft)">' + esc(p.equipment && p.equipment.fallback) +
-      '</span></p></section>';
+    // ── 1. Get ready ───────────────────────────────────────
+    // Everything the pupils will need comes first, because it has to exist
+    // before the bell: the sheet to print, the text for the board, the kit. Each
+    // item is ticked off and folds to one line, so by the time the class walks
+    // in the page is showing the lesson, not the preparation.
+    var ready = o.ready || {};
+    var mats = p.materials || [];
+    function item(key, title, bodyHtml) {
+      var done = !!ready[key];
+      if (!o.interactive) {
+        return '<div class="rd"><div class="rd-t"><b>' + esc(title) + '</b></div>' + bodyHtml + '</div>';
+      }
+      if (done) {
+        return '<div class="rd rd-done"><div class="rd-t"><span class="rd-tick">&#10003;</span><b>' + esc(title) + '</b>' +
+          '<button class="rd-btn noprint" data-ready="' + key + '">' + esc(t('readyShow') || 'Show again') + '</button></div></div>';
+      }
+      return '<div class="rd"><div class="rd-t"><span class="rd-tick rd-empty"></span><b>' + esc(title) + '</b>' +
+        '<button class="rd-btn rd-ok noprint" data-ready="' + key + '">' + esc(t('readyDone') || 'Done – hide') + '</button></div>' + bodyHtml + '</div>';
+    }
+    var allReady = o.interactive && ready.sheet && ready.board && ready.kit;
+    h += '<section class="reg reg-before" id="getready">' +
+      '<div class="reg-h"><span class="n">1</span>' + esc(t('getReady') || 'Get ready') + '</div>' +
+      '<p class="rd-goal"><b>' + esc(t('readyGoal') || 'The goal') + ':</b> ' + esc(p.goal) + '</p>' +
+      item('board', t('readyBoard') || 'Write on the board', '<div class="board">' + esc(p.board) + '</div>') +
+      (mats.length
+        ? item('sheet', t('readySheet') || 'Pupil sheet',
+            '<p class="rd-hint">' + esc(t('readySheetHint') || '') + '</p>' +
+            (o.interactive
+              ? '<div class="strow noprint"><button class="stbtn pri" data-student="lesson">' + esc(t('studentSheet') || 'Pupil sheet') + '</button></div>' : '') +
+            mats.map(function (m) {
+              return '<div class="mat"><h5>' + esc(m.h) + '</h5><div>' + esc(m.body) + '</div></div>';
+            }).join('') + assistRow('tasks', t('tasks')) + extras('tasks'))
+        : '') +
+      item('kit', t('readyKit') || 'Gather',
+        '<p class="rd-kit">' + esc(p.equipment && p.equipment.need) +
+        '<br><span style="color:var(--ink-soft)">' + esc(p.equipment && p.equipment.fallback) + '</span></p>') +
+      (allReady ? '<p class="rd-all">' + esc(t('readyAllDone') || '') + '</p>' : '') +
+      '</section>';
 
-    // ── 2. The lesson ──────────────────────────────────────
-    h += '<div class="lesson-h"><h2>' + esc(t('theLesson')) + '</h2></div>' +
+    // ── 2. The first ninety seconds ────────────────────────
+    if (depth !== 'brief' && (p.first90 || []).length) {
+      h += '<section class="reg reg-first">' +
+        '<div class="reg-h"><span class="n">2</span>' + esc(t('first90') || 'The first 90 seconds') + '</div>' +
+        '<ol class="f90">' + p.first90.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' +
+        (p.summary ? '<p class="rd-hint" style="margin:10px 0 0">' + esc(p.summary) + '</p>' : '') + '</section>';
+    }
+
+    // ── 3. The lesson ──────────────────────────────────────
+    h += '<div class="lesson-h"><h2><span class="n">3</span>' + esc(t('theLesson')) + '</h2>' +
+      (o.interactive
+        ? '<button class="stbtn noprint' + (o.short ? ' on' : '') + '" data-short>' +
+          esc(o.short ? (t('shortOff') || 'Show full') : (t('shortBtn') || 'Short on time?')) + '</button>' : '') + '</div>' +
+      (o.short ? '<p class="shortnote">' + esc(t('shortNote') || '') + '</p>' : '') +
       phases.map(phaseCard).join('');
 
     if ((p.misconceptions || []).length) {
@@ -170,16 +248,7 @@
         }).join('') + '</section>';
     }
 
-    if ((p.materials || []).length) {
-      h += '<section class="reg reg-plain">' +
-        '<div class="reg-h"><span class="n">&#9638;</span>' + esc(t('handouts')) + '</div>' +
-        p.materials.map(function (m) {
-          return '<div class="mat"><h5>' + esc(m.h) + '</h5><div>' + esc(m.body) + '</div></div>';
-        }).join('') +
-        assistRow('tasks', t('tasks')) + extras('tasks') + '</section>';
-    }
-
-    // ── 3. Help ────────────────────────────────────────────
+    // ── Help ────────────────────────────────────────────
     // Last in the markup, but the hosts that can spare the width lift it into a
     // margin rail: it is needed at the moment there is no time to scroll.
     if (o.help !== false) h += helpRegister(p, t);

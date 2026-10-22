@@ -261,7 +261,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="4bda83e87643">
+<meta name="lk-build" content="5fb3ab8f2e60">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -309,6 +309,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
     <button data-fill="10">10</button>
     <button data-fill="15">15</button>
     <button data-fill="20">20</button>
+    <button class="fbjump" data-fbjump id="fbjump"></button>
   </div>
 </div>
 
@@ -347,6 +348,16 @@ const SESSION = (() => {
 })();
 let EXTRAS = [];
 let REASONS = new Set();
+
+/* Where this substitute has got to: what is ticked off in Get ready, which
+   steps are finished, whether the short version is on, and what they said
+   about each step. Kept in this browser per share link, so a refresh halfway
+   through the lesson does not send them back to step 1. */
+const PROG = (() => {
+  const base = { ready: {}, done: {}, short: false, sec: {} };
+  try { return Object.assign(base, JSON.parse(localStorage.getItem('lk.prog.' + token) || '{}')); } catch { return base; }
+})();
+const saveProg = () => { try { localStorage.setItem('lk.prog.' + token, JSON.stringify(PROG)); } catch { /* private window */ } };
 // The substitute may not read Swedish comfortably, so they pick, not the school.
 let LANG = params.get('lang') || (() => { try { return localStorage.getItem('lk.lang') || ''; } catch { return ''; } })();
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -359,7 +370,7 @@ const SV_LABELS = {
   qReuse: 'Skulle du använda den här planen igen?', aReuseYes: 'Ja, som den är', aReuseChanges: 'Ja, med ändringar', aReuseNo: 'Nej', qClarity: 'Gick den att hålla utan förberedelse?', aClearFull: 'Helt tydlig', aClearMost: 'Mestadels', aClearNeeded: 'Behövde arbete', qTime: 'Räckte innehållet till lektionen?', aTimeRight: 'Lagom', aTimeLittle: 'För lite', aTimeMuch: 'För mycket', savedSoFar: 'Sparat. Svara gärna på de andra också.',
   noCode: 'Länken saknar kod.', notFound: 'Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.',
   depthQ: 'Hur mycket vill du ha utskrivet?', depthFull: 'Allt', depthGuided: 'Huvuddragen', depthBrief: 'Bara ramen',
-  beforeBell: 'Innan lektionen börjar', theLesson: 'Lektionen', ifWrong: 'Om något går snett', afterH: 'Efter lektionen',
+  beforeBell: 'Innan lektionen börjar', theLesson: 'Lektionen', getReady: 'Gör i ordning', readySheet: 'Elevblad', readySheetHint: 'Skriv ut det, eller skriv av det på tavlan.', readyBoard: 'Skriv på tavlan', readyKit: 'Ta fram', readyGoal: 'Målet', readyDone: 'Klart – dölj', readyShow: 'Visa igen', readyAllDone: 'Allt är klart. Dags att börja.', stepOf: 'Steg {i} av {n}', stepDone: 'Klar – nästa steg', stepReopen: 'Öppna igen', nextUp: 'Nästa:', lastStep: 'Sista steget. Därefter: feedback.', stepNow: 'Pågår', shortBtn: 'Kort om tid?', shortOn: 'Kort version på', shortOff: 'Visa hela', shortNote: 'Hoppa över steg märkta “Kan hoppas över” och ge bara standarduppgifterna.', canSkip: 'Kan hoppas över', fbH: 'Din feedback', fbNot: 'Inte en del av lektionen', fbSteps: 'Hur gick varje steg?', fbWorked: 'Funkade', fbChanges: 'Behöver ändras', fbSkipped: 'Hoppade över', fbNotePh: 'Vad bör ändras? (valfritt)', fbJump: 'Lämna feedback ↓', fbSavedS: 'Sparat', fbIntro: 'Två minuter, helt frivilligt. Det du skriver här gör planen bättre för nästa vikarie.', ifWrong: 'Om något går snett', afterH: 'Efter lektionen',
   recallH: 'Repetition — vad de redan kan', recallWhy: 'Bygger på',
   modelH: 'Räknat exempel — du visar först', modelWrite: 'Skriv på tavlan', modelSay: 'Säg medan du skriver',
   modelAns: 'Svar', togetherH: 'Ett tillsammans',
@@ -421,7 +432,7 @@ const EN_LABELS = {
   qReuse: 'Would you use this plan again?', aReuseYes: 'Yes, as it is', aReuseChanges: 'Yes, with changes', aReuseNo: 'No', qClarity: 'Could you teach it without preparing?', aClearFull: 'Completely clear', aClearMost: 'Mostly', aClearNeeded: 'Needed work', qTime: 'Was there enough to fill the lesson?', aTimeRight: 'About right', aTimeLittle: 'Too little', aTimeMuch: 'Too much', savedSoFar: 'Saved. Please answer the others too.',
   noCode: 'The link is missing its code.', notFound: 'The plan could not be found. It may have been removed, or not approved yet. Get in touch with the school.',
   depthQ: 'How much do you want written out?', depthFull: 'Everything', depthGuided: 'The main points', depthBrief: 'Just the outline',
-  beforeBell: 'Before the lesson starts', theLesson: 'The lesson', ifWrong: 'If something goes wrong', afterH: 'After the lesson',
+  beforeBell: 'Before the lesson starts', theLesson: 'The lesson', getReady: 'Get ready', readySheet: 'Pupil sheet', readySheetHint: 'Print it, or copy it onto the board.', readyBoard: 'Write on the board', readyKit: 'Gather', readyGoal: 'The goal', readyDone: 'Done – hide', readyShow: 'Show again', readyAllDone: 'Everything is ready. Time to start.', stepOf: 'Step {i} of {n}', stepDone: 'Done – next step', stepReopen: 'Reopen', nextUp: 'Next up:', lastStep: 'Last step. Then: feedback.', stepNow: 'Now', shortBtn: 'Short on time?', shortOn: 'Short version on', shortOff: 'Show full', shortNote: 'Skip the steps marked “Can skip” and give only the standard tasks.', canSkip: 'Can skip', fbH: 'Feedback', fbNot: 'Not part of the lesson', fbSteps: 'How did each step go?', fbWorked: 'Worked', fbChanges: 'Needs changes', fbSkipped: 'Skipped', fbNotePh: 'What should change? (optional)', fbJump: 'Feedback ↓', fbSavedS: 'Saved', fbIntro: 'Two minutes, entirely optional. What you write here makes the plan better for the next substitute.', ifWrong: 'If something goes wrong', afterH: 'After the lesson',
   recallH: 'Recap — what they already know', recallWhy: 'Builds on',
   modelH: 'Worked example — you go first', modelWrite: 'Write on the board', modelSay: 'Say while you write',
   modelAns: 'Answer', togetherH: 'One together',
@@ -837,6 +848,8 @@ function render(d, keepScroll) {
     extras: (ref) => extrasFor(ref),
     projector: true,
     help: false,                       // lifted into the margin rail below
+    interactive: true,
+    ready: PROG.ready, done: PROG.done, short: PROG.short,
   };
 
   // ── Teach mode: one phase, nothing else ──────────────────
@@ -900,21 +913,34 @@ function render(d, keepScroll) {
 
   h += '<div class="full"><div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts('lesson').html + '</div></div>';
 
-  h += '<div class="ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' +
+  // ── Feedback ─────────────────────────────────────────────
+  // Everything the substitute is asked, in one panel in a different colour, so
+  // it is plain that it is not part of the lesson. Per step first (one tap
+  // each), then how far they got, then the three questions. All optional, all
+  // saved as they are tapped.
+  const SECV = [['worked', l.fbWorked, '✓'], ['changes', l.fbChanges, '~'], ['skipped', l.fbSkipped, '✗']];
+  h += '<section class="fbpanel noprint" id="feedback">' +
+    '<div class="fb-kick">' + esc(l.fbNot) + '</div>' +
+    '<h3>' + esc(l.fbH) + '</h3><p class="fb-intro">' + esc(l.fbIntro) + '</p>' +
+    '<h4>' + esc(l.fbSteps) + '</h4>' +
+    phases.map((ph, i) => {
+      const ref = 'phase:' + i, cur = PROG.sec[ref] || {};
+      return '<div class="fb-row" data-fbrow="' + ref + '">' +
+        '<div class="fb-lbl"><span class="fb-n">' + (i + 1) + '</span>' + esc(ph.n) + '<span class="fb-t">' + esc(ph.t) + '</span></div>' +
+        '<div class="fb-pick">' + SECV.map((o) =>
+          '<button data-sec="' + ref + '|' + o[0] + '" class="fb-' + o[0] + (cur.v === o[0] ? ' on' : '') + '"><i>' + o[2] + '</i>' + esc(o[1]) + '</button>').join('') + '</div>' +
+        '<div class="fb-note"' + (cur.v === 'changes' || cur.v === 'skipped' ? '' : ' hidden') + '>' +
+          '<input type="text" maxlength="300" placeholder="' + esc(l.fbNotePh) + '" value="' + esc(cur.note || '') + '" data-secnote-in="' + ref + '">' +
+          '<button data-secnote="' + ref + '">' + esc(l.send) + '</button></div></div>';
+    }).join('') +
+    '<h4>' + esc(l.covTitle) + '</h4><div class="covrow" id="covrow">' +
        ['all', 'part', 'none'].map((k) => '<button data-cov="' + k + '"' + (COV === k ? ' class="on"' : '') + '>' +
          esc(l[{ all: 'covAll', part: 'covPart', none: 'covNone' }[k]]) + '</button>').join('') + '</div>' +
        '<label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label>' +
        '<div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(LEFT) + '">' +
        '<button data-leftoff>' + esc(l.send) + '</button></div>' +
-       '<p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p></div>';
-
-  // One question, binary. A tired substitute at the end of a lesson gives
-  // you one tap; reasons are optional and only appear after it.
-  // Three questions, one tap each, saved as they are answered. Not a number
-  // out of ten: at the end of a hard lesson nobody can tell 7 from 8, and a
-  // row of sliders gets straight-lined or abandoned. These get answered.
-  h += '<div class="ratebox noprint"><h3>' + esc(l.worked) + '</h3>' +
-       '<p class="muted" style="margin:0 0 10px">' + esc(l.ratingNote) + '</p>' +
+       '<p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p>' +
+    '<h4>' + esc(l.worked) + '</h4>' +
        [['reuse', l.qReuse, [['yes', l.aReuseYes], ['changes', l.aReuseChanges], ['no', l.aReuseNo]]],
         ['clarity', l.qClarity, [['complete', l.aClearFull], ['mostly', l.aClearMost], ['needed', l.aClearNeeded]]],
         ['timefit', l.qTime, [['right', l.aTimeRight], ['little', l.aTimeLittle], ['much', l.aTimeMuch]]]]
@@ -928,18 +954,17 @@ function render(d, keepScroll) {
        '<div id="why" hidden><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p>' +
          '<div class="reasons">' + Object.keys(l.reasons).map((k) =>
            '<button data-reason="' + k + '">' + esc(l.reasons[k]) + '</button>').join('') + '</div></div>' +
-       // Low response rate expected, and nothing is gated on it - but it is
-       // the only signal that says WHY, so it is worth the space.
        '<div id="saybox" hidden class="note" style="margin-top:14px">' +
          '<label for="say">' + esc(l.commentTitle) + '</label>' +
          '<div class="noterow">' +
            '<input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '">' +
            '<button data-comment>' + esc(l.send) + '</button>' +
          '</div></div>' +
-       '<p id="ratemsg" class="hint" style="margin-top:10px"></p></div>';
+       '<p id="ratemsg" class="hint" style="margin-top:10px"></p></section>';
 
   $('out').innerHTML = h;
   $('barlbl').textContent = l.barLbl;
+  $('fbjump').textContent = l.fbJump;
   $('bar').hidden = false;
   if (keepScroll) window.scrollTo(0, y);
 }
@@ -1243,6 +1268,54 @@ document.addEventListener('click', async (e) => {
     if (st.hasAttribute('data-stprint')) return window.print();
     try { await navigator.clipboard.writeText(STUDENT_TXT); st.textContent = l.copiedTxt; setTimeout(() => { st.textContent = l.copyText; }, 1600); }
     catch { /* clipboard blocked */ }
+    return;
+  }
+
+  // ── Progress through the lesson ────────────────────────
+  const rd = e.target.closest('[data-ready]');
+  if (rd && DATA) { const k = rd.getAttribute('data-ready'); PROG.ready[k] = !PROG.ready[k]; saveProg(); render(DATA, true); return; }
+  const sd = e.target.closest('[data-stepdone]');
+  if (sd && DATA) {
+    const i = Number(sd.getAttribute('data-stepdone'));
+    PROG.done[i] = true; saveProg(); render(DATA, true);
+    const nx = document.querySelector('.ph-cur') || $('feedback');
+    if (nx) nx.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  const sr = e.target.closest('[data-stepre]');
+  if (sr && DATA) { delete PROG.done[Number(sr.getAttribute('data-stepre'))]; saveProg(); render(DATA, true); return; }
+  if (e.target.closest('[data-short]') && DATA) { PROG.short = !PROG.short; saveProg(); render(DATA, true); return; }
+  if (e.target.closest('[data-fbjump]')) { const f = $('feedback'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+
+  // ── Per-step feedback ──────────────────────────────────
+  const sb1 = e.target.closest('[data-sec]');
+  if (sb1) {
+    const [ref, verdict] = sb1.getAttribute('data-sec').split('|');
+    const idx = Number(ref.split(':')[1]);
+    const label = ((bodies(DATA)[LANG] || {}).phases || [])[idx]?.n || ref;
+    PROG.sec[ref] = Object.assign({}, PROG.sec[ref], { v: verdict }); saveProg();
+    const row = sb1.closest('[data-fbrow]');
+    [...row.querySelectorAll('[data-sec]')].forEach((b) => b.classList.toggle('on', b === sb1));
+    row.querySelector('.fb-note').hidden = !(verdict === 'changes' || verdict === 'skipped');
+    const { error } = await sb.rpc('lk_rate_section_by_token', {
+      p_token: token, p_session: SESSION, p_ref: ref, p_label: label, p_verdict: verdict, p_note: null,
+    });
+    $('ratemsg').textContent = error ? l.saveFail + error.message : '';
+    return;
+  }
+  const sn = e.target.closest('[data-secnote]');
+  if (sn) {
+    const ref = sn.getAttribute('data-secnote');
+    const inp = document.querySelector('[data-secnote-in="' + ref + '"]');
+    const val = (inp?.value || '').trim();
+    if (!val) return;
+    const idx = Number(ref.split(':')[1]);
+    const label = ((bodies(DATA)[LANG] || {}).phases || [])[idx]?.n || ref;
+    PROG.sec[ref] = Object.assign({}, PROG.sec[ref], { note: val }); saveProg();
+    const { error } = await sb.rpc('lk_rate_section_by_token', {
+      p_token: token, p_session: SESSION, p_ref: ref, p_label: label, p_verdict: PROG.sec[ref].v || 'changes', p_note: val,
+    });
+    sn.textContent = error ? '!' : l.fbSavedS;
     return;
   }
 
