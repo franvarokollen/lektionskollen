@@ -35,7 +35,8 @@ const COMMON = [
   '6. Assume whiteboard, paper and pens only.',
   '7. Swedish schools mostly have no bells. Never write "before the bell" or "innan det ringer" - say before the lesson starts or when the lesson ends.',
   '8. Do not re-teach the whole lesson. Answer only what was asked.',
-  '9. "alt" is the SAME content in the other language, not a different activity. A substitute reading either language must get the same lesson help. Translate the scripted speech naturally, as a teacher in that language would actually say it - do not translate word for word.',
+  '9. "board" is what the CLASS sees. NEVER put answers, worked solutions or an answer key in "board". Answers belong in "tasks" only, which only the substitute reads.',
+  '10. "alt" is the SAME content in the other language, not a different activity. A substitute reading either language must get the same lesson help. Translate the scripted speech naturally, as a teacher in that language would actually say it - do not translate word for word.',
 ]
 
 function context(r: AssistReq): string {
@@ -58,7 +59,7 @@ const TASK: Record<string, (r: AssistReq) => string[]> = {
   exercise: () => [
     'TASK: the class needs more practice on exactly this part before moving on.',
     'Give four to six questions on the same idea, easiest first, each with its answer.',
-    'Put the questions in "board" exactly as they should be written up, and in "tasks" with answers for the substitute.',
+    'Put the questions in "board" exactly as they should be written up - QUESTIONS ONLY, no answers - and the same questions in "tasks", each with its answer, for the substitute.',
   ],
   level: (r) => r.variant === 'harder'
     ? [
