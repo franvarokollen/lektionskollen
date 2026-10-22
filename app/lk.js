@@ -1755,7 +1755,8 @@ function fbSecMap() {
 function fbFlag(map, ref) {
   const sec = fbSecMap()[ref];
   return (map[ref] ? '<span class="chip chip-warn fbchip">' + esc(t('neededHelp')) + ' ' + map[ref] + '×</span>' : '') +
-    (sec && sec.changes ? '<span class="chip chip-warn fbchip">' + esc(t('fbChanges')) + ' ' + sec.changes + '×</span>' : '') +
+    (sec && sec.bad ? '<span class="chip chip-warn fbchip">' + esc(t('fbBad')) + ' ' + sec.bad + '×</span>' : '') +
+    (sec && sec.ok ? '<span class="chip chip-neutral fbchip">' + esc(t('fbOk')) + ' ' + sec.ok + '×</span>' : '') +
     (sec && sec.skipped ? '<span class="chip chip-neutral fbchip">' + esc(t('fbSkipped')) + ' ' + sec.skipped + '×</span>' : '');
 }
 
@@ -1779,15 +1780,15 @@ function fbBody(p) {
   // What substitutes said about each step, one tap per step per substitute.
   if ((p.sections || []).length) {
     h += '<div class="sect-h">' + esc(t('fbSecTitle')) + '</div>' + p.sections.map((x) => {
-      const n = x.worked + x.changes + x.skipped || 1;
-      const seg = (k, c) => x[k] ? '<i class="' + c + '" style="width:' + Math.round(x[k] / n * 100) + '%"></i>' : '';
+      const n = x.good + x.ok + x.bad + x.skipped || 1;
+      const seg = (key, c) => x[key] ? '<i class="' + c + '" style="width:' + Math.round(x[key] / n * 100) + '%"></i>' : '';
       return '<div class="heat"><span class="hl"><b>' + esc(x.section_label || x.section_ref) + '</b></span>' +
-        '<span class="hb secbar">' + seg('worked', 'sb-w') + seg('changes', 'sb-c') + seg('skipped', 'sb-s') + '</span>' +
-        '<span class="secn"><b class="sb-wt">' + x.worked + '</b> / <b class="sb-ct">' + x.changes + '</b> / <b class="sb-st">' + x.skipped + '</b></span></div>' +
+        '<span class="hb secbar">' + seg('good', 'sb-w') + seg('ok', 'sb-c') + seg('bad', 'sb-b') + seg('skipped', 'sb-s') + '</span>' +
+        '<span class="secn"><b class="sb-wt">' + x.good + '</b> / <b class="sb-ct">' + x.ok + '</b> / <b class="sb-bt">' + x.bad + '</b></span></div>' +
         (x.notes || []).map((nt) => '<blockquote>' + esc(nt) + '</blockquote>').join('');
     }).join('') +
       '<p class="muted" style="font-size:12px">' + esc(t('fbSecKey')) + '</p>';
-    if (p.sections.some((x) => x.changes >= 2)) h += '<p class="fbwarn">' + esc(t('fbRewrite')) + '</p>';
+    if (p.sections.some((x) => x.bad >= 2)) h += '<p class="fbwarn">' + esc(t('fbRewrite')) + '</p>';
   }
 
   const said = [];
