@@ -31,7 +31,19 @@ export const SCHEMA = `{
   "handover": string
 }`
 
+type RecentWeek = { week?: number; topic?: string; note?: string }
+
+/** The department's own term plan, as lines the model can read. */
+function recentOf(r: Record<string, unknown>): string {
+  const rows = r.recent as RecentWeek[] | null | undefined
+  if (!Array.isArray(rows) || !rows.length) return ''
+  return rows
+    .map((x) => `  week ${x.week}: ${x.topic}${x.note ? ` (${x.note})` : ''}`)
+    .join('\n')
+}
+
 export function buildMessages(r: Record<string, unknown>) {
+  const recentLines = recentOf(r)
   const lang = (r.language as string) ?? 'sv'
   const start = (r.starts_at as string) ?? '08:00'
 
@@ -121,7 +133,14 @@ export function buildMessages(r: Record<string, unknown>) {
     `Lesson length: ${r.minutes} minutes, starting ${start}`,
     r.group_name ? `Class: ${r.group_name}` : '',
     r.room ? `Room: ${r.room}` : '',
-    `Topic: ${(r.topic as string)?.trim() || 'Not specified - choose a self-contained topic from the central content that does not depend on the previous lesson.'}`,
+    // With a term plan, "not specified" stops meaning "guess something safe".
+    // The instruction changes with it: build on what the class has just done
+    // rather than picking something self-contained, because a lesson that
+    // follows on is the one the regular teacher would have taught.
+    recentLines
+      ? `Topic: ${(r.topic as string)?.trim() || 'Not specified - continue from what this class has just been taught, listed below.'}`
+      : `Topic: ${(r.topic as string)?.trim() || 'Not specified - choose a self-contained topic from the central content that does not depend on the previous lesson.'}`,
+    recentLines ? `What this class has been taught in the last few weeks, most recent last:\n${recentLines}` : '',
     (r.notes as string)?.trim() ? `Notes from the school: ${r.notes}` : '',
     r.lesson_type ? `Lesson type: ${r.lesson_type}` : '',
     // Difficulty and the substitute's subject knowledge used to be asked here.
