@@ -1671,14 +1671,177 @@ function showPlansTab(which) {
   state.tab = which;
   $('tab-bank').hidden = which !== 'bank';
   $('tab-feedback').hidden = which !== 'feedback';
+  $('tab-term').hidden = which !== 'term';
   document.querySelectorAll('[data-tab]').forEach((b) =>
     b.classList.toggle('on', b.getAttribute('data-tab') === which));
   $('tabbadge').textContent = state.pending || '';
   $('tabbadge').hidden = !state.pending;
   if (which === 'bank') { loadUses().then(renderBank).catch(() => {}); loadBank(); }
   if (which === 'feedback') loadFeedback();
+  if (which === 'term') loadTerm();
   setTitles();
 }
+
+
+/* ── The department's year planning ──────────────────────
+   Every plan this system writes without a topic is a guess from the
+   curriculum: a competent lesson that may be three weeks ahead of where the
+   class actually is. The people who know where the class is are the heads of
+   department, and what they have is a spreadsheet, or a Google Doc, or a wall
+   planner someone typed up, or an export from SchoolSoft. There is no finite
+   list of formats, so there is no point writing an importer per format.
+
+   Instead: one target shape, week and topic, and a paste box. Anything goes
+   in, lk-import reduces it to rows, and - this is the part that matters - a
+   person reads the rows and corrects them before anything is saved. Planning
+   that imported itself wrong would poison every plan built on it, and nobody
+   would be able to tell where the wrongness came from. */
+
+function termWhere() {
+  return { subject: $('tp-subject').value || '', year: $('tp-year').value || '' };
+}
+
+async function loadTerm() {
+  // The selects are filled from the bank, which is already loaded, plus
+  // anything a term plan exists for - a department can plan a subject before
+  // anyone has made a single cover lesson in it.
+  const cov = await sb.rpc('lk_term_coverage').then((r) => r.data || []).catch(() => []);
+  state.termCoverage = cov;
+  const subs = [...new Set([...state.bank.map((b) => b.subject), ...cov.map((c) => c.subject)])]
+    .filter(Boolean).sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b), LANG));
+  const yrs = [...new Set([...state.bank.map((b) => b.year_group), ...cov.map((c) => c.year_group)])]
+    .filter(Boolean).sort((a, b) => yearLabel(a).localeCompare(yearLabel(b), LANG));
+  const keep = (sel, list, fmt) => {
+    const cur = sel.value;
+    sel.innerHTML = list.map((x) => '<option value="' + esc(x) + '"' +
+      (x === cur ? ' selected' : '') + '>' + esc(fmt(x)) + '</option>').join('');
+  };
+  keep($('tp-subject'), subs, subjectLabel);
+  keep($('tp-year'), yrs, yearLabel);
+  $('tp-raw').placeholder = t('tpPastePh');
+  renderTermStored();
+}
+
+async function renderTermStored() {
+  const { subject, year } = termWhere();
+  const box = $('tp-stored');
+  if (!subject || !year) { box.innerHTML = ''; return; }
+  const { data, error } = await sb.rpc('lk_term_plan', { p_subject: subject, p_year: year });
+  if (error) { box.innerHTML = '<p class="note">' + esc(error.message) + '</p>'; return; }
+  const rows = data || [];
+  if (!rows.length) {
+    box.innerHTML = '<div class="bcard fx" style="max-width:900px"><h4>' +
+      esc(fillT('tpStoredH', { s: subjectLabel(subject), y: yearLabel(year) })) + '</h4>' +
+      '<p class="hint">' + esc(t('tpStoredNone')) + '</p></div>';
+    return;
+  }
+  box.innerHTML = '<div class="bcard fx" style="max-width:900px"><h4>' +
+    esc(fillT('tpStoredH', { s: subjectLabel(subject), y: yearLabel(year) })) + '</h4>' +
+    '<p class="hint">' + esc(fillT('tpStoredN', { n: rows.length })) + '</p>' +
+    '<div class="tpweeks">' + rows.map((r) =>
+      '<span class="tpweek" title="' + esc(r.note || '') + '"><b>v' + r.week + '</b>' +
+      esc(r.topic) + (r.note ? ' *' : '') + '</span>').join('') + '</div></div>';
+}
+
+/** The rows lk-import read back, editable, with nothing saved yet. */
+function renderTermPreview(rows, unclear) {
+  const box = $('tp-preview');
+  if (!rows || !rows.length) {
+    box.innerHTML = '<div class="bcard fx" style="max-width:900px;margin-top:14px">' +
+      '<p class="note">' + esc(t('tpNothingRead')) + '</p>' +
+      unclearBlock(unclear) + '</div>';
+    return;
+  }
+  box.innerHTML = '<div class="bcard fx" style="max-width:900px;margin-top:14px">' +
+    '<h4>' + esc(fillT('tpReadH', { n: rows.length })) + '</h4>' +
+    '<p class="hint">' + esc(t('tpReadNote')) + '</p>' +
+    '<table class="tptable"><thead><tr>' +
+      '<th>' + esc(t('tpWeek')) + '</th><th>' + esc(t('tpTopic')) + '</th>' +
+      '<th>' + esc(t('tpNote')) + '</th></tr></thead><tbody>' +
+    rows.map((r, i) =>
+      '<tr data-tprow="' + i + '">' +
+        '<td class="wk"><input value="' + esc(r.week) + '" inputmode="numeric" data-tpf="week"></td>' +
+        '<td><input value="' + esc(r.topic || '') + '" data-tpf="topic"></td>' +
+        '<td><input value="' + esc(r.note || '') + '" data-tpf="note"></td>' +
+      '</tr>').join('') +
+    '</tbody></table>' +
+    unclearBlock(unclear) +
+    '<div class="strow" style="margin-top:12px">' +
+      '<button class="btn btn-ok btn-sm" id="tp-save">' + esc(t('tpSave')) + '</button>' +
+      '<button class="btn btn-ghost btn-sm" id="tp-discard">' + esc(t('tpDiscard')) + '</button>' +
+    '</div></div>';
+}
+
+/** What the model could not place. Shown, never hidden: a line nobody looks at
+ *  is a week the class did something we will never know about. */
+function unclearBlock(unclear) {
+  if (!unclear || !unclear.length) return '';
+  return '<div class="tpunclear"><b>' + esc(fillT('tpUnclear', { n: unclear.length })) + '</b>' +
+    '<ul>' + unclear.slice(0, 20).map((u) =>
+      '<li>' + esc(u.text) + (u.why ? ' — <i>' + esc(u.why) + '</i>' : '') + '</li>').join('') +
+    '</ul></div>';
+}
+
+async function readTerm() {
+  const raw = $('tp-raw').value.trim();
+  if (!raw) { toast(t('tpPasteFirst')); return; }
+  const { subject, year } = termWhere();
+  const btn = $('tp-read');
+  btn.disabled = true; btn.textContent = t('tpReading');
+  try {
+    const { data, error } = await sb.functions.invoke('lk-import',
+      { body: { raw, subject, year_group: year } });
+    if (error || !data || data.error) {
+      toast(t('tpReadFail') + ' ' + ((data && data.detail) || (error && error.message) || ''));
+      return;
+    }
+    renderTermPreview(data.rows || [], data.unclear || []);
+  } finally {
+    btn.disabled = false; btn.textContent = t('tpRead');
+  }
+}
+
+/** Saves what is on screen, not what came back from the model: the edits are
+ *  the point of showing the table. */
+async function saveTerm() {
+  const { subject, year } = termWhere();
+  if (!subject || !year) { toast(t('tpNeedWhere')); return; }
+  const rows = [...document.querySelectorAll('[data-tprow]')].map((tr) => {
+    const f = (k) => tr.querySelector('[data-tpf="' + k + '"]').value.trim();
+    return { week: f('week'), topic: f('topic'), note: f('note') };
+  });
+  const { data, error } = await sb.rpc('lk_term_plan_save',
+    { p_subject: subject, p_year: year, p_rows: rows, p_source: 'paste' });
+  if (error) { toast(t('tpSaveFail') + ' ' + error.message); return; }
+  if (data && data.ok === false) { toast(t('tpSaveFail') + ' ' + data.error); return; }
+  $('tp-preview').innerHTML = '';
+  $('tp-raw').value = '';
+  toast(data.skipped
+    ? fillT('tpSavedSome', { n: data.saved, s: data.skipped })
+    : fillT('tpSaved', { n: data.saved }));
+  renderTermStored();
+  loadTerm();
+}
+
+['tp-subject', 'tp-year'].forEach((id) =>
+  $(id).addEventListener('change', () => { $('tp-preview').innerHTML = ''; renderTermStored(); }));
+$('tp-reload').addEventListener('click', loadTerm);
+$('tp-read').addEventListener('click', readTerm);
+$('tp-pick').addEventListener('click', () => $('tp-file').click());
+$('tp-file').addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  // Read here rather than uploading: a term plan is a few kilobytes of text,
+  // and a file that never leaves the browser needs no storage, no bucket and
+  // no retention answer.
+  $('tp-raw').value = await f.text();
+  e.target.value = '';
+  readTerm();
+});
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'tp-save') saveTerm();
+  if (e.target.id === 'tp-discard') { $('tp-preview').innerHTML = ''; }
+});
 
 function showScreen(which) {
   state.screen = which;

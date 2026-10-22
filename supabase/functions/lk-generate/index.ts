@@ -89,6 +89,20 @@ Deno.serve(async (req) => {
     } catch { return null }
   }
 
+  // ── What this class was actually doing ──────────────────
+  // A competent lesson on the wrong topic is still the wrong lesson, and until
+  // now every plan without an explicit topic was a guess from the curriculum.
+  // If the department has filled in its term plan, the last three weeks are
+  // the single most useful thing we can tell the model. Nothing fails without
+  // it: a school that has entered nothing gets exactly the behaviour it had
+  // before.
+  const fetchRecent = async () => {
+    if (translate || !r.subject || !r.year_group) return null
+    const rows = await rpc('lk_term_recent',
+      { p_subject: r.subject, p_year: r.year_group, p_week: null, p_back: 3 })
+    return Array.isArray(rows) && rows.length ? rows : null
+  }
+
   const baseUrl = Deno.env.get('AI_BASE_URL')
   const bigModel = Deno.env.get('AI_MODEL')
   // A translation needs no planning, so it can run on the cheaper model.
@@ -122,6 +136,11 @@ Deno.serve(async (req) => {
   // Nothing is charged for a request that produced nothing.
   const refund = async () => { if (took) await rpc('lk_quota_give_back', { p_kind: 'plan' }) }
 
+  // Read after the allowance, before the model: a request that is about to be
+  // refused should not cost a query, and a term plan that cannot be read must
+  // not stop the plan being written.
+  const recent = await fetchRecent()
+
   // ── Model configured ─────────────────────────────────────
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), 300_000)
@@ -134,7 +153,9 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model,
-        messages: translate ? buildTranslateMessages(translate, String(r.language || 'sv')) : buildMessages(r),
+        messages: translate
+          ? buildTranslateMessages(translate, String(r.language || 'sv'))
+          : buildMessages({ ...r, recent }),
         ...temperature(),
         // 8000 was fine when nothing thought before answering. Current Claude
         // models reason first, and that reasoning is billed against the same
