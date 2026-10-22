@@ -69,7 +69,7 @@ async function checkSubject(
     });
   });
   ((body.tasks ?? []) as Record<string, string>[]).forEach((t, i) => {
-    pairs.push({ where: `task ${i + 1}`, q: t.q, a: t.a });
+    pairs.push({ where: `task ${i + 1} (${t.tier ?? 'core'})`, q: t.q, a: t.a });
   });
   const rec = body.recall as Record<string, unknown> | undefined;
   ((rec?.qs ?? []) as Record<string, string>[]).forEach((q, i) => {
