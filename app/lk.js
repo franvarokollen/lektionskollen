@@ -270,6 +270,10 @@ function openPop(ref, x, y) {
 async function checkPlan(id) {
   if (state.checks[id] !== undefined) return state.checks[id];
   try {
+    // The structural verdict is now computed and stored when the plan is
+    // saved, so it is already on the row and costs nothing to show. The edge
+    // call below is still worth making: lk-verify adds a subject pass, which
+    // is the one judgement SQL cannot make.
     const { data, error } = await sb.functions.invoke('lk-verify', { body: { plan_id: id } });
     state.checks[id] = error ? null : data;
   } catch {
@@ -1143,6 +1147,13 @@ async function usePlan(id) {
   if (!state.row) state.row = { subject: data.subject, year: data.year_group, group: '—', mins: data.minutes, start: '', end: '', room: '—', teacher: '—', cover: null };
   $('overlay').hidden = false;
   document.body.style.overflow = 'hidden';
+  // The stored verdict paints with the plan. Before this it took an edge
+  // function call to learn anything about a plan's structure, so a plan nobody
+  // opened was never checked at all, and the same plan was re-checked on every
+  // open.
+  if (data.check_result && state.checks[data.id] === undefined) {
+    state.checks[data.id] = data.check_result;
+  }
   showPlan();
   // Checked after the first paint: the plan is readable immediately and the
   // verdict arrives a moment later, rather than the coordinator waiting on it.
