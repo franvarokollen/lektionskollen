@@ -630,7 +630,40 @@ const SUBJECTS_EN = {
   'Musik': 'Music', 'Bild': 'Art', 'Hem- och konsumentkunskap': 'Home economics',
   'Moderna språk': 'Modern languages', 'Spanska': 'Spanish', 'Tyska': 'German',
   'Franska': 'French', 'NO': 'Science', 'SO': 'Humanities',
+  'Svenska som andraspråk': 'Swedish as a second language', 'Modersmål': 'Mother tongue tuition',
+  'Teckenspråk för hörande': 'Sign language', 'Elevens val': "Pupil's choice",
 };
+
+/* ── Every year and subject a school can teach, F to Åk 9 ──
+   The pickers used to be built from whatever plans already existed, so a
+   school could not plan a subject or a year nobody had yet made a cover
+   lesson for. These are the grundskola's own (Skolverket, LGR22), spelled the
+   way the database stores them. The database folds the common alternative
+   spellings into these (lektionskollen.canon_subject). Gymnasiet is not here
+   on purpose: it needs its own programme and course structure. */
+const CATALOG_YEARS = ['F', 'Åk 1', 'Åk 2', 'Åk 3', 'Åk 4', 'Åk 5', 'Åk 6', 'Åk 7', 'Åk 8', 'Åk 9'];
+const CATALOG_SUBJECTS = [
+  'Matematik', 'Svenska', 'Svenska som andraspråk', 'Engelska', 'Moderna språk',
+  'Biologi', 'Fysik', 'Kemi', 'Teknik', 'Geografi', 'Historia', 'Religionskunskap',
+  'Samhällskunskap', 'Idrott och hälsa', 'Musik', 'Bild', 'Slöjd',
+  'Hem- och konsumentkunskap', 'Modersmål', 'Teckenspråk för hörande',
+];
+const SUBJECT_ALIAS = {
+  'idrott': 'Idrott och hälsa', 'hemkunskap': 'Hem- och konsumentkunskap',
+  'hkk': 'Hem- och konsumentkunskap', 'sva': 'Svenska som andraspråk',
+  'religion': 'Religionskunskap',
+};
+/** The same folding the database does, so a list never shows both spellings. */
+function canonSubject(s) {
+  const k = String(s || '').trim();
+  return SUBJECT_ALIAS[k.toLowerCase()] || k;
+}
+function canonYear(y) {
+  const k = String(y || '').trim();
+  if (/^(f|fsk|f-klass|förskoleklass|forskoleklass)$/i.test(k)) return 'F';
+  const m = /^(?:åk|ak|årskurs)\s*(\d+)$/i.exec(k);
+  return m ? 'Åk ' + m[1] : k;
+}
 
 function subjectLabel(s) {
   if (LANG !== 'en' || !s) return s || '';
@@ -639,6 +672,7 @@ function subjectLabel(s) {
 
 /** "Åk 7" is the Swedish school year. English readers get "Year 7". */
 function yearLabel(y) {
+  if (y === 'F') return LANG === 'en' ? 'Preschool class' : 'Förskoleklass';
   if (LANG !== 'en' || !y) return y || '';
   const m = /^\s*Åk\s*(\d+)/.exec(y);
   return m ? 'Year ' + m[1] : y;
@@ -702,6 +736,7 @@ function stars(r) {
 /** The year group as a number, so Ak 10 sorts after Ak 9 rather than after
  *  Ak 1. Anything with no number in it goes last, alphabetically. */
 function yearNum(y) {
+  if (String(y || '').trim() === 'F') return 0;
   const m = /(\d+)/.exec(String(y || ''));
   return m ? Number(m[1]) : Infinity;
 }
@@ -1813,10 +1848,13 @@ async function loadTerm() {
   // anyone has made a single cover lesson in it.
   const cov = await sb.rpc('lk_term_coverage').then((r) => r.data || []).catch(() => []);
   state.termCoverage = cov;
-  const subs = [...new Set([...state.bank.map((b) => b.subject), ...cov.map((c) => c.subject)])]
+  // Everything a school can teach, plus anything odd already in use.
+  const subs = [...new Set([...CATALOG_SUBJECTS,
+      ...state.bank.map((b) => canonSubject(b.subject)), ...cov.map((c) => canonSubject(c.subject))])]
     .filter(Boolean).sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b), LANG));
-  const yrs = [...new Set([...state.bank.map((b) => b.year_group), ...cov.map((c) => c.year_group)])]
-    .filter(Boolean).sort((a, b) => yearLabel(a).localeCompare(yearLabel(b), LANG));
+  const yrs = [...new Set([...CATALOG_YEARS,
+      ...state.bank.map((b) => canonYear(b.year_group)), ...cov.map((c) => canonYear(c.year_group))])]
+    .filter(Boolean).sort((a, b) => yearNum(a) - yearNum(b));
   const keep = (sel, list, fmt) => {
     const cur = sel.value;
     sel.innerHTML = list.map((x) => '<option value="' + esc(x) + '"' +
