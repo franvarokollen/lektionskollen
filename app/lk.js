@@ -1828,25 +1828,77 @@ async function loadTerm() {
   renderTermStored();
 }
 
+/** The school year as an editable grid, one row per week, autumn first.
+ *  Typing in a cell and saving is the whole manual route: no model, no paste.
+ *  Emptying a topic and saving takes that week back out. */
+const GRID_WEEKS = (() => {
+  const w = [];
+  for (let i = 33; i <= 52; i++) w.push(i);
+  for (let i = 1; i <= 26; i++) w.push(i);
+  return w;
+})();
+
 async function renderTermStored() {
   const { subject, year } = termWhere();
   const box = $('tp-stored');
   if (!subject || !year) { box.innerHTML = ''; return; }
   const { data, error } = await sb.rpc('lk_term_plan', { p_subject: subject, p_year: year });
   if (error) { box.innerHTML = '<p class="note">' + esc(error.message) + '</p>'; return; }
-  const rows = data || [];
-  if (!rows.length) {
-    box.innerHTML = '<div class="bcard fx" style="max-width:900px"><h4>' +
-      esc(fillT('tpStoredH', { s: subjectLabel(subject), y: yearLabel(year) })) + '</h4>' +
-      '<p class="hint">' + esc(t('tpStoredNone')) + '</p></div>';
-    return;
-  }
+  const have = new Map((data || []).map((r) => [Number(r.week), r]));
+  // A week outside the usual run (a summer course, week 53) still shows.
+  const weeks = GRID_WEEKS.slice();
+  have.forEach((_, w) => { if (!weeks.includes(w)) weeks.push(w); });
+  weeks.sort((x, y) => schoolYearPos(x) - schoolYearPos(y));
+  const thisWeek = isoWeek(new Date());
   box.innerHTML = '<div class="bcard fx" style="max-width:900px"><h4>' +
     esc(fillT('tpStoredH', { s: subjectLabel(subject), y: yearLabel(year) })) + '</h4>' +
-    '<p class="hint">' + esc(fillT('tpStoredN', { n: rows.length })) + '</p>' +
-    '<div class="tpweeks">' + rows.map((r) =>
-      '<span class="tpweek" title="' + esc(r.note || '') + '"><b>v' + r.week + '</b>' +
-      esc(r.topic) + (r.note ? ' *' : '') + '</span>').join('') + '</div></div>';
+    '<p class="hint">' + esc(fillT('tpStoredN', { n: have.size })) + ' ' + esc(t('tpGridHint')) + '</p>' +
+    '<table class="tptable tpgrid"><thead><tr><th>' + esc(t('tpWeek')) + '</th><th>' +
+      esc(t('tpTopic')) + '</th><th>' + esc(t('tpNote')) + '</th></tr></thead><tbody>' +
+    weeks.map((w) => {
+      const r = have.get(w) || {};
+      const topic = r.topic || '', note = r.note || '';
+      return '<tr data-gridrow="' + w + '" data-orig="' + esc(topic + '\u0001' + note) + '"' +
+        (w === thisWeek ? ' class="now"' : '') + '>' +
+        '<td class="wk"><b>' + w + '</b></td>' +
+        '<td><input value="' + esc(topic) + '" data-gf="topic"></td>' +
+        '<td><input value="' + esc(note) + '" data-gf="note"></td></tr>';
+    }).join('') +
+    '</tbody></table>' +
+    '<div class="strow" style="margin-top:12px"><button class="btn btn-ok btn-sm" id="tp-gridsave">' +
+      esc(t('tpGridSave')) + '</button></div></div>';
+}
+
+/** ISO week number, the one a Swedish school means by "vecka". */
+function isoWeek(d) {
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = x.getUTCDay() || 7;
+  x.setUTCDate(x.getUTCDate() + 4 - day);
+  return Math.ceil(((x - new Date(Date.UTC(x.getUTCFullYear(), 0, 1))) / 86400000 + 1) / 7);
+}
+
+/** Saves only the rows that changed, so a stray save cannot touch weeks
+ *  someone else filled in from another screen. */
+async function saveGrid() {
+  const { subject, year } = termWhere();
+  if (!subject || !year) { toast(t('tpNeedWhere')); return; }
+  const rows = [];
+  document.querySelectorAll('[data-gridrow]').forEach((tr) => {
+    const topic = tr.querySelector('[data-gf="topic"]').value.trim();
+    const note = tr.querySelector('[data-gf="note"]').value.trim();
+    if (topic + '\u0001' + note !== tr.getAttribute('data-orig')) {
+      rows.push({ week: tr.getAttribute('data-gridrow'), topic, note });
+    }
+  });
+  if (!rows.length) { toast(t('tpNoChange')); return; }
+  const { data, error } = await sb.rpc('lk_term_plan_save',
+    { p_subject: subject, p_year: year, p_rows: rows, p_source: 'grid' });
+  if (error || (data && data.ok === false)) {
+    toast(t('tpSaveFail') + ' ' + ((error && error.message) || data.error)); return;
+  }
+  toast(fillT('tpGridSaved', { n: data.saved, c: data.cleared || 0 }));
+  renderTermStored();
+  loadTerm();
 }
 
 /** The rows lk-import read back, editable, with nothing saved yet. */
@@ -1888,10 +1940,68 @@ function unclearBlock(unclear) {
     '</ul></div>';
 }
 
+/* ── Reading a paste without a model ─────────────────────
+   Most year plans pasted from a spreadsheet are already rows: a week, a
+   topic, maybe a note, split by tabs. Sending those to a model costs money
+   and invents nothing it could not have read itself. So try the plain
+   reading first; only text that does not look like rows goes to lk-import.
+   Pure function, tested in tools/term-check.mjs. */
+const TERM_WEEK = /^(?:vecka|veckor|v\.?|week|wk|w)?\s*(\d{1,2})(?:\s*[-–—]\s*(?:vecka|v\.?|week|wk|w)?\s*(\d{1,2}))?$/i;
+
+function schoolYearPos(w) { return w >= 32 ? w - 32 : w + 21; }
+
+function parseTermPaste(raw) {
+  const rows = [], bad = [];
+  let lines = 0;
+  for (const line of String(raw || '').split(/\r?\n/)) {
+    const ln = line.trim();
+    if (!ln) continue;
+    lines++;
+    let wkCell, rest;
+    if (ln.indexOf('\t') >= 0) {
+      const parts = ln.split('\t').map((x) => x.trim());
+      wkCell = parts[0];
+      rest = parts.slice(1).filter((x, i) => i < 1 || x);
+    } else {
+      const m = /^([^;,:]{1,22}?)\s*[;,:]\s*(.+)$/.exec(ln) ||
+                /^((?:vecka|v\.?|week|wk|w)?\s*\d{1,2}(?:\s*[-–—]\s*\d{1,2})?)\s+[-–—]?\s*(.+)$/i.exec(ln);
+      if (!m) { bad.push({ text: ln, why: 'no week' }); continue; }
+      wkCell = m[1].trim(); rest = [m[2].trim()];
+    }
+    const m = TERM_WEEK.exec(wkCell || '');
+    const topic = (rest[0] || '').trim();
+    if (!m || !topic) { bad.push({ text: ln, why: m ? 'no topic' : 'no week' }); continue; }
+    const a = parseInt(m[1], 10), b = m[2] ? parseInt(m[2], 10) : a;
+    if (a < 1 || a > 53 || b < 1 || b > 53) { bad.push({ text: ln, why: 'week out of range' }); continue; }
+    // A range such as 34-36 runs along the school year, so 50-2 is legal.
+    const span = schoolYearPos(b) - schoolYearPos(a);
+    if (span < 0 || span > 20) { bad.push({ text: ln, why: 'odd week range' }); continue; }
+    const note = rest.slice(1).join(' · ');
+    for (let k = 0; k <= span; k++) {
+      const w = ((schoolYearPos(a) + k + 32 - 1) % 53) + 1;
+      const wk = w > 53 ? w - 53 : w;
+      // Week 53 exists in only some years; a range passes over it.
+      if (wk === 53 && a !== 53 && b !== 53) continue;
+      rows.push({ week: wk, topic, note });
+    }
+  }
+  return { rows, bad, lines };
+}
+
+/** Plain reading is trusted only when it explains most of the paste. */
+function termPasteIsRows(r) {
+  return r.rows.length > 0 && r.bad.length <= Math.max(1, Math.floor(r.lines * 0.25));
+}
+
 async function readTerm() {
   const raw = $('tp-raw').value.trim();
   if (!raw) { toast(t('tpPasteFirst')); return; }
   const { subject, year } = termWhere();
+  const plain = parseTermPaste(raw);
+  if (termPasteIsRows(plain)) {
+    renderTermPreview(plain.rows, plain.bad.map((b) => ({ text: b.text, why: b.why })));
+    return;
+  }
   const btn = $('tp-read');
   btn.disabled = true; btn.textContent = t('tpReading');
   try {
@@ -1946,6 +2056,7 @@ $('tp-file').addEventListener('change', async (e) => {
 });
 document.addEventListener('click', (e) => {
   if (e.target.id === 'tp-save') saveTerm();
+  if (e.target.id === 'tp-gridsave') saveGrid();
   if (e.target.id === 'tp-discard') { $('tp-preview').innerHTML = ''; }
 });
 

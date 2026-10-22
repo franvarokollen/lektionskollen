@@ -737,3 +737,8 @@ body.panelmode .seam{flex:0 0 auto}
 .poolyear{margin-top:10px}
 .poolyear > h4{margin:0 0 6px;font-size:11px;font-weight:600;color:var(--ink-soft);
   text-transform:uppercase;letter-spacing:.05em}
+
+.tpgrid td.wk{width:52px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.tpgrid tr.now td{background:var(--line-soft)}
+.tpgrid tr.now td.wk b::after{content:' ◂';color:var(--ink-soft)}
+.tpgrid td input{border-color:var(--line);background:var(--bg)}
