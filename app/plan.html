@@ -102,6 +102,21 @@
   .proj .cl{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.14);color:#fff;
     border:0;border-radius:9px;padding:9px 15px;font:inherit;font-size:14px;cursor:pointer}
   .proj .ttl{position:absolute;top:18px;left:22px;font-size:14px;color:#8fa9c4;letter-spacing:.04em}
+  /* A deck, not a single card: the worked example is the thing most worth
+     projecting and it only makes sense one step at a time. Drawn from the plan
+     itself - no image generation, nothing to get subtly wrong, and it prints. */
+  .proj .slide{display:grid;gap:3.2vh;justify-items:start;max-width:min(1400px,92vw)}
+  .proj h2{font:600 clamp(28px,5vw,68px)/1.15 'Geist',system-ui,sans-serif;margin:0}
+  .proj .lead{font:400 clamp(18px,2.4vw,32px)/1.4 'Geist',system-ui,sans-serif;color:#b9cde2;margin:0}
+  .proj ol{font:500 clamp(20px,3.2vw,46px)/1.6 'Geist Mono',ui-monospace,monospace;
+    margin:0;padding-left:1.6em;display:grid;gap:1.1vh}
+  .proj .nav{position:absolute;bottom:18px;right:22px;display:flex;gap:8px;align-items:center}
+  .proj .nav button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:9px;
+    padding:9px 16px;font:inherit;font-size:15px;cursor:pointer}
+  .proj .nav button:disabled{opacity:.3;cursor:default}
+  .proj .count{position:absolute;bottom:24px;left:22px;font-size:14px;color:#8fa9c4;
+    font-variant-numeric:tabular-nums}
+  .proj .step{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8fa9c4}
 
   @media print{ .rail,.tvbar,.proj{display:none!important} .subwrap{display:block;max-width:none} }
 
@@ -240,7 +255,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="28df0cdc6347">
+<meta name="lk-build" content="f47cb0a3b4c9">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -347,6 +362,10 @@ const SV_LABELS = {
   teachBtn: '▶ Starta lektionsläge', prepBtn: '← Hela planen', projBtn: 'Visa för klassen',
   nextPhase: 'Nästa', prevPhase: 'Tillbaka', phaseOf: 'av',
   projTitle: 'På tavlan', projHint: 'Stäng',
+  projDeck: 'Visa hela lektionen', projModel: 'Vi gör ett tillsammans',
+  projStep: 'Steg', projTasks: 'Uppgifter', projExit: 'Innan ni går',
+  projGoal: 'Målet med lektionen', projPrev: '‹ Föregående', projNext: 'Nästa ›',
+  projOf: '{i} av {n}',
   tierQ: 'Uppgifter:', tierSupport: 'Mer stöd', tierStandard: 'Standard', tierChallenge: 'Mer utmaning',
   tierHint: 'Samma mål, tre nivåer. Byt när som helst — eleverna ser ingen nivå på sitt blad.',
   tKicker: 'Din lektion medan du var borta', tSubSaid: 'Vad vikarien sa', tQuestion: 'Var det här rätt för din klass?', tWhy: 'Du är den enda som kan avgöra om innehållet stämde. Samordnaren kan det inte, och vikarien kan bara säga om den gick att hålla.', tRight: 'Ja, rätt', tMostly: 'Mest rätt', tWrong: 'Nej', tNoteLbl: 'Vad var fel? (valfritt)', tNotePh: 'T.ex. ”Vi hade redan gjort det här” eller ”Facit på uppgift 2 är fel”', tNoteHint: 'Går till samordnaren. En plan du säger är fel plockas ur den delade poolen.', tThePlan: 'Planen de fick', tThanks: 'Tack — ditt svar är sparat.', covLeftLbl: 'Stannade vid',
@@ -403,6 +422,10 @@ const EN_LABELS = {
   teachBtn: '▶ Start teach mode', prepBtn: '← Full plan', projBtn: 'Show to the class',
   nextPhase: 'Next', prevPhase: 'Back', phaseOf: 'of',
   projTitle: 'On the board', projHint: 'Close',
+  projDeck: 'Show the whole lesson', projModel: 'One together',
+  projStep: 'Step', projTasks: 'Tasks', projExit: 'Before you go',
+  projGoal: 'What this lesson is for', projPrev: '‹ Back', projNext: 'Next ›',
+  projOf: '{i} of {n}',
   tierQ: 'Tasks:', tierSupport: 'More support', tierStandard: 'Standard', tierChallenge: 'More challenge',
   tierHint: 'Same goal, three levels. Switch at any time — pupils see no level on their sheet.',
   tKicker: 'Your lesson while you were away', tSubSaid: 'What the substitute said', tQuestion: 'Was this right for your class?', tWhy: 'You are the only person who can judge whether the content was correct. The coordinator cannot, and the substitute can only say whether it could be delivered.', tRight: 'Yes, right', tMostly: 'Mostly right', tWrong: 'No', tNoteLbl: 'What was wrong? (optional)', tNotePh: 'e.g. “We had already covered this” or “The answer to task 2 is wrong”', tNoteHint: 'Goes to the coordinator. A plan you say is wrong is taken out of the shared pool.', tThePlan: 'The plan they were given', tThanks: 'Thank you — your answer is saved.', covLeftLbl: 'Stopped at',
@@ -815,6 +838,7 @@ function render(d, keepScroll) {
     $('out').innerHTML =
       '<div class="teachview"><div class="tv">' + one + '</div>' +
       '<div class="tvbar"><button data-teach="0">' + esc(l.prepBtn) + '</button>' +
+      '<button data-projdeck>' + esc(l.projDeck) + '</button>' +
       '<div class="tvdots">' + phases.map((_, j) =>
         '<i class="' + (j === i ? 'on' : '') + '"></i>').join('') + '</div>' +
       '<span class="pos">' + (i + 1) + ' ' + esc(l.phaseOf) + ' ' + phases.length + '</span>' +
@@ -992,13 +1016,152 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStude
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     const b = document.querySelector('.proj');
-    if (b) { b.remove(); return; }
+    if (b) { b.remove(); DECK = null; return; }
     if (TEACH && DATA) { TEACH = false; render(DATA); return; }
   }
-  if (!TEACH || !DATA || document.querySelector('.proj')) return;
+  // While the deck is up it owns the arrow keys: someone stepping through a
+  // worked example in front of a class should not have to find a button.
+  if (document.querySelector('.proj') && DECK) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+      e.preventDefault(); DI++; paintSlide(); return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault(); DI--; paintSlide(); return;
+    }
+    return;
+  }
+  if (!TEACH || !DATA) return;
   if (e.key === 'ArrowRight' || e.key === 'PageDown') { TPHASE++; render(DATA); window.scrollTo(0, 0); }
   if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   { TPHASE = Math.max(0, TPHASE - 1); render(DATA); window.scrollTo(0, 0); }
 });
+
+  /* ── The lesson, as slides ─────────────────────────────
+     Built from the plan's own fields, so there is nothing to generate and
+     nothing to get subtly wrong. A generated picture of a right-angled
+     triangle with the legs mislabelled is worse than no picture, and you
+     cannot check five hundred of them; a slide drawn from the data is correct
+     by construction, costs nothing, and prints.
+
+     The worked example is the reason this exists. It is the one part of a
+     lesson that only works revealed a step at a time, and before this it was
+     a block of text on a substitute's phone.
+
+     What is NEVER on a slide: the worked example's final answer, a task
+     answer, the exit ticket answer, a tier name. The class sees the questions;
+     the adult keeps the answers. */
+  /** Is this text already on a slide, whole or in pieces? The generator
+   *  repeats itself by design - a phase's board restates the worked example's
+   *  steps, the exit phase's board is the exit question - and a deck that
+   *  shows the same thing twice teaches a class to stop looking up. */
+  function already(S, txt) {
+    if (!txt || !txt.trim()) return true;
+    var t = txt.trim();
+    return S.some(function (sl) {
+      var hay = [sl.h, sl.pre].concat(sl.items || []).filter(Boolean).join('\n').trim();
+      if (!hay) return false;
+      if (hay.indexOf(t) !== -1) return true;
+      // A board that is the task list written out: the questions are the same,
+      // but the board numbers them ("1. ", "2. ") so neither string contains
+      // the other. One question in common is enough to know.
+      if (sl.items && sl.items.length && t.indexOf(sl.items[0]) !== -1) return true;
+      // A board built out of lines that are each already a slide of their own.
+      return hay.length > 8 && t.indexOf(hay) !== -1;
+    });
+  }
+
+  function deckOf(p, l) {
+    var S = [];
+    var push = function (sl) {
+      var txt = sl.pre || sl.h;
+      if (sl.items || !already(S, txt)) S.push(sl);
+    };
+
+    if (p.title) S.push({ h: p.title, lead: p.goal || '' });
+
+    (p.phases || []).forEach(function (ph, i) {
+      // Phase 2 is the worked example wherever it sits in the plan. Its steps
+      // go up one at a time - the reason this is a deck and not a card.
+      if (i === 1 && p.model && p.model.p) {
+        push({ step: l.projModel, h: p.model.p });
+        (p.model.st || []).forEach(function (st, j) {
+          if (st && st.b) S.push({ step: l.projStep + ' ' + (j + 1), pre: st.b });
+        });
+        // p.model.a is deliberately absent: the answer is the substitute's.
+      }
+
+      // Phase 4 is independent work. The class copies the core tier; the tier
+      // is not named on the slide any more than on a pupil's sheet.
+      var core = [];
+      if (i === 3) {
+        core = (p.tasks || []).filter(function (x) { return (x.tier || 'core') === 'core'; });
+        if (!core.length) core = (p.tasks || []);
+      }
+      // Tasks before this phase's board, deliberately: the generator writes
+      // the same questions into both, and a numbered list reads better from
+      // the back of a room than a copied-out block. Pushing it first lets
+      // already() drop the board.
+      for (var k = 0; k < core.length; k += 5) {
+        S.push({ step: l.projTasks, items: core.slice(k, k + 5).map(function (x) { return x.q; }) });
+      }
+      if (ph.board) push({ step: ph.n, pre: ph.board });
+    });
+
+    if (p.exit && p.exit.q) push({ step: l.projExit, h: p.exit.q });
+    return S;
+  }
+
+  var DECK = null, DI = 0;
+
+  function slideHtml(sl, i, n, l) {
+    var body = '<div class="slide">' +
+      (sl.step ? '<span class="step">' + esc(sl.step) + '</span>' : '') +
+      (sl.h ? '<h2>' + esc(sl.h) + '</h2>' : '') +
+      (sl.lead ? '<p class="lead">' + esc(l.projGoal) + ': ' + esc(sl.lead) + '</p>' : '') +
+      (sl.pre ? '<pre>' + esc(sl.pre) + '</pre>' : '') +
+      (sl.items ? '<ol>' + sl.items.map(function (q) {
+        return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' : '') +
+      '</div>';
+    return body +
+      '<span class="count">' + (i + 1) + ' / ' + n + '</span>' +
+      '<button class="cl" data-projclose>' + esc(l.projHint) + '</button>' +
+      '<div class="nav">' +
+        '<button data-projgo="-1"' + (i === 0 ? ' disabled' : '') + '>' + esc(l.projPrev) + '</button>' +
+        '<button data-projgo="1"' + (i === n - 1 ? ' disabled' : '') + '>' + esc(l.projNext) + '</button>' +
+      '</div>';
+  }
+
+  function paintSlide() {
+    var box = document.querySelector('.proj');
+    if (!box || !DECK || !DECK.length) return;
+    DI = Math.max(0, Math.min(DI, DECK.length - 1));
+    box.innerHTML = slideHtml(DECK[DI], DI, DECK.length, L());
+  }
+
+  function openDeck(at) {
+    var all = bodies(DATA); var pp = all[LANG] || {};
+    DECK = deckOf(pp, L());
+    if (!DECK.length) return;
+    DI = typeof at === 'number' ? at : 0;
+    var old = document.querySelector('.proj');
+    if (old) old.remove();
+    var box = document.createElement('div');
+    box.className = 'proj';
+    document.body.appendChild(box);
+    paintSlide();
+  }
+
+  /** The slide index a phase's own button should land on, so "show the class"
+   *  from phase 3 opens phase 3 rather than the title. */
+  function slideForPhase(i) {
+    var all = bodies(DATA); var pp = all[LANG] || {};
+    var d = deckOf(pp, L());
+    var want = ((pp.phases || [])[i] || {});
+    for (var k = 0; k < d.length; k++) {
+      if (want.board && d[k].pre === want.board) return k;
+      if (d[k].step === want.n) return k;
+    }
+    return 0;
+  }
 
 document.addEventListener('click', async (e) => {
   const l = L();
@@ -1032,25 +1195,22 @@ document.addEventListener('click', async (e) => {
     render(DATA); window.scrollTo(0, 0); return;
   }
 
-  // The projector view shows what the class should see, and never an answer.
+  // A phase's own button opens the deck at that phase rather than a
+  // standalone card, so moving on does not mean closing and hunting.
   const pj = e.target.closest('[data-proj]');
   if (pj && DATA) {
-    const all = bodies(DATA); const pp = all[LANG] || {};
-    const ph = (pp.phases || [])[parseInt(pj.getAttribute('data-proj'), 10)];
-    if (!ph || !ph.board) return;
-    const l2 = L();
-    const box = document.createElement('div');
-    box.className = 'proj';
-    box.innerHTML = '<span class="ttl">' + esc(l2.projTitle) + ' — ' + esc(ph.n) + '</span>' +
-      '<button class="cl" data-projclose>' + esc(l2.projHint) + '</button>' +
-      '<pre>' + esc(ph.board) + '</pre>';
-    document.body.appendChild(box);
+    openDeck(slideForPhase(parseInt(pj.getAttribute('data-proj'), 10)));
     return;
   }
+  if (e.target.closest('[data-projdeck]') && DATA) { openDeck(0); return; }
+  const pg = e.target.closest('[data-projgo]');
+  if (pg) { DI += parseInt(pg.getAttribute('data-projgo'), 10); paintSlide(); return; }
   if (e.target.closest('[data-projclose]')) {
     const b = document.querySelector('.proj'); if (b) b.remove();
+    DECK = null;
     return;
   }
+
 
   const dp = e.target.closest('[data-depth]');
   if (dp && DATA) {
