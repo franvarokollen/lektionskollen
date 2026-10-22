@@ -131,7 +131,7 @@
           ? '<p class="meta"><b>' + esc(t('expect')) + '</b> ' + esc(ph.expect) + '</p>' : '') +
         (o.projector && ph.board
           ? '<div class="strow noprint" style="margin-top:9px">' +
-            '<button class="stbtn" data-proj="' + i + '">' + esc(t('projBtn')) + '</button></div>' : '') +
+            '<button class="stbtn presentbtn" data-proj="' + i + '"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 4.6v3.8L10 6.5z" fill="currentColor"/><path d="M5 14h6M8 11v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' + esc(t('projBtn')) + '</button></div>' : '') +
         assistRow(ref, ph.n) + extras(ref) + '</div>';
     }
 
