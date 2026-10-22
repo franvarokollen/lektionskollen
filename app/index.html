@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="./lk.css">
-<meta name="lk-build" content="99d3b1171743">
+<meta name="lk-build" content="28df0cdc6347">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -146,6 +146,7 @@
         <div class="tabs plantabs">
           <button class="on" data-tab="bank" data-t="tabBank">Lektionsbank</button>
           <button data-tab="feedback"><span data-t="tabFeedback">Återkoppling</span><span class="tbadge" id="tabbadge" hidden></span></button>
+          <button data-tab="term" data-t="tabTerm">Terminsplanering</button>
         </div>
 
       <div id="tab-bank">
@@ -169,6 +170,31 @@
         <div class="filters" style="margin-top:22px"><h3 class="fb-h" data-t="plansTitle">Planer och vad vikarierna sa</h3></div>
         <div class="grid" id="fbplans"></div>
         <div class="bcard fx" id="fbsettings" style="margin-top:22px;max-width:520px"></div>
+      </div>
+
+      <!-- The department's own year planning. Not a plan, not a document: the
+           one shape every school's planning gets reduced to, so a generated
+           lesson can follow on from what the class actually did. -->
+      <div id="tab-term" hidden>
+        <div class="filters">
+          <select id="tp-subject"></select>
+          <select id="tp-year"></select>
+          <span class="spacer"></span>
+          <button class="btn btn-ghost btn-sm" id="tp-reload" data-t="refresh">Uppdatera</button>
+        </div>
+        <p class="note" data-t="tpWhy"></p>
+        <div class="bcard fx" style="max-width:900px">
+          <h4 data-t="tpPasteH">Klistra in planeringen</h4>
+          <p class="hint" data-t="tpPasteNote"></p>
+          <textarea id="tp-raw" rows="8" class="tp-raw"></textarea>
+          <div class="strow" style="margin-top:10px">
+            <button class="btn btn-primary btn-sm" id="tp-read" data-t="tpRead">Läs in</button>
+            <button class="btn btn-ghost btn-sm" id="tp-pick" data-t="tpPick">Välj fil</button>
+            <input type="file" id="tp-file" accept=".csv,.tsv,.txt,text/plain" hidden>
+          </div>
+        </div>
+        <div id="tp-preview"></div>
+        <div id="tp-stored" style="margin-top:22px"></div>
       </div>
       </section>
     </div>
