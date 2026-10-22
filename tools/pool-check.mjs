@@ -59,11 +59,11 @@ const { renderBank, yearNum, state, out, setLang } = await import(`file://${mod}
 // spanning several years, two plans sharing a title, and subjects whose
 // Swedish and English names sort differently.
 const FIXTURE = [
-  { id: 'a', title: 'Pythagoras', subject: 'Matematik', year_group: 'Åk 9', minutes: 60, approved: true },
-  { id: 'b', title: 'Bråk', subject: 'Matematik', year_group: 'Åk 10', minutes: 60, approved: true },
-  { id: 'c', title: 'Tallinjen', subject: 'Matematik', year_group: 'Åk 1', minutes: 60, approved: true },
-  { id: 'd', title: 'Procent', subject: 'Matematik', year_group: 'Åk 9', minutes: 60, approved: true },
-  { id: 'e', title: 'Gymkurs', subject: 'Matematik', year_group: 'Gy1', minutes: 60, approved: true },
+  { id: 'a', title: 'Pythagoras', subject: 'Matematik', year_group: 'Åk 9', minutes: 60, approved: true, approval_rank: 3, approved_name: 'Quinn Q', approved_subject: 'Matematik' },
+  { id: 'b', title: 'Bråk', subject: 'Matematik', year_group: 'Åk 10', minutes: 60, approved: true, approval_rank: 2, approved_name: 'Tom T' },
+  { id: 'c', title: 'Tallinjen', subject: 'Matematik', year_group: 'Åk 1', minutes: 60, approved: true, approval_rank: 1 },
+  { id: 'd', title: 'Procent', subject: 'Matematik', year_group: 'Åk 9', minutes: 60, approved: true, approval_rank: 0, approval_stale: true },
+  { id: 'e', title: 'Gymkurs', subject: 'Matematik', year_group: 'Gy1', minutes: 60, approved: false, approval_rank: 0 },
   { id: 'f', title: 'Past perfect', subject: 'Engelska', year_group: 'Åk 9', minutes: 60, approved: true },
   { id: 'g', title: 'Past perfect', subject: 'Engelska', year_group: 'Åk 9', minutes: 60, approved: true },
   { id: 'h', title: 'Notvärden', subject: 'Musik', year_group: 'Åk 6', minutes: 60, approved: true },
@@ -91,6 +91,18 @@ function check(name, rows) {
     if (new Set(cards).size !== new Set(ranked).size) fails.push('a plan went missing');
     const summed = heads.reduce((a, [, n]) => a + n, 0);
     if (summed !== rows.length) fails.push(`header counts sum to ${summed}, not ${rows.length}`);
+
+    // Every card carries its rung: stars and a number that match approval_rank
+    // (0 for a plan that is unapproved, whatever else the row claims).
+    const want = new Map(rows.map((r) => [r.id, r.approved ? (Number(r.approval_rank) || 0) : 0]));
+    for (const part of html.split('data-viewplan="').slice(1)) {
+      const id = part.slice(0, part.indexOf('"'));
+      const m = /apLevel\{"n":(\d)/.exec(part);
+      if (!m) fails.push(`card ${id} shows no approval level`);
+      else if (Number(m[1]) !== want.get(id)) fails.push(`card ${id} shows level ${m[1]}, plan is ${want.get(id)}`);
+      const lit = (part.match(/<i class="on">/g) || []).length;
+      if (m && lit !== want.get(id)) fails.push(`card ${id} lights ${lit} stars for level ${want.get(id)}`);
+    }
 
     const labels = heads.map(([s]) => s);
     const inOrder = labels.slice().sort((a, b) => a.localeCompare(b, lang));

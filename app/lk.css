@@ -527,6 +527,26 @@ body.panelmode .seam{flex:0 0 auto}
   background:var(--warn-bg);border:1px solid #fcd34d;color:#7c4a02;font-size:13px}
 .approvebar div{flex:1;min-width:200px}
 
+/* The ladder. Stars and a number for how far up a plan has been signed off —
+   kept apart from the substitutes' score (a number out of 100) beside it. */
+.apstars{display:inline-flex;align-items:center;gap:1px;font-size:12px;line-height:1;white-space:nowrap}
+.apstars i{font-style:normal}
+.apstars i.off{color:var(--line)}
+.apstars.r1 i.on{color:#64748b}
+.apstars.r2 i.on{color:#16a34a}
+.apstars.r3 i.on{color:#d49a06}
+.apstars b{margin-left:4px;font-size:11px;font-weight:600;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.aplvl{font-size:11px;color:var(--ink-soft)}
+.approvebar .ladder{flex:none;width:100%;display:flex;gap:8px;flex-wrap:wrap;min-width:0}
+.approvebar.raise{background:var(--line-soft);border-color:var(--line);color:var(--ink)}
+.approvebar .btn{display:inline-flex;align-items:center;gap:6px}
+.btn .apstars i.on{color:currentColor}
+.btn .apstars i.off{color:currentColor;opacity:.35}
+.aprname{display:flex;flex-direction:column;gap:3px;margin-top:8px;font-size:12px;color:var(--ink-soft)}
+.aprname input{border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit;font-size:13px;
+  background:#fff;color:var(--ink);max-width:320px}
+.aprname input:focus{outline:2px solid var(--navy);outline-offset:1px}
+
 /* Advice on a pasted link — never a gate */
 .linkstate{margin:-4px 0 0;font-size:12.5px;line-height:1.4}
 .linkstate.busy{color:var(--ink-faint)}
