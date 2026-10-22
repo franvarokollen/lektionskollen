@@ -700,7 +700,10 @@ function extraBody(x) {
 function extrasFor(ref) {
   const l = L();
   // An extra with nothing in the language being read would draw an empty box.
-  return EXTRAS.filter((x) => x.section_ref === ref && extraBody(x).body).map((x) => {
+  // Also skip rows with nothing to show (old seed rows use a {h, steps}
+  // shape): they drew a tag and an empty box.
+  const hasContent = (b) => b && (b.title || (b.lines || []).length || b.board || (b.tasks || []).length);
+  return EXTRAS.filter((x) => x.section_ref === ref && hasContent(extraBody(x).body)).map((x) => {
     const { body, exact, lang } = extraBody(x);
     const note = exact ? ''
       : ' · ' + esc(lang === 'sv' ? l.onlyOther : l.onlyOtherEn);
