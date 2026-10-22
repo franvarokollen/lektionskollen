@@ -26,10 +26,11 @@ if (from === -1 || to === -1 || to < from) {
 }
 const dir = mkdtempSync(join(tmpdir(), 'lk-deck-'));
 const mod = join(dir, 'deck.mjs');
-writeFileSync(mod, page.slice(from, to).replace('function deckOf', 'export function deckOf'));
-const { deckOf } = await import(`file://${mod}`);
+writeFileSync(mod, page.slice(from, to).replace('function deckOf', 'export function deckOf')
+  .replace('function deckScope', 'export function deckScope').replace('function deckAll', 'export function deckAll'));
+const { deckOf, deckScope, deckAll } = await import(`file://${mod}`);
 
-const L = { projModel: 'One together', projStep: 'Step', projTasks: 'Tasks', projExit: 'Before you go' };
+const L = { projModel: 'Worked example', projStep: 'Step', projTasks: 'Tasks', projExit: 'Before you go' };
 
 // A plan carrying every trap at once: a worked example whose last step is the
 // answer, a phase board that restates those steps, a phase board that is the
@@ -78,7 +79,7 @@ function allowed(plan) {
   add(plan.title); add(plan.goal);
   add(plan.model?.p);
   for (const st of plan.model?.st || []) add(st.b);     // never st.s - that is the script
-  for (const ph of plan.phases || []) { add(ph.n); add(ph.board); }
+  for (const ph of plan.phases || []) { add(ph.n); add(ph.board); for (const c of ph.checks || []) add(c.q); }   // never c.a
   for (const t of plan.tasks || []) add(t.q);           // never t.a
   add(plan.exit?.q);                                    // never exit.a
   for (const v of Object.values(L)) add(v);
@@ -104,6 +105,35 @@ function check(name, plan) {
       fails.push(`slide ${i + 1} label from no safe field: "${s.step}"`);
     }
   });
+
+  // Navigation. A section button must land on that section, and the section
+  // must end on a stop rather than run on into the next one.
+  const phases = plan.phases || [];
+  const whole = deckAll(plan, L);
+  const covered = [];
+  phases.forEach((ph, i) => {
+    const sc = deckScope(plan, L, i);
+    const body = sc.filter((x) => !x.end);
+    if (!body.length) fails.push(`section ${i + 1} (${ph.n}) opens on nothing`);
+    if (!sc[sc.length - 1].end) fails.push(`section ${i + 1} has no stop screen`);
+    if (sc.filter((x) => x.end).length !== 1) fails.push(`section ${i + 1} has ${sc.filter((x) => x.end).length} stop screens`);
+    if (body.some((x) => x.ph !== i)) fails.push(`section ${i + 1} shows another section's slide`);
+    const nx = sc[sc.length - 1];
+    if (i < phases.length - 1 && nx.nextPh !== i + 1) fails.push(`section ${i + 1} stop screen points at ${nx.nextPh}`);
+    if (i === phases.length - 1 && nx.nextPh !== -1) fails.push('last section offers a next part');
+    body.forEach((x) => covered.push(JSON.stringify(x)));
+    if (!whole.some((x) => x.divider && x.ph === i)) fails.push(`whole lesson has no divider for section ${i + 1}`);
+  });
+  // Together the sections show every content slide exactly once (bar the title).
+  const content = slides.filter((x) => x.ph >= 0);
+  if (covered.length !== content.length || content.some((x) => !covered.includes(JSON.stringify(x)))) {
+    fails.push(`sections cover ${covered.length} slides, the lesson has ${content.length}`);
+  }
+  // The whole lesson has the same content in the same order, dividers aside.
+  const flat = whole.filter((x) => !x.divider);
+  if (flat.length !== slides.length || flat.some((x, k) => JSON.stringify(x) !== JSON.stringify(slides[k]))) fails.push('whole lesson differs from the plain deck');
+  // No answer-bearing field on the new screens either.
+  for (const x of whole.filter((y) => y.divider)) if (!ok.has(String(x.h).trim())) fails.push(`divider text from no safe field: ${x.h}`);
 
   const seen = new Map();
   slides.forEach((s, i) => {

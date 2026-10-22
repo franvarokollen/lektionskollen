@@ -116,6 +116,10 @@
   .proj .nav button:disabled{opacity:.3;cursor:default}
   .proj .count{position:absolute;bottom:24px;left:22px;font-size:14px;color:#8fa9c4;
     font-variant-numeric:tabular-nums}
+  .proj .endcard{justify-items:center;text-align:center;justify-self:center}
+  .proj .nextpart{background:#2f7be0;color:#fff;border:0;border-radius:12px;padding:16px 28px;
+    font:600 clamp(18px,2.4vw,30px)/1 'Geist',system-ui,sans-serif;cursor:pointer}
+  .proj .divider h2{font-size:clamp(36px,6.5vw,90px)}
   .proj .step{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8fa9c4}
 
   @media print{ .rail,.tvbar,.proj{display:none!important} .subwrap{display:block;max-width:none} }
@@ -362,7 +366,9 @@ const SV_LABELS = {
   teachBtn: '▶ Starta lektionsläge', prepBtn: '← Hela planen', projBtn: 'Visa för klassen',
   nextPhase: 'Nästa', prevPhase: 'Tillbaka', phaseOf: 'av',
   projTitle: 'På tavlan', projHint: 'Stäng',
-  projDeck: 'Visa hela lektionen', projModel: 'Vi gör ett tillsammans',
+  projDeck: 'Visa hela lektionen', projModel: 'Exempel på tavlan',
+  projPart: 'Del {i} av {n}', projEnd: 'Slut på den här delen', projStop: 'Stanna här. Gå vidare när klassen är klar.',
+  projNextPart: 'Nästa del', projDone: 'Lektionen är slut.',
   projStep: 'Steg', projTasks: 'Uppgifter', projExit: 'Innan ni går',
   projGoal: 'Målet med lektionen', projPrev: '‹ Föregående', projNext: 'Nästa ›',
   projOf: '{i} av {n}',
@@ -422,7 +428,9 @@ const EN_LABELS = {
   teachBtn: '▶ Start teach mode', prepBtn: '← Full plan', projBtn: 'Show to the class',
   nextPhase: 'Next', prevPhase: 'Back', phaseOf: 'of',
   projTitle: 'On the board', projHint: 'Close',
-  projDeck: 'Show the whole lesson', projModel: 'One together',
+  projDeck: 'Show the whole lesson', projModel: 'Worked example',
+  projPart: 'Part {i} of {n}', projEnd: 'End of this part', projStop: 'Stop here. Move on when the class is ready.',
+  projNextPart: 'Next part', projDone: 'The lesson is over.',
   projStep: 'Step', projTasks: 'Tasks', projExit: 'Before you go',
   projGoal: 'What this lesson is for', projPrev: '‹ Back', projNext: 'Next ›',
   projOf: '{i} of {n}',
@@ -1071,20 +1079,27 @@ document.addEventListener('keydown', (e) => {
 
   function deckOf(p, l) {
     var S = [];
+    var phases = p.phases || [];
+    var cur = -1;
+    // Every slide records which section it belongs to. Without that a section
+    // button can only guess where to land, and guessed wrong (slide 1) whenever
+    // dedup removed that section's board.
+    var add = function (sl) { sl.ph = cur; sl.pn = phases.length; S.push(sl); };
     var push = function (sl) {
       var txt = sl.pre || sl.h;
-      if (sl.items || !already(S, txt)) S.push(sl);
+      if (sl.items || !already(S, txt)) add(sl);
     };
 
-    if (p.title) S.push({ h: p.title, lead: p.goal || '' });
+    if (p.title) add({ h: p.title, lead: p.goal || '' });
 
-    (p.phases || []).forEach(function (ph, i) {
+    phases.forEach(function (ph, i) {
+      cur = i;
       // Phase 2 is the worked example wherever it sits in the plan. Its steps
       // go up one at a time - the reason this is a deck and not a card.
       if (i === 1 && p.model && p.model.p) {
         push({ step: l.projModel, h: p.model.p });
         (p.model.st || []).forEach(function (st, j) {
-          if (st && st.b) S.push({ step: l.projStep + ' ' + (j + 1), pre: st.b });
+          if (st && st.b) add({ step: l.projStep + ' ' + (j + 1), pre: st.b });
         });
         // p.model.a is deliberately absent: the answer is the substitute's.
       }
@@ -1101,28 +1116,89 @@ document.addEventListener('keydown', (e) => {
       // the back of a room than a copied-out block. Pushing it first lets
       // already() drop the board.
       for (var k = 0; k < core.length; k += 5) {
-        S.push({ step: l.projTasks, items: core.slice(k, k + 5).map(function (x) { return x.q; }) });
+        add({ step: l.projTasks, items: core.slice(k, k + 5).map(function (x) { return x.q; }) });
       }
-      if (ph.board) push({ step: ph.n, pre: ph.board });
+      // The first section's board is a note about what the pupils should
+      // already know ("Att eleverna kan..."), written for the adult, and in some
+      // plans it states the answer to its own starter question. What the class
+      // needs to see there is the questions. They are the plan's own check
+      // questions - never the answers.
+      var starters = i === 0 ? (ph.checks || []).map(function (c) { return c && c.q; }).filter(Boolean) : [];
+      if (starters.length) add({ step: ph.n, items: starters });
+      else if (ph.board) push({ step: ph.n, pre: ph.board });
     });
 
-    if (p.exit && p.exit.q) push({ step: l.projExit, h: p.exit.q });
+    // The exit question belongs to the last section, so it is shown with it.
+    if (p.exit && p.exit.q) { cur = Math.max(0, phases.length - 1); push({ step: l.projExit, h: p.exit.q }); }
+
+    // A section whose board was a repeat of something already up still needs a
+    // slide of its own, or its button has nowhere to land.
+    phases.forEach(function (ph, i) {
+      if (!S.some(function (sl) { return sl.ph === i; })) {
+        var at = S.length;
+        for (var k = 0; k < S.length; k++) { if (S[k].ph > i) { at = k; break; } }
+        S.splice(at, 0, { step: ph.n, h: ph.n, ph: i, pn: phases.length });
+      }
+    });
     return S;
+  }
+
+  /** One section on its own: its slides, then a stop screen. The stop is the
+   *  point - Next never runs on into the next section's slides, so the
+   *  teacher has finished presenting before the class sees what comes next. */
+  function deckScope(p, l, i) {
+    var phases = p.phases || [];
+    var out = deckOf(p, l).filter(function (sl) { return sl.ph === i; });
+    var nx = phases[i + 1];
+    out.push({ end: true, ph: i, pn: phases.length, nextPh: nx ? i + 1 : -1, nextName: nx ? nx.n : '' });
+    return out;
+  }
+
+  /** The whole lesson, with a divider where each section begins. */
+  function deckAll(p, l) {
+    var phases = p.phases || [];
+    var out = [], last = -2;
+    deckOf(p, l).forEach(function (sl) {
+      if (sl.ph >= 0 && sl.ph !== last) {
+        out.push({ divider: true, h: (phases[sl.ph] || {}).n || '', ph: sl.ph, pn: phases.length });
+      }
+      last = sl.ph;
+      out.push(sl);
+    });
+    return out;
   }
 
   var DECK = null, DI = 0;
 
   function slideHtml(sl, i, n, l) {
-    var body = '<div class="slide">' +
-      (sl.step ? '<span class="step">' + esc(sl.step) + '</span>' : '') +
-      (sl.h ? '<h2>' + esc(sl.h) + '</h2>' : '') +
-      (sl.lead ? '<p class="lead">' + esc(l.projGoal) + ': ' + esc(sl.lead) + '</p>' : '') +
-      (sl.pre ? '<pre>' + esc(sl.pre) + '</pre>' : '') +
-      (sl.items ? '<ol>' + sl.items.map(function (q) {
-        return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' : '') +
-      '</div>';
-    return body +
-      '<span class="count">' + (i + 1) + ' / ' + n + '</span>' +
+    var part = sl.ph >= 0 && sl.pn
+      ? '<span class="ttl">' + esc(l.projPart.replace('{i}', sl.ph + 1).replace('{n}', sl.pn)) + '</span>' : '';
+    var body;
+    if (sl.end) {
+      body = '<div class="slide endcard">' +
+        '<span class="step">' + esc(l.projEnd) + '</span>' +
+        '<h2>' + esc(sl.nextPh >= 0 ? l.projStop : l.projDone) + '</h2>' +
+        (sl.nextPh >= 0
+          ? '<button class="nextpart" data-projpart="' + sl.nextPh + '">' + esc(l.projNextPart) + ': ' + esc(sl.nextName) + ' ›</button>'
+          : '') +
+        '</div>';
+    } else if (sl.divider) {
+      body = '<div class="slide divider"><span class="step">' +
+        esc(l.projPart.replace('{i}', sl.ph + 1).replace('{n}', sl.pn)) + '</span><h2>' + esc(sl.h) + '</h2></div>';
+    } else {
+      body = '<div class="slide">' +
+        (sl.step ? '<span class="step">' + esc(sl.step) + '</span>' : '') +
+        (sl.h ? '<h2>' + esc(sl.h) + '</h2>' : '') +
+        (sl.lead ? '<p class="lead">' + esc(l.projGoal) + ': ' + esc(sl.lead) + '</p>' : '') +
+        (sl.pre ? '<pre>' + esc(sl.pre) + '</pre>' : '') +
+        (sl.items ? '<ol>' + sl.items.map(function (q) {
+          return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' : '') +
+        '</div>';
+    }
+    // The stop screen is not a numbered slide: the count is of what to present.
+    var shown = DECK.filter(function (x) { return !x.end; }).length;
+    return part + body +
+      (sl.end ? '' : '<span class="count">' + (i + 1) + ' / ' + shown + '</span>') +
       '<button class="cl" data-projclose>' + esc(l.projHint) + '</button>' +
       '<div class="nav">' +
         '<button data-projgo="-1"' + (i === 0 ? ' disabled' : '') + '>' + esc(l.projPrev) + '</button>' +
@@ -1137,30 +1213,19 @@ document.addEventListener('keydown', (e) => {
     box.innerHTML = slideHtml(DECK[DI], DI, DECK.length, L());
   }
 
-  function openDeck(at) {
+  /** scope: a section number shows that section alone, ending on a stop
+   *  screen; 'all' shows the whole lesson with dividers. */
+  function openDeck(scope) {
     var all = bodies(DATA); var pp = all[LANG] || {};
-    DECK = deckOf(pp, L());
+    DECK = scope === 'all' ? deckAll(pp, L()) : deckScope(pp, L(), scope);
     if (!DECK.length) return;
-    DI = typeof at === 'number' ? at : 0;
+    DI = 0;
     var old = document.querySelector('.proj');
     if (old) old.remove();
     var box = document.createElement('div');
     box.className = 'proj';
     document.body.appendChild(box);
     paintSlide();
-  }
-
-  /** The slide index a phase's own button should land on, so "show the class"
-   *  from phase 3 opens phase 3 rather than the title. */
-  function slideForPhase(i) {
-    var all = bodies(DATA); var pp = all[LANG] || {};
-    var d = deckOf(pp, L());
-    var want = ((pp.phases || [])[i] || {});
-    for (var k = 0; k < d.length; k++) {
-      if (want.board && d[k].pre === want.board) return k;
-      if (d[k].step === want.n) return k;
-    }
-    return 0;
   }
 
 document.addEventListener('click', async (e) => {
@@ -1199,10 +1264,12 @@ document.addEventListener('click', async (e) => {
   // standalone card, so moving on does not mean closing and hunting.
   const pj = e.target.closest('[data-proj]');
   if (pj && DATA) {
-    openDeck(slideForPhase(parseInt(pj.getAttribute('data-proj'), 10)));
+    openDeck(parseInt(pj.getAttribute('data-proj'), 10) || 0);
     return;
   }
-  if (e.target.closest('[data-projdeck]') && DATA) { openDeck(0); return; }
+  const pnx = e.target.closest('[data-projpart]');
+  if (pnx && DATA) { openDeck(parseInt(pnx.getAttribute('data-projpart'), 10) || 0); return; }
+  if (e.target.closest('[data-projdeck]') && DATA) { openDeck('all'); return; }
   const pg = e.target.closest('[data-projgo]');
   if (pg) { DI += parseInt(pg.getAttribute('data-projgo'), 10); paintSlide(); return; }
   if (e.target.closest('[data-projclose]')) {
