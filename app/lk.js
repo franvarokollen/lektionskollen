@@ -706,33 +706,46 @@ function yearNum(y) {
   return m ? Number(m[1]) : Infinity;
 }
 
-/** One card. Unchanged by the grouping - it only moved. */
+/** Accent colors for the subject sections, so a long pool reads as subjects
+ *  rather than as a wall of identical cards. Assigned by position in the
+ *  sorted list (not hashed off the name) so that two subjects next to each
+ *  other never land on the same color — which a hash cannot promise and a
+ *  scrolling coordinator would read as a mistake. */
+const SUBJECT_PALETTE = [
+  '#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed',
+  '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5',
+];
+
+/** One card — deliberately small. A coordinator scans a shelf of these, not
+ *  one at a time: the card's job is "which plan, is it ready, click it",
+ *  everything else (the full score breakdown, the why-shared checklist) is
+ *  one click away on the plan itself. The whole card opens it; only the
+ *  copy-link button is its own target. */
 function bankCard(b) {
   const st = b.st || {};
   const sc = st.score != null ? Math.round(st.score * 100) : null;
-  return '<div class="bcard">' +
-    '<h4>' + esc(rowTitle(b)) + '</h4>' +
-    '<div class="tags">' +
-      // The subject and year are the headers this card now sits under, so
-      // repeating them on every card is noise. Length stays: it is the one
-      // thing a coordinator checks against the lesson they are covering.
-      '<span class="chip chip-neutral">' + b.minutes + ' min</span>' +
-      (b.mine ? '' : '<span class="chip chip-blue">' + esc(b.school || '') + '</span>') +
-      (b.approved ? '' : '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>') +
-      // A teacher badge that no longer matches the plan is not a badge.
-      (b.approved && b.approved_kind === 'teacher' && !b.approval_stale
-        ? '<span class="chip chip-ok">' + esc(t('chipTeacher')) + '</span>' : '') +
-      (b.approval_stale ? '<span class="chip chip-warn">' + esc(t('chipStale')) + '</span>' : '') +
+  const n = st.n || 0;
+  const status = !b.approved
+    ? '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>'
+    // A badge that no longer matches the plan it describes is worse than no
+    // badge, so an edit since approval overrides whichever kind approved it.
+    : b.approval_stale
+      ? '<span class="chip chip-warn">' + esc(t('chipStale')) + '</span>'
+      : b.approved_kind === 'teacher'
+        ? '<span class="chip chip-ok">' + esc(t('chipTeacher')) + '</span>'
+        : '<span class="chip chip-neutral">' + esc(t('chipApproved')) + '</span>';
+  const score = !b.approved ? ''
+    : n ? '<span class="pc-score ' + (sc >= 75 ? 'hi' : sc >= 55 ? 'mid' : sc >= 40 ? 'lo' : 'bad') + '">' + sc + '</span>' +
+          '<span class="pc-n">' + esc(fillT(n === 1 ? 'scOne' : 'scMany', { n: n })) + '</span>'
+      : '<span class="pc-new">' + esc(t('scNew')) + '</span>';
+  return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '">' +
+    '<div class="pc-head"><h4>' + esc(rowTitle(b)) + '</h4>' +
+      (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t('copyLink')) + '">' + CHK + '</button>' : '') +
     '</div>' +
-    scoreBlock(b, st, sc) +
+    '<p class="pc-meta">' + b.minutes + ' ' + esc(t('min')) +
+      (b.mine ? '' : ' · ' + esc(b.school || '')) + '</p>' +
+    '<div class="pc-status">' + status + score + '</div>' +
     usedLine(b.id) +
-    '<details class="whybox" data-why="' + b.id + '"><summary>' +
-      esc(b.shared ? t('whyShared') : t('whyNotShared')) + '</summary><div class="whybody">' +
-      '<p class="hint">' + esc(t('loading')) + '</p></div></details>' +
-    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button class="btn btn-soft btn-sm" data-viewplan="' + b.id + '">' + esc(t('open')) + '</button>' +
-      (b.approved ? '<button class="btn btn-ghost btn-sm" data-copylink="' + esc(b.share_token) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '') +
-    '</div>' +
   '</div>';
 }
 
@@ -774,67 +787,21 @@ function renderBank() {
   const subjects = [...bySubject.keys()].sort((a, b) =>
     subjectLabel(a).localeCompare(subjectLabel(b), LANG === 'en' ? 'en' : 'sv'));
 
-  g.innerHTML = subjects.map((sub) => {
+  g.innerHTML = subjects.map((sub, i) => {
     const years = bySubject.get(sub);
     const n = [...years.values()].reduce((a, x) => a + x.length, 0);
     const order = [...years.keys()].sort((a, b) => {
       const d = yearNum(a) - yearNum(b);
       return d || yearLabel(a).localeCompare(yearLabel(b), LANG === 'en' ? 'en' : 'sv');
     });
-    return '<section class="poolsub">' +
-      '<h3>' + esc(subjectLabel(sub)) + '<span class="n">' + n + '</span></h3>' +
+    return '<section class="poolsub" style="--acc:' + SUBJECT_PALETTE[i % SUBJECT_PALETTE.length] + '">' +
+      '<h3><span class="dot"></span>' + esc(subjectLabel(sub)) + '<span class="n">' + n + '</span></h3>' +
       order.map((yr) =>
         '<div class="poolyear"><h4>' + esc(yearLabel(yr)) + '</h4>' +
         '<div class="grid">' + years.get(yr).map(bankCard).join('') + '</div></div>').join('') +
     '</section>';
   }).join('');
 }
-
-/* ── What a plan's grade looks like ──────────────────────
-   One number so cards can be compared at a glance, then the three answers it
-   is made of, because "68" on its own tells a coordinator nothing about what
-   to fix. The bars are counts rather than percentages: with four ratings a
-   percentage overstates what is known. */
-function scoreBlock(b, st, sc) {
-  const n = st.n || 0;
-  if (!b.approved) return '<p class="shline muted">' + esc(t('shNotApproved')) + '</p>';
-  if (!n) {
-    return '<div class="scorerow"><span class="scorenew">' + esc(t('scNew')) + '</span>' +
-      '<span class="scoremeta">' + esc(t('scNoneYet')) + '</span></div>';
-  }
-  const band = sc >= 75 ? 'hi' : sc >= 55 ? 'mid' : sc >= 40 ? 'lo' : 'bad';
-  const parts = [
-    ['scReuse',   st.reuse,   [['yes', 'ok'], ['changes', 'mid'], ['no', 'bad']]],
-    ['scClarity', st.clarity, [['complete', 'ok'], ['mostly', 'mid'], ['needed', 'bad']]],
-    ['scTime',    st.timefit, [['right', 'ok'], ['much', 'mid'], ['little', 'bad']]],
-  ];
-  return '<div class="scorerow">' +
-      '<span class="score ' + band + '">' + sc + '<small>/100</small></span>' +
-      '<span class="scoremeta">' + esc(fillT(n === 1 ? 'scOne' : 'scMany', { n: n })) +
-        (st.assists ? ' · ' + esc(fillT('scAssists', { n: st.assists })) : '') + '</span>' +
-      (b.shared ? '<span class="chip chip-ok">' + esc(t('scInPool')) + '</span>'
-                : '<span class="chip chip-warn">' + esc(t('scOutPool')) + '</span>') +
-    '</div>' +
-    '<div class="aspects">' + parts.map(function (part) {
-      const c = part[1] || {}, opts = part[2];
-      const tot = opts.reduce(function (a, o) { return a + (c[o[0]] || 0); }, 0) || 1;
-      return '<div class="asp"><span class="al">' + esc(t(part[0])) + '</span>' +
-        '<span class="ab">' + opts.map(function (o) {
-          return c[o[0]] ? '<i class="' + o[1] + '" style="width:' + (c[o[0]] / tot * 100) + '%" title="' +
-            esc(t('sc_' + o[0])) + ': ' + c[o[0]] + '"></i>' : '';
-        }).join('') + '</span>' +
-        '<span class="av">' + esc(topAnswer(c, opts)) + '</span></div>';
-    }).join('') + '</div>' +
-    (st.burnt ? '<p class="fbwarn">' + esc(fillT('scBurnt', { s: st.worst_label || t('wholeLesson'), c: st.worst_explains })) + '</p>' : '');
-}
-
-/** The answer most substitutes gave — what a coordinator reads first. */
-function topAnswer(counts, opts) {
-  let best = null, n = 0;
-  opts.forEach(function (o) { if ((counts[o[0]] || 0) > n) { n = counts[o[0]]; best = o[0]; } });
-  return best ? t('sc_' + best) : '—';
-}
-
 
 /* ── When a plan reaches the shared pool ─────────────────
    Mirrors lk_share_confidence / lk_share_state in the database. Kept here so a

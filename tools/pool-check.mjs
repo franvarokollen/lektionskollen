@@ -21,7 +21,7 @@ import { join } from 'node:path';
 
 const src = readFileSync(new URL('../app/lk.js', import.meta.url), 'utf8');
 const from = src.indexOf('/** The year group as a number');
-const to = src.indexOf("/* ── What a plan's grade looks like");
+const to = src.indexOf('/* ── When a plan reaches the shared pool');
 if (from === -1 || to === -1 || to < from) {
   console.error('pool-check: could not find renderBank in app/lk.js');
   process.exit(2);
@@ -41,7 +41,6 @@ const esc = (x)=>String(x==null?'':x);
 const t = (k)=>k;
 const fillT = (k,o)=>k+JSON.stringify(o);
 const CHK = '';
-const scoreBlock = ()=>'';
 const usedLine = ()=>'';
 const rowTitle = (b)=>b.title;
 export const state = { bank: [] };
@@ -83,7 +82,8 @@ function check(name, rows) {
     const html = out();
     const fails = [];
 
-    const heads = [...html.matchAll(/<h3>([^<]*)<span class="n">(\d+)</g)].map((m) => [m[1], +m[2]]);
+    // The subject label follows an accent dot (<span class="dot"></span>), not <h3> directly.
+    const heads = [...html.matchAll(/<h3><span class="dot"><\/span>([^<]*)<span class="n">(\d+)</g)].map((m) => [m[1], +m[2]]);
     const cards = [...html.matchAll(/data-viewplan="([^"]+)"/g)].map((m) => m[1]);
 
     if (cards.length !== rows.length) fails.push(`${cards.length} cards for ${rows.length} plans`);
