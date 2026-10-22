@@ -5,3 +5,9 @@ if git diff --cached --name-only | grep -q '^app/'; then
   node tools/stamp-build.mjs || exit 1
   git add app/index.html app/plan.html app/version.txt
 fi
+
+# The projector reads the plan's fields directly, so a careless edit there is
+# how a class gets shown the answers. Cheap enough to run on every commit.
+if git diff --cached --name-only | grep -q '^app/plan.html$'; then
+  node tools/deck-check.mjs || exit 1
+fi
