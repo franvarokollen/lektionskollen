@@ -35,7 +35,8 @@ const SUBJECTS_EN = { Matematik:'Maths', Svenska:'Swedish', Engelska:'English',
   Geografi:'Geography', Musik:'Music', Idrott:'PE', Bild:'Art',
   'Samhällskunskap':'Civics' };
 function subjectLabel(s){ if (LANG!=='en'||!s) return s||''; return SUBJECTS_EN[s]||s; }
-function yearLabel(y){ if (LANG!=='en'||!y) return y||'';
+function yearLabel(y){ if (y==='F') return LANG==='en'?'Preschool class':'Förskoleklass';
+  if (LANG!=='en'||!y) return y||'';
   const m=/^\\s*Åk\\s*(\\d+)/.exec(y); return m?'Year '+m[1]:y; }
 const esc = (x)=>String(x==null?'':x);
 const t = (k)=>k;
@@ -69,6 +70,8 @@ const FIXTURE = [
   { id: 'h', title: 'Notvärden', subject: 'Musik', year_group: 'Åk 6', minutes: 60, approved: true },
   { id: 'i', title: 'Val', subject: 'Samhällskunskap', year_group: 'Åk 8', minutes: 60, approved: true },
   { id: 'j', title: 'Akvarell', subject: 'Bild', year_group: 'Åk 7', minutes: 60, approved: true },
+  { id: 'k', title: 'Räkna till tio', subject: 'Matematik', year_group: 'F', minutes: 40, approved: false, approval_rank: 0 },
+  { id: 'l', title: 'Bokstäverna', subject: 'Svenska', year_group: 'Åk 1', minutes: 40, approved: false },
 ];
 
 function check(name, rows) {

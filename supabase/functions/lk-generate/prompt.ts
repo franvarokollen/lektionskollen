@@ -31,6 +31,71 @@ export const SCHEMA = `{
   "handover": string
 }`
 
+
+/** The school year as a number, F = 0, or null when it is not a grundskola
+ *  year (Gy1 and so on get no age rules rather than wrong ones). */
+export function yearNumber(y: unknown): number | null {
+  const k = String(y ?? '').trim()
+  if (/^(f|fsk|f-klass|förskoleklass|forskoleklass)$/i.test(k)) return 0
+  const m = /^(?:åk|ak|årskurs)\s*(\d{1,2})$/i.exec(k)
+  if (!m) return null
+  const n = Number(m[1])
+  return n >= 1 && n <= 9 ? n : null
+}
+
+/** What fits the pupils in the room. A plan for six-year-olds that is an
+ *  Åk 6 plan with a smaller number on it cannot be taught: they cannot read
+ *  the task, and the substitute is left to improvise the whole lesson. */
+export function stageRules(year: unknown): string[] {
+  const n = yearNumber(year)
+  if (n === null) return []
+  if (n <= 3) {
+    return [
+      '',
+      `YEAR-GROUP FIT: ${n === 0 ? 'förskoleklass' : 'Åk ' + n}, pupils aged ${n + 6}-${n + 7}. This changes the whole plan, not just the words.`,
+      n <= 1
+        ? '- Most pupils cannot read yet. The substitute reads EVERY instruction and question aloud. Pupils answer aloud, by pointing, drawing, building, counting or moving. Written work is one word or one number at most.'
+        : '- Reading is still new. The substitute reads every instruction aloud first. Written work is one short sentence at most; most answers are spoken, drawn or built.',
+      '- One instruction at a time, in very short sentences, with words from the pupils\' everyday life.',
+      '- No stretch longer than about ten minutes without a change of mode. Put one short movement, song or stand-up-and-show break inside the independent phase.',
+      '- Board lines are numbers, a single word, or a picture described in brackets, e.g. "[draw: 3 apples]". Never a paragraph.',
+      '- Never rely on a worksheet the pupils must read. Tasks use objects found in a classroom, fingers, pencils or drawing.',
+      '- "first90" includes how to bring the group together and how to get quiet without raising your voice.',
+    ]
+  }
+  if (n <= 6) {
+    return [
+      '',
+      `YEAR-GROUP FIT: Åk ${n}, pupils aged ${n + 6}-${n + 7}. They read a short paragraph and write sentences.`,
+      '- Any text a pupil must read is at most 80 words, in plain sentences. Concrete example before abstract rule.',
+      '- Work stretches of 15-20 minutes at most, with a clear change between them.',
+    ]
+  }
+  return [
+    '',
+    `YEAR-GROUP FIT: Åk ${n}, pupils aged ${n + 6}-${n + 7}. They handle abstract ideas; define every subject word the first time it is used.`,
+  ]
+}
+
+const RISKY = /(idrott|slöjd|hem- och konsument|hemkunskap|kemi|fysik|teknik|bild|^no$|naturorienterande)/i
+
+/** Subjects where a non-specialist substitute could get a pupil hurt. */
+export function needsSafety(subject: unknown): boolean {
+  return RISKY.test(String(subject ?? '').trim())
+}
+
+export function safetyRules(subject: unknown): string[] {
+  if (!needsSafety(subject)) return []
+  return [
+    '',
+    'SAFETY. This subject has physical risk and the substitute is not a specialist.',
+    '- No hot surfaces, knives, open flame, machines, power tools, chemicals, sharp or heavy equipment, and no gymnastics apparatus, climbing or throwing, unless a specialist teacher is in the room. Teach the safe version instead: theory, planning, designing, drawing, discussion, or a demonstration with nothing hazardous in it.',
+    '- The last item in "first90" is ONE safety sentence the substitute says aloud to the class, specific to this lesson.',
+    '- "equipment.need" names any protective gear, or says plainly that none is needed.',
+    '- "wrong" says what to do if a pupil is hurt: stop the activity, call the school\'s own first-aid contact. Never invent a phone number.',
+  ]
+}
+
 type RecentWeek = { week?: number; topic?: string; note?: string }
 
 /** The department's own term plan, as lines the model can read. */
@@ -64,9 +129,11 @@ export function buildMessages(r: Record<string, unknown>) {
     '9. Only assume the listed resources.',
     '10. "first90" is what the substitute does in the first ninety seconds: greeting, register, seating, expectations.',
     '11. "wrong" is the fallback when the activity fails or the room will not settle. Be concrete.',
-    '12. Align to Skolverket LGR22 (grundskola) or Gy22 (gymnasiet) for this subject and year.',
+    '12. Align to Skolverket LGR22 (grundskola, förskoleklass to Åk 9) or Gy22 (gymnasiet) for this subject and year.',
     '13. Swedish schools mostly have no bells. Never write "before the bell" or "innan det ringer" - say before the lesson starts.',
 
+    ...stageRules(r.year_group),
+    ...safetyRules(r.subject),
     '',
     'BE CONCISE. Every field earns its length. A substitute reads this standing up,',
     'and the whole plan has a hard output budget: a long \"summary\" is paid for by a',
