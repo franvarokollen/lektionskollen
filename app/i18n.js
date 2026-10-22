@@ -101,7 +101,7 @@ window.LK_T = {
     handoverT: 'Överlämning', subSeesThis: 'Vikarien ser det här på en länk utan inloggning.',
 
     filtAnyAppr: 'Alla planer', filtApproved: 'Godkända', filtTeacher: 'Granskade av ämneslärare',
-    chipTeacher: 'Ämneslärargranskad', chipStale: 'Ändrad efter granskningen',
+    chipTeacher: 'Ämneslärargranskad', chipStale: 'Ändrad efter granskningen', chipApproved: 'Godkänd',
     apprCoord: 'Godkänn som samordnare', apprTeacher: 'Godkänn som ämneslärare',
     apprKindNote: 'Godkänn som ämneslärare bara om du själv är behörig i ämnet. Det är det märket andra skolor litar på.',
     apprByTeacher: 'Granskad av en ämneslärare i {s}.', apprByCoord: 'Godkänd av en samordnare.',
@@ -237,7 +237,7 @@ window.LK_T = {
     handoverT: 'Handover', subSeesThis: 'The substitute reads this on a link with no login.',
 
     filtAnyAppr: 'All plans', filtApproved: 'Approved', filtTeacher: 'Subject-teacher approved',
-    chipTeacher: 'Teacher-approved', chipStale: 'Changed since approval',
+    chipTeacher: 'Teacher-approved', chipStale: 'Changed since approval', chipApproved: 'Approved',
     apprCoord: 'Approve as coordinator', apprTeacher: 'Approve as subject teacher',
     apprKindNote: 'Only approve as a subject teacher if you are qualified in the subject yourself. That is the badge other schools trust.',
     apprByTeacher: 'Read by a subject teacher in {s}.', apprByCoord: 'Signed off by a coordinator.',
