@@ -645,7 +645,12 @@ async function loadBank() {
   const subject = $('f-subject').value || null;
   const year = $('f-year').value || null;
   const scope = $('f-scope').value || 'all';
-  const { data, error } = await sb.rpc('lk_bank_ranked', { p_subject: subject, p_year: year, p_scope: scope });
+  const approval = $('f-approval').value || 'any';
+  // lk_pool rather than lk_bank_ranked: same ranking, plus what kind of
+  // approval each plan carries and whether that approval still matches the
+  // body it was given to.
+  const { data, error } = await sb.rpc('lk_pool',
+    { p_subject: subject, p_year: year, p_scope: scope, p_approval: approval });
   if (error) { $('bankgrid').innerHTML = '<p class="note">' + esc(t('errBank')) + ' ' + esc(error.message) + '</p>'; return; }
   state.bank = data || [];
   fillFilterOptions();
@@ -667,12 +672,16 @@ function fillFilterOptions() {
   keep($('f-subject'), subs, t('allSubjects'), subjectLabel);
   keep($('f-year'), yrs, t('allYears'), yearLabel);
   // Fixed options: rebuilding them mid-load would drop a choice made while loading.
-  const sc = $('f-scope'), cur = sc.value || 'all';
-  const want = [['all', t('allSources')], ['mine', t('ourSchool')], ['shared', t('sharedOnly')]];
-  if (sc.options.length !== want.length || sc.options[0].text !== want[0][1]) {
-    sc.innerHTML = want.map(([v, l]) => '<option value="' + v + '">' + esc(l) + '</option>').join('');
-    sc.value = cur;
-  }
+  const fixed = (el, want) => {
+    const cur = el.value || want[0][0];
+    if (el.options.length !== want.length || el.options[0].text !== want[0][1]) {
+      el.innerHTML = want.map(([v, l]) => '<option value="' + v + '">' + esc(l) + '</option>').join('');
+      el.value = cur;
+    }
+  };
+  fixed($('f-scope'), [['all', t('allSources')], ['mine', t('ourSchool')], ['shared', t('sharedOnly')]]);
+  fixed($('f-approval'), [['any', t('filtAnyAppr')], ['approved', t('filtApproved')],
+                          ['teacher', t('filtTeacher')]]);
 }
 
 /** A bank row's title in the reader's language, else the one it has. */
@@ -691,7 +700,10 @@ function renderBank() {
   if (!state.bank.length) {
     // The "create one" line is wrong when a filter is simply matching nothing.
     const scope = $('f-scope')?.value;
-    g.innerHTML = '<p class="note">' + esc(scope === 'shared' ? t('bankNoneShared') : t('bankEmpty')) + '</p>';
+    const appr = $('f-approval')?.value;
+    g.innerHTML = '<p class="note">' + esc(
+      appr === 'teacher' ? t('bankNoneTeacher')
+      : scope === 'shared' ? t('bankNoneShared') : t('bankEmpty')) + '</p>';
     return;
   }
   g.innerHTML = state.bank.map((b) => {
@@ -705,6 +717,10 @@ function renderBank() {
         '<span class="chip chip-neutral">' + b.minutes + ' min</span>' +
         (b.mine ? '' : '<span class="chip chip-blue">' + esc(b.school || '') + '</span>') +
         (b.approved ? '' : '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>') +
+        // A teacher badge that no longer matches the plan is not a badge.
+        (b.approved && b.approved_kind === 'teacher' && !b.approval_stale
+          ? '<span class="chip chip-ok">' + esc(t('chipTeacher')) + '</span>' : '') +
+        (b.approval_stale ? '<span class="chip chip-warn">' + esc(t('chipStale')) + '</span>' : '') +
       '</div>' +
       scoreBlock(b, st, sc) +
       usedLine(b.id) +
@@ -1093,6 +1109,7 @@ async function generate() {
   state.plan = pickBody();
   state.planId = pid || null;
   state.approved = false;
+  state.apprKind = null; state.apprSubject = null; state.apprStale = false;
   state.shareToken = null;
   state.model = main.data.model || null;
   showPlan();
@@ -1118,6 +1135,9 @@ async function usePlan(id) {
   state.plan = pickBody();
   state.planId = data.id;
   state.approved = data.approved;
+  state.apprKind = data.approved_kind || null;
+  state.apprSubject = data.approved_subject || null;
+  state.apprStale = !!data.approval_stale;
   state.shareToken = data.share_token;
   state.model = data.model || null;
   if (!state.row) state.row = { subject: data.subject, year: data.year_group, group: '—', mins: data.minutes, start: '', end: '', room: '—', teacher: '—', cover: null };
@@ -1171,10 +1191,18 @@ function showPlan() {
   const checkNote = state.view === 'coordinator' ? checkBanner(check) : '';
   const approveNote = !state.approved && state.view === 'coordinator'
     ? '<div class="approvebar"><div><b>' + esc(t('coordAsk')) + '</b> ' + esc(t('apBody')) +
-      '<br><span class="hint">' + esc(t('coordAskNote')) + '</span></div>' +
-      '<button class="btn btn-ok btn-sm" data-approve>' + esc(t('approve')) + '</button></div>'
+      '<br><span class="hint">' + esc(t('coordAskNote')) + '</span>' +
+      '<br><span class="hint">' + esc(t('apprKindNote')) + '</span></div>' +
+      '<button class="btn btn-ghost btn-sm" data-approve="coordinator">' + esc(t('apprCoord')) + '</button>' +
+      '<button class="btn btn-ok btn-sm" data-approve="teacher">' + esc(t('apprTeacher')) + '</button></div>'
     : '';
-  $('addin-content').innerHTML = head + checkNote + approveNote + simNote + fallbackNote + fbBox +
+  // An approval that no longer matches the plan is said out loud, in the place
+  // a coordinator decides from. Silence here is how a stale badge gets trusted.
+  const staleNote = state.apprStale
+    ? '<div class="flag" style="background:var(--warn-bg)"><span>!</span><div>' +
+      esc(t('apprStaleWarn')) + '</div></div>'
+    : '';
+  $('addin-content').innerHTML = head + checkNote + staleNote + approveNote + simNote + fallbackNote + fbBox +
     (state.view === 'coordinator' ? coordView(p, r) : vikarieView(p, r)) + '</div>';
 }
 
@@ -1204,6 +1232,9 @@ function coordView(p, r) {
     '</ul></div>' +
     (state.approved
       ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>✓</span><div><b>' + esc(t('approvedTitle')) + '</b> ' +
+        esc(state.apprKind === 'teacher'
+            ? fillT('apprByTeacher', { s: subjectLabel(state.apprSubject) || '' })
+            : t('apprByCoord')) + ' ' +
         (link ? esc(t('subLink')) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(state.shareToken) + '" title="' + esc(t('copyLink')) + '">' + CHK + '<span class="cl-label">' + esc(link) + '</span></button>' : '') + '</div></div>'
       : '') +
     '<div class="foot">' +
@@ -1213,7 +1244,8 @@ function coordView(p, r) {
           (link ? '<button class="btn btn-primary" data-copylink="' + esc(state.shareToken) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '')
         : '<span class="hint">' + esc(t('nothingBefore')) + '</span><span class="spacer"></span>' +
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
-          '<button class="btn btn-ok" data-approve>' + esc(t('approve')) + '</button>') +
+          '<button class="btn btn-ghost" data-approve="coordinator">' + esc(t('apprCoord')) + '</button>' +
+          '<button class="btn btn-ok" data-approve="teacher">' + esc(t('apprTeacher')) + '</button>') +
     '</div></div>';
 }
 
@@ -1459,8 +1491,11 @@ document.addEventListener('click', async (e) => {
   }
 
   if (t2.hasAttribute('data-approve')) {
-    const { error } = await sb.rpc('lk_approve', { p_id: state.planId });
+    const kind = t2.getAttribute('data-approve') || 'coordinator';
+    const { data: ap, error } = await sb.rpc('lk_approve_as',
+      { p_id: state.planId, p_kind: kind, p_subject: null });
     if (error) { toast(t('errApprove') + ' ' + error.message); return; }
+    if (ap && ap.ok === false) { toast(t('errApprove') + ' ' + ap.error); return; }
     await sb.rpc('lk_rate_v2', { p_id: state.planId, p_reuse: true, p_reasons: [] });
     const { data } = await sb.rpc('lk_plan', { p_id: state.planId });
     state.approved = true;
@@ -1491,7 +1526,8 @@ document.addEventListener('keydown', (e) => {
   if (!$('overlay').hidden) closeAddin();
 });
 $('overlay').addEventListener('mousedown', (e) => { if (e.target.id === 'overlay') closeAddin(); });
-['f-subject', 'f-year', 'f-scope'].forEach((id) => $(id).addEventListener('change', loadBank));
+['f-subject', 'f-year', 'f-scope', 'f-approval']
+  .forEach((id) => $(id).addEventListener('change', loadBank));
 
 /* ── Feedback tab: what substitutes did and said ───── */
 const KIND_KEY = { explain: 'aExplain', exercise: 'aExercise', filler: 'aFill' };
