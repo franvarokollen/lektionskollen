@@ -32,7 +32,8 @@ export async function generateLessonPlan(req: LessonRequest, cfg: AiConfig): Pro
   const body: Record<string, unknown> = {
     model: cfg.model,
     messages: buildMessages(req),
-    temperature: cfg.temperature ?? 0.4,
+    // See AI_TEMPERATURE: Anthropic's compatibility layer rejects < 1.
+    ...(cfg.temperature === undefined ? {} : { temperature: cfg.temperature }),
     max_tokens: cfg.maxTokens ?? 8000,
     stream: false,
   };

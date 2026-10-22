@@ -20,6 +20,14 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+// Temperature is omitted unless AI_TEMPERATURE is set. Anthropic's OpenAI
+// compatibility layer returns 400 for any value below 1 on current models, and
+// every call here used to pin it low — so every call would have failed the
+// moment a Claude key was connected. Providers that do accept it (OpenAI,
+// Gemini, OpenRouter) can have it back by setting the variable.
+const AI_TEMP = Deno.env.get('AI_TEMPERATURE');
+const temperature = () => (AI_TEMP ? { temperature: Number(AI_TEMP) } : {});
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -92,7 +100,9 @@ async function checkSubject(
       body: JSON.stringify({
         model,
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-        temperature: 0,
+        ...temperature(),
+        // Anthropic's compatibility layer ignores response_format, so leave
+        // AI_JSON_MODE unset there. The fence-stripping below covers it.
         ...(Deno.env.get('AI_JSON_MODE') ? { response_format: { type: 'json_object' } } : {}),
       }),
       signal: AbortSignal.timeout(45000),

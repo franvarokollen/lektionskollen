@@ -11,6 +11,15 @@ import { buildMessages, buildTranslateMessages } from './prompt.ts'
 import { parseModelJson } from './repair.ts'
 import { cannedPlan } from './library.ts'
 
+// Temperature is omitted unless AI_TEMPERATURE is set. Anthropic's OpenAI
+// compatibility layer returns 400 for any value below 1 on current models, and
+// every call here used to pin it low — so every call would have failed the
+// moment a Claude key was connected. Providers that do accept it (OpenAI,
+// Gemini, OpenRouter) can have it back by setting the variable.
+const AI_TEMP = Deno.env.get('AI_TEMPERATURE');
+const temperature = () => (AI_TEMP ? { temperature: Number(AI_TEMP) } : {});
+
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -57,7 +66,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model,
         messages: translate ? buildTranslateMessages(translate, String(r.language || 'sv')) : buildMessages(r),
-        temperature: translate ? 0.2 : 0.4,
+        ...temperature(),
         max_tokens: 8000,
         stream: false,
         ...(Deno.env.get('AI_JSON_MODE') === 'json_object' ? { response_format: { type: 'json_object' } } : {}),
