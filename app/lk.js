@@ -699,6 +699,54 @@ function stars(r) {
   return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
 }
 
+/** The year group as a number, so Ak 10 sorts after Ak 9 rather than after
+ *  Ak 1. Anything with no number in it goes last, alphabetically. */
+function yearNum(y) {
+  const m = /(\d+)/.exec(String(y || ''));
+  return m ? Number(m[1]) : Infinity;
+}
+
+/** One card. Unchanged by the grouping - it only moved. */
+function bankCard(b) {
+  const st = b.st || {};
+  const sc = st.score != null ? Math.round(st.score * 100) : null;
+  return '<div class="bcard">' +
+    '<h4>' + esc(rowTitle(b)) + '</h4>' +
+    '<div class="tags">' +
+      // The subject and year are the headers this card now sits under, so
+      // repeating them on every card is noise. Length stays: it is the one
+      // thing a coordinator checks against the lesson they are covering.
+      '<span class="chip chip-neutral">' + b.minutes + ' min</span>' +
+      (b.mine ? '' : '<span class="chip chip-blue">' + esc(b.school || '') + '</span>') +
+      (b.approved ? '' : '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>') +
+      // A teacher badge that no longer matches the plan is not a badge.
+      (b.approved && b.approved_kind === 'teacher' && !b.approval_stale
+        ? '<span class="chip chip-ok">' + esc(t('chipTeacher')) + '</span>' : '') +
+      (b.approval_stale ? '<span class="chip chip-warn">' + esc(t('chipStale')) + '</span>' : '') +
+    '</div>' +
+    scoreBlock(b, st, sc) +
+    usedLine(b.id) +
+    '<details class="whybox" data-why="' + b.id + '"><summary>' +
+      esc(b.shared ? t('whyShared') : t('whyNotShared')) + '</summary><div class="whybody">' +
+      '<p class="hint">' + esc(t('loading')) + '</p></div></details>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="btn btn-soft btn-sm" data-viewplan="' + b.id + '">' + esc(t('open')) + '</button>' +
+      (b.approved ? '<button class="btn btn-ghost btn-sm" data-copylink="' + esc(b.share_token) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+/* ── The pool ────────────────────────────────────────────
+   A flat grid sorted by rank answers "which plan is the best one", which is
+   not the question anybody arrives with. A teacher teaches one subject to a
+   few year groups and wants to see their own shelf; a coordinator covering
+   maths for Ak 8 wants that one row. So the pool is grouped: a header per
+   subject, a row per year group inside it.
+
+   The ranking is not thrown away, it is scoped. state.bank arrives ranked
+   from lk_pool, and grouping it preserves that order inside each row, so the
+   best plan for Matematik Ak 8 is still the first card in that row. What is
+   lost is the global ordering across subjects, which nobody was reading. */
 function renderBank() {
   const g = $('bankgrid');
   if (!state.bank.length) {
@@ -710,32 +758,35 @@ function renderBank() {
       : scope === 'shared' ? t('bankNoneShared') : t('bankEmpty')) + '</p>';
     return;
   }
-  g.innerHTML = state.bank.map((b) => {
-    const st = b.st || {};
-    const sc = st.score != null ? Math.round(st.score * 100) : null;
-    return '<div class="bcard">' +
-      '<h4>' + esc(rowTitle(b)) + '</h4>' +
-      '<div class="tags">' +
-        '<span class="chip chip-neutral">' + esc(subjectLabel(b.subject)) + '</span>' +
-        '<span class="chip chip-neutral">' + esc(yearLabel(b.year_group)) + '</span>' +
-        '<span class="chip chip-neutral">' + b.minutes + ' min</span>' +
-        (b.mine ? '' : '<span class="chip chip-blue">' + esc(b.school || '') + '</span>') +
-        (b.approved ? '' : '<span class="chip chip-warn">' + esc(t('notApproved')) + '</span>') +
-        // A teacher badge that no longer matches the plan is not a badge.
-        (b.approved && b.approved_kind === 'teacher' && !b.approval_stale
-          ? '<span class="chip chip-ok">' + esc(t('chipTeacher')) + '</span>' : '') +
-        (b.approval_stale ? '<span class="chip chip-warn">' + esc(t('chipStale')) + '</span>' : '') +
-      '</div>' +
-      scoreBlock(b, st, sc) +
-      usedLine(b.id) +
-      '<details class="whybox" data-why="' + b.id + '"><summary>' +
-        esc(b.shared ? t('whyShared') : t('whyNotShared')) + '</summary><div class="whybody">' +
-        '<p class="hint">' + esc(t('loading')) + '</p></div></details>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-        '<button class="btn btn-soft btn-sm" data-viewplan="' + b.id + '">' + esc(t('open')) + '</button>' +
-        (b.approved ? '<button class="btn btn-ghost btn-sm" data-copylink="' + esc(b.share_token) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '') +
-      '</div>' +
-    '</div>';
+
+  // Insertion order is the ranked order, so a Map keeps each group's cards in
+  // rank without sorting them again.
+  const bySubject = new Map();
+  for (const b of state.bank) {
+    const sub = b.subject || '';
+    if (!bySubject.has(sub)) bySubject.set(sub, new Map());
+    const years = bySubject.get(sub);
+    const yr = b.year_group || '';
+    if (!years.has(yr)) years.set(yr, []);
+    years.get(yr).push(b);
+  }
+
+  const subjects = [...bySubject.keys()].sort((a, b) =>
+    subjectLabel(a).localeCompare(subjectLabel(b), LANG === 'en' ? 'en' : 'sv'));
+
+  g.innerHTML = subjects.map((sub) => {
+    const years = bySubject.get(sub);
+    const n = [...years.values()].reduce((a, x) => a + x.length, 0);
+    const order = [...years.keys()].sort((a, b) => {
+      const d = yearNum(a) - yearNum(b);
+      return d || yearLabel(a).localeCompare(yearLabel(b), LANG === 'en' ? 'en' : 'sv');
+    });
+    return '<section class="poolsub">' +
+      '<h3>' + esc(subjectLabel(sub)) + '<span class="n">' + n + '</span></h3>' +
+      order.map((yr) =>
+        '<div class="poolyear"><h4>' + esc(yearLabel(yr)) + '</h4>' +
+        '<div class="grid">' + years.get(yr).map(bankCard).join('') + '</div></div>').join('') +
+    '</section>';
   }).join('');
 }
 

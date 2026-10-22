@@ -676,3 +676,18 @@ body.panelmode .seam{flex:0 0 auto}
 .tpweeks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tpweek{font-size:12.5px;padding:4px 8px;border-radius:6px;background:var(--line-soft);border:1px solid var(--line)}
 .tpweek b{font-variant-numeric:tabular-nums;color:var(--ink-soft);margin-right:5px}
+
+/* ── The pool, grouped ─────────────────────────────────
+   A flat grid sorted by rank answers "which plan is best", which is not the
+   question a teacher arrives with. They teach one subject to a few year
+   groups, and they want to see their own shelf. So: a header per subject, a
+   row per year group inside it, and the ranking kept within each row. */
+.poolsub{margin:0 0 26px}
+.poolsub > h3{display:flex;align-items:baseline;gap:9px;margin:0 0 2px;
+  font-size:16px;font-weight:650;letter-spacing:-.01em}
+.poolsub > h3 .n{font-size:12px;font-weight:500;color:var(--ink-soft);
+  font-variant-numeric:tabular-nums}
+.poolsub > h3::after{content:"";flex:1;height:1px;background:var(--line)}
+.poolyear{margin-top:12px}
+.poolyear > h4{margin:0 0 7px;font-size:12px;font-weight:600;color:var(--ink-soft);
+  text-transform:uppercase;letter-spacing:.05em}
