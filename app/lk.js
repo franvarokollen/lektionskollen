@@ -1059,7 +1059,12 @@ async function generate() {
   clearInterval(tick);
 
   if (main.error || main.data?.error) {
-    const msg = main.data?.error || main.error?.message || 'okänt fel';
+    // The function answers with a code, not a sentence: it has no idea which
+    // language the coordinator reads. A code on screen helps nobody, so the
+    // ones we expect become a sentence that says what to do instead.
+    const code = main.data?.error || '';
+    const said = { no_model: t('errNoModel') }[code];
+    const msg = said || main.data?.detail || main.error?.message || t('errUnknown');
     $('addin-content').innerHTML =
       '<div class="addin-body"><div class="addin-head"><h2>' + esc(t('failed')) + '</h2>' +
       '<button class="x" data-close aria-label="Stäng">✕</button></div>' +
