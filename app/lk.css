@@ -783,34 +783,53 @@ body.panelmode .seam{flex:0 0 auto}
 .ph-foot .nextup{font-size:13px;color:var(--ink-soft);flex:1;min-width:160px}
 .ph-foot .nextup b{color:var(--ink)}
 
-/* Feedback is not part of the lesson, so it is not dressed like it. */
-.fbpanel{background:#f6f1fb;border:2px dashed #b9a5d6;border-radius:16px;padding:18px 18px 20px;margin-top:34px}
-.fbpanel .fb-kick{display:inline-block;background:#5b3f8c;color:#fff;border-radius:999px;padding:3px 11px;
-  font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}
-.fbpanel h3{font-size:18px;margin:0 0 2px;color:#3f2a66}
-.fbpanel h4{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:#5b3f8c;margin:20px 0 8px}
-.fbpanel .fb-intro{font-size:13px;color:#5b4b78;margin:0}
-.fbpanel .fb-row{background:#fff;border:1px solid #e1d6f0;border-radius:12px;padding:10px 12px;margin-bottom:8px}
-.fbpanel .fb-lbl{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin-bottom:8px}
-.fbpanel .fb-n{width:20px;height:20px;border-radius:50%;background:#e9defa;color:#3f2a66;display:inline-flex;
+
+/* Feedback: quiet, closed until asked for, and plainly not part of the lesson. */
+.fbpanel{background:#f3f1f6;border:1px solid #d8d2e3;border-radius:14px;margin-top:30px;position:relative}
+.fbpanel .fb-open{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:transparent;
+  padding:14px 18px;cursor:pointer;font:inherit;text-align:left;color:#3f3a4d}
+.fbpanel .fb-open b{display:block;font-size:15px}
+.fbpanel .fb-open small{display:block;font-size:12px;color:#7a7488;margin-top:2px}
+.fbpanel .fb-caret{font-style:normal;transition:transform .15s}
+.fbpanel .fb-open[aria-expanded=true] .fb-caret{transform:rotate(180deg)}
+.fbpanel .fb-body{padding:2px 18px 18px;border-top:1px solid #e3deec}
+.fbpanel .fb-body[hidden]{display:none}
+.fbpanel .fb-intro{font-size:13px;color:#6a6479;margin:12px 0 0}
+.fbpanel h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:#6a6479;margin:18px 0 8px}
+.fbpanel .fb-row{border-bottom:1px solid #e3deec;padding:8px 0}
+.fbpanel .fb-row:last-of-type{border-bottom:0}
+.fbpanel .fb-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fbpanel .fb-lbl{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;flex:1;min-width:150px}
+.fbpanel .fb-n{width:20px;height:20px;border-radius:50%;background:#e4dff0;color:#3f3a4d;display:inline-flex;
   align-items:center;justify-content:center;font-size:11.5px;flex:none}
-.fbpanel .fb-t{margin-left:auto;font:500 11px 'Geist Mono',ui-monospace,monospace;color:var(--ink-soft)}
-.fbpanel .fb-pick{display:flex;gap:6px;flex-wrap:wrap}
-.fbpanel .fb-pick button{flex:1;min-width:104px;border:1px solid #d9cdea;background:#fff;border-radius:9px;padding:9px 8px;
-  font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
-.fbpanel .fb-pick button i{font-style:normal;font-weight:700}
-.fbpanel .fb-pick button.on.fb-worked{background:#e5f4ea;border-color:#1d7a5f;color:#13573f;font-weight:600}
-.fbpanel .fb-pick button.on.fb-changes{background:#fff1d6;border-color:#b07515;color:#7a5410;font-weight:600}
+.fbpanel .fb-pick{display:flex;gap:5px}
+.fbpanel .fb-pick button{border:1px solid #d3cde0;background:#fff;border-radius:8px;padding:6px 12px;font:inherit;
+  font-size:12.5px;cursor:pointer;min-width:54px}
+.fbpanel .fb-pick button.fb-skipped{border-style:dashed;color:#7a7488;min-width:0}
+.fbpanel .fb-pick button.on.fb-good{background:#e5f4ea;border-color:#1d7a5f;color:#13573f;font-weight:600}
+.fbpanel .fb-pick button.on.fb-ok{background:#fff1d6;border-color:#b07515;color:#7a5410;font-weight:600}
+.fbpanel .fb-pick button.on.fb-bad{background:#fbe6e6;border-color:#b3392f;color:#8a251d;font-weight:600}
 .fbpanel .fb-pick button.on.fb-skipped{background:#eceff3;border-color:#6b7787;color:#38424f;font-weight:600}
 .fbpanel .fb-note{display:flex;gap:6px;margin-top:8px}
 .fbpanel .fb-note[hidden]{display:none}
 .fbpanel .fb-note input{flex:1;min-width:0}
-.fbpanel .ql{font-size:13.5px;font-weight:600;margin:10px 0 6px}
-.assistbar .fbjump{margin-left:auto;background:#5b3f8c;color:#fff;border-color:#5b3f8c}
-.subwrap > .full,.subwrap #out > .full{position:relative;z-index:2}
-.fbpanel .fb-note input,.fbpanel .noterow input{border:1px solid #cdbfe3;border-radius:9px;padding:9px 11px;font:inherit;font-size:13.5px;background:#fff}
-.fbpanel .fb-note button,.fbpanel .noterow button{border:0;background:#5b3f8c;color:#fff;border-radius:9px;padding:0 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.fbpanel input[type=text]{border:1px solid #d3cde0;border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:#fff}
+.fbpanel .noterow button,.fbpanel .fb-note button{border:0;background:#5b4f7a;color:#fff;border-radius:8px;padding:0 14px;
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.fbpanel .fb-stars{display:flex;align-items:center;gap:4px}
+.fbpanel .fb-stars button{border:0;background:transparent;font-size:30px;line-height:1;color:#cfc8dd;cursor:pointer;padding:2px 3px}
+.fbpanel .fb-stars button.on{color:#e0a21a}
+.fbpanel .fb-sl{font-size:12px;color:#7a7488;margin:0 6px}
+.fbpanel .ql{font-size:13.5px;font-weight:600;margin:14px 0 6px}
+.assistbar .fbjump{margin-left:auto;background:#5b4f7a;color:#fff;border-color:#5b4f7a}
+
+/* Wide layout: the margins live in the lesson row only, so they cannot run on
+   under the sections that come after it. */
+@media (min-width:1180px){
+  .subwrap .rail-l,.subwrap .rail-r,.subwrap .col{grid-row:2}
+  .subwrap .col{grid-column:2}
+}
 .heat .secbar{display:flex;overflow:hidden;background:#eceff3}
-.heat .secbar i{display:block;height:100%}
-.secbar .sb-w{background:#1d7a5f}.secbar .sb-c{background:#d9921c}.secbar .sb-s{background:#6b7787}
-.secn{font-size:12.5px;white-space:nowrap}.sb-wt{color:#1d7a5f}.sb-ct{color:#b07515}.sb-st{color:#6b7787}
+.heat .secbar i{display:block;height:100%;border-radius:0}
+.secbar .sb-w{background:#1d7a5f}.secbar .sb-c{background:#d9921c}.secbar .sb-b{background:#b3392f}.secbar .sb-s{background:#9aa4b1}
+.secn{font-size:12.5px;white-space:nowrap}.sb-wt{color:#1d7a5f}.sb-ct{color:#b07515}.sb-bt{color:#b3392f}
