@@ -1118,7 +1118,14 @@ document.addEventListener('keydown', (e) => {
       for (var k = 0; k < core.length; k += 5) {
         add({ step: l.projTasks, items: core.slice(k, k + 5).map(function (x) { return x.q; }) });
       }
-      if (ph.board) push({ step: ph.n, pre: ph.board });
+      // The first section's board is a note about what the pupils should
+      // already know ("Att eleverna kan..."), written for the adult, and in some
+      // plans it states the answer to its own starter question. What the class
+      // needs to see there is the questions. They are the plan's own check
+      // questions - never the answers.
+      var starters = i === 0 ? (ph.checks || []).map(function (c) { return c && c.q; }).filter(Boolean) : [];
+      if (starters.length) add({ step: ph.n, items: starters });
+      else if (ph.board) push({ step: ph.n, pre: ph.board });
     });
 
     // The exit question belongs to the last section, so it is shown with it.

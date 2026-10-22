@@ -1189,7 +1189,7 @@ function apprNameValue() {
 const APPR_RUNGS = [[1, 'coordinator', 'apprCoord', 'btn-ghost'],
                     [2, 'teacher', 'apprTeacher', 'btn-ok'],
                     [3, 'qualified', 'apprQualified', 'btn-primary']];
-const APPR_ERR = { gate_closed: 'errGate', already_approved: 'errAlready', name_required: 'errName' };
+const APPR_ERR = { gate_closed: 'errGate', already_approved: 'errAlready', name_required: 'errName', has_blockers: 'errBlockers' };
 
 function apprButtons(rank) {
   return APPR_RUNGS.filter((r) => r[0] > rank).map((r) =>

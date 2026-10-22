@@ -2,17 +2,24 @@
 //
 // Two passes, in order of cost and certainty.
 //
-// 1. STRUCTURE AND TEACHING — lk_validate_full in the database. Deterministic,
+// 1. STRUCTURE, TEACHING AND QUALITY — lk_check_plan in the database. Deterministic,
 //    free, and catches the faults that need no subject knowledge to spot: a question
 //    whose answer only points at another answer, phases that do not add up to
 //    the lesson, an exit ticket with no key, a script that promises a worked
 //    example the plan does not contain. This runs always.
 //
-// 2. SUBJECT — a second model call whose only job is to check the answers.
-//    Verification is a far easier task than generation and its output is a
-//    short verdict, so the strongest model available costs almost nothing here.
-//    Skipped when no model is configured, and when the plan came from the
-//    authored library, where the answers were written by a person.
+// 2. SUBJECT — a second model call that reads the lesson the way a pupil and a
+//    substitute would. It does not take the answer key on trust: it solves each
+//    question itself first and only then compares. It also asks the things only
+//    a reader can: is the question ambiguous or badly worded, does it need
+//    something the plan never provides, and was it actually taught by the
+//    lesson that precedes it. Verification is far easier than generation and
+//    its output is a short list, so the strongest model available costs almost
+//    nothing here. Skipped when no model is configured.
+//
+//    It runs on authored-library plans too. "A person wrote it" is not a check:
+//    a line-by-line read of the whole demo library found wrong, ambiguous and
+//    untaught questions that nobody had ever solved.
 //
 // What this deliberately does NOT do is decide. It reports. A coordinator may
 // know something the checker does not, and a plan held back by a machine with
@@ -59,8 +66,8 @@ async function checkSubject(
     return { ran: false, findings: [], note: 'no model configured' };
   }
 
-  // Only the question-and-answer pairs go over. The verifier does not need the
-  // lesson's prose, and sending less keeps the call cheap and the task narrow.
+  // The question-and-answer pairs, plus (below) a short account of what the
+  // lesson teaches. Not the whole plan: the task stays narrow and the call cheap.
   const pairs: { where: string; q: string; a: string }[] = [];
   const phases = (body.phases ?? []) as Record<string, unknown>[];
   phases.forEach((ph, i) => {
@@ -82,15 +89,37 @@ async function checkSubject(
   if (ex?.q) pairs.push({ where: 'exit ticket', q: ex.q, a: ex.a });
   if (!pairs.length) return { ran: false, findings: [], note: 'nothing to check' };
 
-  const system =
-    'You check school lesson answers. For each question and answer pair, say whether ' +
-    'the answer is correct and appropriate for the year group. Judge only correctness ' +
-    'and suitability, never style. An open task whose answer describes what counts as ' +
-    'acceptable is correct — do not mark it wrong for lacking one fixed answer. ' +
-    'Reply as JSON: {"findings":[{"where":"...","problem":"..."}]} and list ONLY the ' +
-    'pairs that are wrong. An empty list means everything checked out.';
+  // What the lesson teaches, in the order it is taught. A question can only be
+  // fair if the answer is reachable from this or from the year group's
+  // prior knowledge.
+  const taught: string[] = [];
+  const goal = String(body.goal ?? '');
+  if (goal) taught.push(`Goal: ${goal}`);
+  if (mo?.p) taught.push(`Worked example: ${mo.p}`);
+  ((mo as unknown as { st?: { b?: string; s?: string }[] })?.st ?? []).forEach((st, i) => {
+    taught.push(`  step ${i + 1} board: ${st.b ?? ''} | said: ${st.s ?? ''}`);
+  });
+  phases.forEach((ph, i) => {
+    if (ph.board) taught.push(`Board, phase ${i + 1}: ${String(ph.board).slice(0, 300)}`);
+  });
 
-  const user = `Subject: ${subject}\nYear group: ${year}\n\n` +
+  const system =
+    'You are a meticulous reviewer of school lesson plans written for substitute teachers. ' +
+    'You are given the subject, year group, what the lesson teaches, and every question with the ' +
+    "plan's answer. Do three things, in this order.\n" +
+    '1. SOLVE each question yourself, ignoring the given answer. Only then compare. If your answer ' +
+    'differs, or the given answer is incomplete or misleading for the year group, report it.\n' +
+    '2. CLARITY. Report a question that has more than one defensible reading, that quotes a sentence ' +
+    'without quote marks, that uses a word or concept the year group would not know, or whose ' +
+    'wording is grammatically broken.\n' +
+    '3. FAIRNESS. Report a question that needs a text, picture, map or resource the plan does not give, ' +
+    'or a fact or method the lesson never taught and the year group could not be expected to know.\n' +
+    'An open task whose answer describes what counts as acceptable is correct; do not mark it wrong ' +
+    'for lacking one fixed answer. Judge substance, not style. ' +
+    'Reply as JSON: {"findings":[{"where":"...","kind":"answer_wrong|unclear|untaught|missing_material",' +
+    '"problem":"one sentence"}]} listing ONLY real faults. An empty list means everything checked out.';
+
+  const user = `Subject: ${subject}\nYear group: ${year}\n\nWHAT THE LESSON TEACHES\n${taught.join('\n')}\n\nQUESTIONS\n` +
     pairs.map((p) => `[${p.where}]\nQ: ${p.q}\nA: ${p.a}`).join('\n\n');
 
   try {
@@ -111,12 +140,13 @@ async function checkSubject(
     const data = await res.json();
     const text = data?.choices?.[0]?.message?.content ?? '{}';
     const parsed = JSON.parse(String(text).replace(/^```(?:json)?|```$/g, '').trim());
-    const found = (parsed.findings ?? []) as { where: string; problem: string }[];
+    const found = (parsed.findings ?? []) as { where: string; problem: string; kind?: string }[];
     return {
       ran: true,
       findings: found.map((f) => ({
         level: 'blocker' as const,
-        code: 'answer_wrong',
+        code: ['answer_wrong', 'unclear', 'untaught', 'missing_material'].includes(String(f.kind))
+          ? String(f.kind) : 'answer_wrong',
         where: String(f.where ?? 'unknown'),
         detail: String(f.problem ?? 'The answer looks wrong.'),
       })),
@@ -131,7 +161,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   let payload: { plan_id?: string; body?: Record<string, unknown>; subject?: string;
-                 year?: string; minutes?: number | null; model?: string };
+                 year?: string; minutes?: number | null; language?: string };
   try {
     payload = await req.json();
   } catch {
@@ -147,7 +177,7 @@ Deno.serve(async (req) => {
   let subject = payload.subject ?? '';
   let year = payload.year ?? '';
   let minutes = payload.minutes ?? null;
-  let model = payload.model ?? '';
+  let language = payload.language ?? '';
 
   // A plan id is enough; the rest is looked up. The lektionskollen schema is
   // not exposed to PostgREST by design, so this goes through its own function.
@@ -156,22 +186,20 @@ Deno.serve(async (req) => {
     if (error || !data) return json({ error: 'plan_not_found', detail: error?.message }, 404);
     body = data.body as Record<string, unknown>;
     subject = data.subject; year = data.year_group;
-    minutes = data.minutes; model = data.model;
+    minutes = data.minutes; language = data.language ?? language;
   }
   if (!body) return json({ error: 'no_plan' }, 400);
 
-  const { data: structure, error: vErr } = await db.rpc('lk_validate_full', {
-    p_body: body, p_minutes: minutes,
+  // lk_check_plan, not lk_validate_full: the whole deterministic verdict, which
+  // includes the quality gate (missing material, unquoted sentences, repeats).
+  const { data: structure, error: vErr } = await db.rpc('lk_check_plan', {
+    p_body: body, p_minutes: minutes, p_language: language || null,
   });
   if (vErr) return json({ error: vErr.message }, 500);
 
-  // "canned" means the plan was assembled from the authored content library,
-  // where every question and answer was written by a person rather than
-  // generated. There is nothing for a model to second-guess, and a check that
-  // always passes teaches a coordinator to ignore checks.
-  const subjectPass = model === 'canned'
-    ? { ran: false, findings: [] as Finding[], note: 'authored library — answers are human-written' }
-    : await checkSubject(body, subject, year);
+  // Authored-library plans are checked like any other. A person wrote them,
+  // and a read of the whole demo library found questions nobody had solved.
+  const subjectPass = await checkSubject(body, subject, year);
 
   const problems = [...(structure.problems ?? []), ...subjectPass.findings];
   return json({

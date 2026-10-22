@@ -79,7 +79,7 @@ function allowed(plan) {
   add(plan.title); add(plan.goal);
   add(plan.model?.p);
   for (const st of plan.model?.st || []) add(st.b);     // never st.s - that is the script
-  for (const ph of plan.phases || []) { add(ph.n); add(ph.board); }
+  for (const ph of plan.phases || []) { add(ph.n); add(ph.board); for (const c of ph.checks || []) add(c.q); }   // never c.a
   for (const t of plan.tasks || []) add(t.q);           // never t.a
   add(plan.exit?.q);                                    // never exit.a
   for (const v of Object.values(L)) add(v);
