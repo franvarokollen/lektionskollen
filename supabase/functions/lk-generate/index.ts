@@ -1,15 +1,21 @@
 // Lektionskollen — plan generation.
 //
-// Two modes, decided by env, so the product works before a model is chosen:
-//   AI_BASE_URL + AI_MODEL set -> call an OpenAI-compatible endpoint
-//   neither set               -> return a written plan from the library below
+// Needs AI_BASE_URL, AI_MODEL and AI_API_KEY as function secrets. See
+// supabase/functions/README.md for the values per provider.
 //
-// To go live: set AI_BASE_URL, AI_MODEL and (if hosted) AI_API_KEY as function
-// secrets. No code change, no redeploy of anything else.
+// There used to be a written-plan fallback here for when no model was
+// configured, and it served the product well while there wasn't one. It is
+// gone, because it had quietly stopped working: those templates predate the
+// worked example, the recap, the misconceptions and the three task tiers, so
+// lk_validate_full now blocks every plan they produce. A coordinator would
+// have been handed a plan they could not approve, with nothing saying why.
+//
+// Saying the generator is unavailable is worth more than a plan that cannot be
+// used, because it points at the two things that still work: the class
+// teacher's own linked plan, and the bank of approved plans.
 
 import { buildMessages, buildTranslateMessages } from './prompt.ts'
 import { parseModelJson } from './repair.ts'
-import { cannedPlan } from './library.ts'
 
 // Temperature is omitted unless AI_TEMPERATURE is set. Anthropic's OpenAI
 // compatibility layer returns 400 for any value below 1 on current models, and
@@ -47,10 +53,9 @@ Deno.serve(async (req) => {
   const model = translate ? (Deno.env.get('AI_MODEL_SMALL') || bigModel) : bigModel
   const t0 = Date.now()
 
-  // ── No model configured: serve a written plan ────────────
+  // ── No model configured ──────────────────────────────────
   if (!baseUrl || !bigModel) {
-    const plan = cannedPlan(r)
-    return json({ plan, model: 'canned', source: 'library', repaired: false, ms: Date.now() - t0 })
+    return json({ error: 'no_model', detail: 'The plan generator is not configured.' }, 503)
   }
 
   // ── Model configured ─────────────────────────────────────
@@ -67,7 +72,11 @@ Deno.serve(async (req) => {
         model,
         messages: translate ? buildTranslateMessages(translate, String(r.language || 'sv')) : buildMessages(r),
         ...temperature(),
-        max_tokens: 8000,
+        // 8000 was fine when nothing thought before answering. Current Claude
+        // models reason first, and that reasoning is billed against the same
+        // budget — so a plan this size could burn the whole allowance before a
+        // single character of JSON came out, and the response arrived empty.
+        max_tokens: Number(Deno.env.get('AI_MAX_TOKENS') ?? 16000),
         stream: false,
         ...(Deno.env.get('AI_JSON_MODE') === 'json_object' ? { response_format: { type: 'json_object' } } : {}),
       }),
@@ -81,7 +90,16 @@ Deno.serve(async (req) => {
     }
     const out = await res.json()
     const content: string = out?.choices?.[0]?.message?.content ?? ''
-    if (!content) return json({ error: 'Model returned an empty response' }, 502)
+    if (!content) {
+      // An empty answer used to say only that it was empty, which is the least
+      // useful thing it could say. The provider always explains itself in
+      // finish_reason and usage; pass that on.
+      const fin = out?.choices?.[0]?.finish_reason ?? 'unknown'
+      return json({
+        error: `Model returned no content (finish_reason: ${fin})`,
+        finish_reason: fin, usage: out?.usage, model: out?.model ?? model,
+      }, 502)
+    }
 
     const { data, repaired } = parseModelJson(content)
     return json({
