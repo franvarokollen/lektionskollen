@@ -37,7 +37,11 @@
       grid-template-columns:210px minmax(0,1fr) 290px}
     #out{display:contents}
     .subwrap > .full{grid-column:1 / -1}
-    .rail{position:sticky;top:18px;align-self:start}
+    /* The rail stretches over its own grid row; only the card inside sticks.
+       A sticky grid item is bounded by the whole grid, so it used to slide
+       down over "After the lesson" and the feedback panel. */
+    .rail{align-self:stretch}
+    .rail-in{position:sticky;top:18px}
     .rail-l{grid-column:1}
     .rail-r{grid-column:3}
   }
@@ -902,7 +906,7 @@ function render(d, keepScroll) {
     '</div></div>';
 
   // Where you are in the lesson, in the left margin.
-  h += '<aside class="rail rail-l noprint"><div class="nav"><h4>' + esc(l.railWhere) + '</h4>' +
+  h += '<aside class="rail rail-l noprint"><div class="rail-in"><div class="nav"><h4>' + esc(l.railWhere) + '</h4>' +
     phases.map((ph, i) => '<a href="#ph' + i + '" class="' + LKPlan.kind(i) + '">' + esc(ph.n) +
       '<span class="t">' + esc(ph.t) + '</span></a>').join('') + '</div></aside>';
 
@@ -910,7 +914,7 @@ function render(d, keepScroll) {
 
   // Help lives in the right margin, because it is needed at the moment there is
   // no time to go looking for it.
-  h += '<aside class="rail rail-r">' + LKPlan.help(p, hooks.lbl) + '</aside>';
+  h += '<aside class="rail rail-r"><div class="rail-in">' + LKPlan.help(p, hooks.lbl) + '</div></aside>';
 
   h += '<hr class="after-rule noprint">' +
     '<div class="full">' + LKPlan.after(p, hooks.lbl, hooks.extras) + '</div>';
