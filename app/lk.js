@@ -951,8 +951,9 @@ async function logUse(planId) {
   const r = state.row;
   if (!planId || !r || !r.group) return;
   try {
-    await sb.rpc('lk_log_use', {
+    await sb.rpc('lk_log_run', {
       p_plan_id: planId, p_group: r.group, p_absence_ref: r.id || null, p_substitute: r.cover || null,
+      p_time: r.start ? r.start + (r.end ? '–' + r.end : '') : null,
     });
     await loadUses();
   } catch { /* the lesson matters more than the bookkeeping */ }
@@ -964,7 +965,18 @@ async function logUse(planId) {
  *  is right on GitHub Pages, on a school's own host, and inside an embed panel
  *  (where the query string must not leak into the link). */
 function planUrl(token) {
-  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'plan.html?t=' + token;
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '') + 'plan.html?';
+  // "r:" marks a class link: one delivery of a plan to one class, with its own
+  // expiry and its own feedback. Anything else is the plan's own link.
+  return String(token).startsWith('r:') ? base + 'r=' + String(token).slice(2) : base + 't=' + token;
+}
+
+/** The link to give a substitute for the lesson on screen: the class's own when
+ *  this plan has been given to this class, otherwise the plan's general link. */
+function subLinkToken() {
+  const g = state.row?.group;
+  const u = g && g !== '—' ? usesOf(state.planId, g)[0] : null;
+  return u && u.run_token ? 'r:' + u.run_token : state.shareToken;
 }
 
 /* ── Embed mode ─────────────────────────────────────────
@@ -1348,7 +1360,8 @@ const CHK = '<svg class="cl-ico" viewBox="0 0 24 24" width="14" height="14" fill
 function coordView(p, r) {
   const phases = p.phases || [];
   const sum = phases.reduce((a, ph) => { const m = String(ph.t || '').split('–'); return a + (m.length === 2 ? minDiff(m[0], m[1]) : 0); }, 0);
-  const link = state.shareToken ? planUrl(state.shareToken) : null;
+  const lt = subLinkToken();
+  const link = lt ? planUrl(lt) : null;
   return '<div class="plan">' +
     '<div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t('whatItIs')) + '</h4><p>' + esc(p.summary) + '</p></div>' +
     '<div class="twocol">' +
@@ -1365,13 +1378,13 @@ function coordView(p, r) {
     (state.approved
       ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>✓</span><div><b>' + esc(t('approvedTitle')) + '</b> ' +
         apprSignedLine() + ' ' +
-        (link ? esc(t('subLink')) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(state.shareToken) + '" title="' + esc(t('copyLink')) + '">' + CHK + '<span class="cl-label">' + esc(link) + '</span></button>' : '') + '</div></div>'
+        (link ? esc(t('subLink')) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t('copyLink')) + '">' + CHK + '<span class="cl-label">' + esc(link) + '</span></button>' : '') + '</div></div>'
       : '') +
     '<div class="foot">' +
       (state.approved
         ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t('seeSubView')) + '</button>' +
-          (link ? '<button class="btn btn-ghost" data-copymail="' + esc(state.shareToken) + '">' + CHK + '<span class="cl-label">' + esc(t('copyMail')) + '</span></button>' : '') +
-          (link ? '<button class="btn btn-primary" data-copylink="' + esc(state.shareToken) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '')
+          (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t('copyMail')) + '</span></button>' : '') +
+          (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '')
         : '<span class="hint">' + esc(t('nothingBefore')) + '</span><span class="spacer"></span>' +
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
           apprButtons(0)) +
@@ -1590,7 +1603,7 @@ document.addEventListener('click', async (e) => {
   if (t2.hasAttribute('data-usebank')) {
     const pid = t2.getAttribute('data-usebank');
     // Picked for a real cover, so it counts as given to that class.
-    return usePlan(pid).then(() => logUse(pid));
+    return usePlan(pid).then(() => logUse(pid)).then(() => { if (state.planId === pid) showPlan(); });
   }
 
   if (t2.hasAttribute('data-copylink') || t2.hasAttribute('data-copymail')) {
@@ -1652,7 +1665,7 @@ document.addEventListener('click', async (e) => {
         planId: state.planId,
         ref: state.row?.id || null,
         shareToken: state.shareToken,
-        url: state.shareToken ? planUrl(state.shareToken) : null,
+        url: subLinkToken() ? planUrl(subLinkToken()) : null,
         title: state.plan?.title || null,
       });
     }
@@ -1716,13 +1729,14 @@ function renderSettings() {
 
 async function loadFeedback() {
   loadSettings();
-  const [ex, ov] = await Promise.all([sb.rpc('lk_extras', { p_id: null }), sb.rpc('lk_feedback_overview')]);
+  const [ex, ov, rn] = await Promise.all([sb.rpc('lk_extras', { p_id: null }), sb.rpc('lk_feedback_overview'), sb.rpc('lk_feedback_runs')]);
   if (ex.error || ov.error) {
     $('fbqueue').innerHTML = '<p class="note">' + esc((ex.error || ov.error).message) + '</p>';
     return;
   }
   state.queue = (ex.data || []).filter((x) => !x.reviewed && x.created_by_kind === 'vikarie');
-  state.fb = ov.data || [];
+  const runs = rn.data || {};
+  state.fb = (ov.data || []).map((x) => ({ ...x, runs: runs[x.id] || [] }));
   state.pending = state.queue.length;
   renderFeedback();
   renderNav();
@@ -1789,6 +1803,18 @@ function fbBody(p) {
     }).join('') +
       '<p class="muted" style="font-size:12px">' + esc(t('fbSecKey')) + '</p>';
     if (p.sections.some((x) => x.bad >= 2)) h += '<p class="fbwarn">' + esc(t('fbRewrite')) + '</p>';
+  }
+
+  // The same plan can land well in one class and badly in another.
+  if ((p.runs || []).length) {
+    h += '<div class="sect-h">' + esc(t('fbRunsTitle')) + '</div>' + p.runs.map((x) =>
+      '<div class="runrow"><span class="rl"><b>' + esc(x.group) + '</b> · ' + esc(x.time ? x.time + ' · ' : '') + esc(fmtDate(x.date)) +
+      (x.substitute ? ' · ' + esc(x.substitute) : '') + '</span>' +
+      '<span class="rr">' + (x.answered
+        ? (x.stars ? '<b>★ ' + esc(String(x.stars).replace('.', LANG === 'sv' ? ',' : '.')) + '</b> ' : '') +
+          '<b class="sb-wt">' + x.good + '</b> / <b class="sb-ct">' + x.ok + '</b> / <b class="sb-bt">' + x.bad + '</b>'
+        : '<span class="muted">' + esc(t('fbRunNone')) + '</span>') +
+      (x.teacher ? ' <span class="chip chip-neutral">' + esc(t('fbTeach_' + x.teacher)) + '</span>' : '') + '</span></div>').join('');
   }
 
   const said = [];
