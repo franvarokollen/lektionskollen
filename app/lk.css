@@ -833,3 +833,7 @@ body.panelmode .seam{flex:0 0 auto}
 .heat .secbar i{display:block;height:100%;border-radius:0}
 .secbar .sb-w{background:#1d7a5f}.secbar .sb-c{background:#d9921c}.secbar .sb-b{background:#b3392f}.secbar .sb-s{background:#9aa4b1}
 .secn{font-size:12.5px;white-space:nowrap}.sb-wt{color:#1d7a5f}.sb-ct{color:#b07515}.sb-bt{color:#b3392f}
+
+/* Per-class results on a plan: one row per delivery. */
+.runrow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line,#e5e1da);font-size:13px}
+.runrow .rr{white-space:nowrap}
