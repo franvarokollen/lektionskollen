@@ -269,7 +269,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="6b09842b556a">
+<meta name="lk-build" content="c2202d896e21">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -908,7 +908,9 @@ function render(d, keepScroll) {
   if (TEACH) {
     const i = Math.max(0, Math.min(TPHASE, phases.length - 1));
     const one = LKPlan.render(p, Object.assign({}, hooks,
-      { only: i, assistRow: () => '', extras: () => '' }));
+      // done:{} so a finished step still shows when you go Back to it; in this
+      // view "Done" moves on instead of folding the only thing on screen.
+      { only: i, done: {}, assistRow: () => '', extras: () => '' }));
     $('out').innerHTML =
       '<div class="teachview"><div class="tv">' + one + '</div>' +
       '<div class="tvbar"><button data-teach="0">' + esc(l.prepBtn) + '</button>' +
@@ -1333,7 +1335,17 @@ document.addEventListener('click', async (e) => {
   const sd = e.target.closest('[data-stepdone]');
   if (sd && DATA) {
     const i = Number(sd.getAttribute('data-stepdone'));
-    PROG.done[i] = true; saveProg(); render(DATA, true);
+    PROG.done[i] = true; saveProg();
+    if (TEACH) {
+      // One step at a time: finishing it means going to the next. After the
+      // last, back to the full plan, where the feedback is.
+      const last = bodies(DATA)[LANG] ? (bodies(DATA)[LANG].phases || []).length - 1 : i;
+      if (i < last) { TPHASE = i + 1; render(DATA); window.scrollTo(0, 0); return; }
+      TEACH = false; PROG.fbopen = true; saveProg(); render(DATA);
+      const fb = $('feedback'); if (fb) fb.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    render(DATA, true);
     const nx = document.querySelector('.ph-cur') || $('feedback');
     if (nx) nx.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
