@@ -35,6 +35,8 @@ export type AssistReq = {
   year_group?: string
   topic?: string
   minutes_left?: number
+  /** Skip the stored answer and make a new one. */
+  fresh?: boolean
   // Which plan this extra supports. The per-plan cap needs it; without one the
   // extras all land in the same bucket for the day.
   plan_id?: string

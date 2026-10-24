@@ -122,7 +122,10 @@ Deno.serve(async (req) => {
 
   // ── Already answered? ────────────────────────────────────
   const key = await cacheKey(body)
-  const hit = await rpc('lk_cache_get', { p_key: key }) as { pair?: ExtraPair, model?: string } | null
+  // "Generate a new one" asks for a different answer, so it skips the read.
+  // The new answer is still written back and becomes the stored one.
+  const hit = body.fresh ? null
+    : await rpc('lk_cache_get', { p_key: key }) as { pair?: ExtraPair, model?: string } | null
   if (hit?.pair) {
     return json({ ...hit.pair, model: hit.model ?? model, source: 'cache', ms: Date.now() - t0 })
   }
