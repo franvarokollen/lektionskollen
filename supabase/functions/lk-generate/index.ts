@@ -145,7 +145,10 @@ Deno.serve(async (req) => {
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), 300_000)
   try {
-    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+    const messages = translate
+      ? buildTranslateMessages(translate, String(r.language || 'sv'))
+      : buildMessages({ ...r, recent })
+    const call = (msgs: unknown[]) => fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -153,9 +156,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model,
-        messages: translate
-          ? buildTranslateMessages(translate, String(r.language || 'sv'))
-          : buildMessages({ ...r, recent }),
+        messages: msgs,
         ...temperature(),
         // 8000 was fine when nothing thought before answering. Current Claude
         // models reason first, and that reasoning is billed against the same
@@ -167,7 +168,7 @@ Deno.serve(async (req) => {
       }),
       signal: ctl.signal,
     })
-    clearTimeout(timer)
+    const res = await call(messages)
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')
@@ -188,9 +189,52 @@ Deno.serve(async (req) => {
       }, 502)
     }
 
-    const { data, repaired } = parseModelJson(content)
+    let { data, repaired } = parseModelJson(content)
+
+    // ── The quality gate, applied before the coordinator sees anything ──
+    // lk_check_plan is the same check that blocks approval. Running it here
+    // means a fault the model can fix is fixed once, by the model, with the
+    // list in front of it - instead of being handed to a coordinator who can
+    // only press "generate another". One round only: it costs a second call,
+    // and a plan that is still faulty after being told what is wrong is better
+    // shown with its faults than looped on. Any failure here keeps the first
+    // plan, so this can only ever help.
+    let gate: { blockers?: number; problems?: Array<Record<string, string>> } | null = null
+    let fixedByGate = false
+    if (!translate && data) {
+      const check = (plan: unknown) => rpc('lk_check_plan',
+        { p_body: plan, p_minutes: Number(r.minutes) || null, p_language: String(r.language || 'sv') })
+      gate = await check(data)
+      const blockers = (g: typeof gate) => (g?.problems ?? []).filter((x) => x.level === 'blocker')
+      if (gate && blockers(gate).length) {
+        try {
+          const list = blockers(gate).map((x) => `- ${x.where}: ${x.detail}`).join('\n')
+          const res2 = await call([
+            ...messages,
+            { role: 'assistant', content },
+            { role: 'user', content:
+              'The plan has faults that stop a substitute from using it:\n' + list +
+              '\n\nFix every one. Where a text or sentence is referred to, write it out in full inside the question. ' +
+              'Put any quoted sentence in quote marks. Change nothing else. Return the complete corrected plan as JSON only.' },
+          ])
+          if (res2.ok) {
+            const out2 = await res2.json()
+            const c2: string = out2?.choices?.[0]?.message?.content ?? ''
+            const p2 = c2 ? parseModelJson(c2) : null
+            if (p2?.data) {
+              const g2 = await check(p2.data)
+              if (g2 && blockers(g2).length < blockers(gate).length) {
+                data = p2.data; repaired = p2.repaired; gate = g2; fixedByGate = true
+              }
+            }
+          }
+        } catch { /* keep the first plan */ }
+      }
+    }
+    clearTimeout(timer)
     return json({
       plan: data, model: out.model ?? model, source: 'model', repaired,
+      gate_fixed: fixedByGate, gate_blockers: gate ? (gate.problems ?? []).filter((x) => x.level === 'blocker').length : undefined,
       finish_reason: out?.choices?.[0]?.finish_reason,
       quota: unchecked ? 'unchecked' : undefined,
       usage: out.usage, ms: Date.now() - t0,
