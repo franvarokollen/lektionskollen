@@ -119,7 +119,9 @@ Deno.serve(async (req) => {
   // second unit — the school asked for one plan and is getting one plan.
   let took = false
   let unchecked = false
-  if (!translate) {
+  // A repair works on a plan that already exists, so it is not a new plan.
+  const repairIn = body.repair as { plan?: Record<string, unknown> } | undefined
+  if (!translate && !repairIn?.plan) {
     const q = await rpc('lk_quota_take', { p_kind: 'plan' })
     if (q && q.ok === false && q.reason === 'limit') {
       return json({
@@ -168,28 +170,36 @@ Deno.serve(async (req) => {
       }),
       signal: ctl.signal,
     })
-    const res = await call(messages)
+    let out: Record<string, any> = { model, choices: [{ finish_reason: 'repair' }] }
+    let content = ''
+    let data = (repairIn?.plan ?? null) as Record<string, unknown> | null
+    let repaired = false
+    if (repairIn?.plan) {
+      content = JSON.stringify(repairIn.plan)
+    } else {
+      const res = await call(messages)
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      await refund()
-      return json({ error: `Model error ${res.status}: ${text.slice(0, 300)}` }, 502)
-    }
-    const out = await res.json()
-    const content: string = out?.choices?.[0]?.message?.content ?? ''
-    if (!content) {
-      // An empty answer used to say only that it was empty, which is the least
-      // useful thing it could say. The provider always explains itself in
-      // finish_reason and usage; pass that on.
-      const fin = out?.choices?.[0]?.finish_reason ?? 'unknown'
-      await refund()
-      return json({
-        error: `Model returned no content (finish_reason: ${fin})`,
-        finish_reason: fin, usage: out?.usage, model: out?.model ?? model,
-      }, 502)
-    }
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        await refund()
+        return json({ error: `Model error ${res.status}: ${text.slice(0, 300)}` }, 502)
+      }
+      out = await res.json()
+      content = out?.choices?.[0]?.message?.content ?? ''
+      if (!content) {
+        // An empty answer used to say only that it was empty, which is the least
+        // useful thing it could say. The provider always explains itself in
+        // finish_reason and usage; pass that on.
+        const fin = out?.choices?.[0]?.finish_reason ?? 'unknown'
+        await refund()
+        return json({
+          error: `Model returned no content (finish_reason: ${fin})`,
+          finish_reason: fin, usage: out?.usage, model: out?.model ?? model,
+        }, 502)
+      }
 
-    let { data, repaired } = parseModelJson(content)
+      ;({ data, repaired } = parseModelJson(content))
+    }
 
     // ── The quality gate, applied before the coordinator sees anything ──
     // lk_check_plan is the same check that blocks approval. Running it here
@@ -206,28 +216,26 @@ Deno.serve(async (req) => {
         { p_body: plan, p_minutes: Number(r.minutes) || null, p_language: String(r.language || 'sv') })
       gate = await check(data)
       const blockers = (g: typeof gate) => (g?.problems ?? []).filter((x) => x.level === 'blocker')
-      if (gate && blockers(gate).length) {
+      // A repair of an existing plan gets a second round; a fresh plan gets one.
+      for (let round = 0; round < (repairIn?.plan ? 2 : 1) && gate && blockers(gate).length; round++) {
         try {
           const list = blockers(gate).map((x) => `- ${x.where}: ${x.detail}`).join('\n')
           const res2 = await call([
             ...messages,
-            { role: 'assistant', content },
+            { role: 'assistant', content: JSON.stringify(data) },
             { role: 'user', content:
               'The plan has faults that stop a substitute from using it:\n' + list +
               '\n\nFix every one. Where a text or sentence is referred to, write it out in full inside the question. ' +
               'Put any quoted sentence in quote marks. Change nothing else. Return the complete corrected plan as JSON only.' },
           ])
-          if (res2.ok) {
-            const out2 = await res2.json()
-            const c2: string = out2?.choices?.[0]?.message?.content ?? ''
-            const p2 = c2 ? parseModelJson(c2) : null
-            if (p2?.data) {
-              const g2 = await check(p2.data)
-              if (g2 && blockers(g2).length < blockers(gate).length) {
-                data = p2.data; repaired = p2.repaired; gate = g2; fixedByGate = true
-              }
-            }
-          }
+          if (!res2.ok) break
+          const out2 = await res2.json()
+          const c2: string = out2?.choices?.[0]?.message?.content ?? ''
+          const p2 = c2 ? parseModelJson(c2) : null
+          if (!p2?.data) break
+          const g2 = await check(p2.data)
+          if (!g2 || blockers(g2).length >= blockers(gate).length) break
+          data = p2.data; repaired = p2.repaired; gate = g2; fixedByGate = true
         } catch { /* keep the first plan */ }
       }
     }
