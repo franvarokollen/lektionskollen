@@ -274,7 +274,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="c74e40efb6bf">
+<meta name="lk-build" content="e422f950e061">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -648,6 +648,22 @@ function runDate(d) {
     { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+/* Minutes to add so the plan's own clock (e.g. 00:30-00:52) reads as the real
+   lesson time (13:30-13:52). Only class links know the real start. */
+function shiftT(tt, sh) {
+  if (!sh || !tt) return tt;
+  return String(tt).replace(/(\d{1,2}):(\d{2})/g, (_, h, mi) => {
+    const v = (((+h * 60 + +mi + sh) % 1440) + 1440) % 1440;
+    return ('0' + Math.floor(v / 60)).slice(-2) + ':' + ('0' + (v % 60)).slice(-2);
+  });
+}
+function clockShift(p) {
+  const m = RUN && RUN.lesson_time && String(RUN.lesson_time).match(/(\d{1,2}):(\d{2})/);
+  const f = p && (p.phases || [])[0] && String(p.phases[0].t || '').match(/(\d{1,2}):(\d{2})/);
+  if (!m || !f) return 0;
+  return (+m[1] * 60 + +m[2]) - (+f[1] * 60 + +f[2]);
+}
+
 /* Which class this is for, and until when the link works. Shown above the
    title so a substitute with two classes on one plan sees at a glance which
    link they are holding. */
@@ -889,7 +905,7 @@ function render(d, keepScroll) {
       '<div class="ps"><h4>' + esc(l.board) + '</h4><div class="board">' + esc(p.board) + '</div>' +
       '<p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + '</b> ' + esc(p.equipment?.need) + '</p></div>' +
       '<div class="ps"><h4>' + esc(l.clock) + '</h4>' + (p.phases||[]).map((ph) =>
-        '<p style="margin:4px 0;font-size:14px"><span class="clock">' + esc(ph.t) + '</span> <strong>' + esc(ph.n) + '</strong></p>').join('') + '</div>' +
+        '<p style="margin:4px 0;font-size:14px"><span class="clock">' + esc(shiftT(ph.t, clockShift(p))) + '</span> <strong>' + esc(ph.n) + '</strong></p>').join('') + '</div>' +
       '<div class="strow noprint"><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button></div></div>';
     $('out').innerHTML = q; $('bar').hidden = true;
     if (keepScroll) window.scrollTo(0, y);
@@ -903,6 +919,7 @@ function render(d, keepScroll) {
     assistRow: (ref, name) => assistRow(ref, name),
     extras: (ref) => extrasFor(ref),
     projector: true,
+    shiftMin: clockShift(p),
     help: false,                       // lifted into the margin rail below
     interactive: true,
     ready: PROG.ready, done: PROG.done, short: PROG.short,
@@ -960,7 +977,7 @@ function render(d, keepScroll) {
   // Where you are in the lesson, in the left margin.
   h += '<aside class="rail rail-l noprint"><div class="rail-in"><div class="nav"><h4>' + esc(l.railWhere) + '</h4>' +
     phases.map((ph, i) => '<a href="#ph' + i + '" class="' + LKPlan.kind(i) + '">' + esc(ph.n) +
-      '<span class="t">' + esc(ph.t) + '</span></a>').join('') + '</div></aside>';
+      '<span class="t">' + esc(shiftT(ph.t, clockShift(p))) + '</span></a>').join('') + '</div></aside>';
 
   h += '<main class="col">' + LKPlan.render(p, hooks) + '</main>';
 
