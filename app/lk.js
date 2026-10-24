@@ -328,8 +328,12 @@ function planRow(r, p) {
   }
   // The teacher's own: a link or a few typed lines.
   const what = p.label || (p.kind === 'note' ? t('cvPlNoteKind') : hostOf(p.url) || t('cvPlLinkKind'));
+  const expLine = p.expires_at
+    ? '<div class="planrow"><span class="plbl">' + esc(p.expired ? t('cvPlExpired')
+        : t('cvPlUntil') + ' ' + new Date(new Date(p.expires_at).getTime() - 1000).toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { day: 'numeric', month: 'short' })) + '</span>' +
+      (p.expired ? '' : '<button class="plopt quiet" data-planextend="' + esc(r.id) + '">' + esc(t('cvPlExtend')) + '</button>') + '</div>' : '';
   return '<button class="planbtn linked" data-planopen="' + esc(r.id) + '">' +
-      '<span>🔗</span>' + esc(t('cvPlTeachers')) + ' — ' + esc(what) + '</button>' +
+      '<span>🔗</span>' + esc(t('cvPlTeachers')) + ' — ' + esc(what) + '</button>' + expLine +
     '<div class="planrow"><button class="plopt quiet" data-planlink="' + esc(r.id) + '">' + esc(t('cvPlChange')) + '</button>' +
       '<button class="plopt quiet" data-planclear="' + esc(r.id) + '">' + esc(t('cvPlRemove')) + '</button></div>';
 }
@@ -1547,6 +1551,14 @@ document.addEventListener('click', async (e) => {
     closePop();
     await sb.rpc('lk_set_cover_plan', { p_absence_ref: ref, p_kind: 'not_needed' });
     await loadCoverPlans(); renderRows(); toast(t('cvPlNotSaved'));
+    return;
+  }
+  const pxt = e.target.closest('[data-planextend]');
+  if (pxt) {
+    closePop();
+    const { data: until } = await sb.rpc('lk_extend_cover_plan', { p_absence_ref: pxt.getAttribute('data-planextend'), p_days: 14 });
+    await loadCoverPlans(); renderRows();
+    if (until) toast(t('cvPlExtended') + ' ' + new Date(until).toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { day: 'numeric', month: 'short' }));
     return;
   }
   const pc = e.target.closest('[data-planclear]');

@@ -274,7 +274,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="a4863a777937">
+<meta name="lk-build" content="35296f9d22d6">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -389,7 +389,7 @@ const SV_LABELS = {
   packBtn: 'Skriv ut paket (plan + elevblad)', offlineNote: 'Sparad kopia – du är offline.', onlineAgain: '',
   linkedKicker: 'Lektionsplan från skolan', linkedFrom: 'Ordinarie lärares plan', linkedNote: 'Instruktion från ordinarie lärare', linkedBody: 'Den här lektionen har en plan som skolan redan hade. Öppna den med knappen och berätta sedan hur långt ni kom.', noteBody: 'Ordinarie lärare lämnade de här instruktionerna. Berätta efteråt hur långt ni kom.', linkedNoteH: 'Från ordinarie lärare', linkedOpen: 'Öppna planen', linkedPeek: 'Visa den här på sidan', linkedFallback: 'Syns inget eller fel sida? Använd knappen ovan — alla sidor går inte att visa inbäddade.', linkedNoRate: 'Den här planen betygsätts inte. Vi frågar bara hur långt ni kom, så att ordinarie lärare vet var klassen står.',
   qReuse: 'Skulle du använda den här planen igen?', aReuseYes: 'Ja, som den är', aReuseChanges: 'Ja, med ändringar', aReuseNo: 'Nej', qClarity: 'Gick den att hålla utan förberedelse?', aClearFull: 'Helt tydlig', aClearMost: 'Mestadels', aClearNeeded: 'Behövde arbete', qTime: 'Räckte innehållet till lektionen?', aTimeRight: 'Lagom', aTimeLittle: 'För lite', aTimeMuch: 'För mycket', savedSoFar: 'Sparat. Svara gärna på de andra också.',
-  noCode: 'Länken saknar kod.', runUntil: 'Länken gäller till', runExpiredH: 'Den här länken har gått ut', runExpiredB: 'Lektionen med {g} var {d}. Be skolan om en ny länk om du behöver planen igen.', notFound: 'Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.',
+  noCode: 'Länken saknar kod.', linkedUntil: 'Tillgänglig till', linkedGoneH: 'Den här planen har gått ut', linkedGoneB: 'Ordinarie lärares plan visas bara en kort tid efter lektionen. Hör av dig till skolan om du behöver den igen.', runUntil: 'Länken gäller till', runExpiredH: 'Den här länken har gått ut', runExpiredB: 'Lektionen med {g} var {d}. Be skolan om en ny länk om du behöver planen igen.', notFound: 'Planen hittades inte. Den kan ha tagits bort, eller inte vara godkänd ännu. Hör av dig till skolan.',
   depthQ: 'Hur mycket vill du ha utskrivet?', depthFull: 'Allt', depthGuided: 'Huvuddragen', depthBrief: 'Bara ramen',
   beforeBell: 'Innan lektionen börjar', theLesson: 'Lektionen', fbGood: 'Bra', fbOk: 'Okej', fbBad: 'Dåligt', fbOpen: 'Lämna feedback', fbOpenSub: 'Inte en del av lektionen · cirka 2 minuter', fbStarsQ: 'Hur var lektionen som helhet?', fbStar1: 'Dålig', fbStar5: 'Mycket bra', getReady: 'Gör i ordning', readySheet: 'Elevblad', readySheetHint: 'Skriv ut det, eller skriv av det på tavlan.', readyBoard: 'Skriv på tavlan', readyKit: 'Ta fram', readyGoal: 'Målet', readyDone: 'Klart – dölj', readyShow: 'Visa igen', readyAllDone: 'Allt är klart. Dags att börja.', stepOf: 'Steg {i} av {n}', stepDone: 'Klar – nästa steg', stepReopen: 'Öppna igen', nextUp: 'Nästa:', lastStep: 'Sista steget. Därefter: feedback.', stepNow: 'Pågår', shortBtn: 'Kort om tid?', shortOn: 'Kort version på', shortOff: 'Visa hela', shortNote: 'Hoppa över steg märkta “Kan hoppas över” och ge bara standarduppgifterna.', canSkip: 'Kan hoppas över', fbH: 'Din feedback', fbNot: 'Inte en del av lektionen', fbSteps: 'Hur gick varje steg?', fbSkipped: 'Hoppade över', fbNotePh: 'Vad bör ändras? (valfritt)', fbJump: 'Lämna feedback ↓', fbSavedS: 'Sparat', fbIntro: 'Två minuter, helt frivilligt. Det du skriver här gör planen bättre för nästa vikarie.', ifWrong: 'Om något går snett', afterH: 'Efter lektionen',
   recallH: 'Repetition — vad de redan kan', recallWhy: 'Bygger på',
@@ -451,7 +451,7 @@ const EN_LABELS = {
   packBtn: 'Print pack (plan + student sheet)', offlineNote: 'Saved copy – you are offline.', onlineAgain: '',
   linkedKicker: 'Lesson plan from the school', linkedFrom: "The class teacher's plan", linkedNote: 'Instructions from the class teacher', linkedBody: 'This lesson has a plan the school already had. Open it with the button, then tell us how far you got.', noteBody: "The class teacher left these instructions. Tell us afterwards how far you got.", linkedNoteH: 'From the class teacher', linkedOpen: 'Open the plan', linkedPeek: 'Show it on this page', linkedFallback: "Nothing showing, or the wrong page? Use the button above — not every page can be displayed embedded.", linkedNoRate: 'This plan is not rated. We only ask how far you got, so the class teacher knows where the class is.',
   qReuse: 'Would you use this plan again?', aReuseYes: 'Yes, as it is', aReuseChanges: 'Yes, with changes', aReuseNo: 'No', qClarity: 'Could you teach it without preparing?', aClearFull: 'Completely clear', aClearMost: 'Mostly', aClearNeeded: 'Needed work', qTime: 'Was there enough to fill the lesson?', aTimeRight: 'About right', aTimeLittle: 'Too little', aTimeMuch: 'Too much', savedSoFar: 'Saved. Please answer the others too.',
-  noCode: 'The link is missing its code.', runUntil: 'Link valid until', runExpiredH: 'This link has expired', runExpiredB: 'The lesson with {g} was on {d}. Ask the school for a new link if you need the plan again.', notFound: 'The plan could not be found. It may have been removed, or not approved yet. Get in touch with the school.',
+  noCode: 'The link is missing its code.', linkedUntil: 'Available until', linkedGoneH: 'This plan has expired', linkedGoneB: "The class teacher's plan is only shown for a short time after the lesson. Get in touch with the school if you need it again.", runUntil: 'Link valid until', runExpiredH: 'This link has expired', runExpiredB: 'The lesson with {g} was on {d}. Ask the school for a new link if you need the plan again.', notFound: 'The plan could not be found. It may have been removed, or not approved yet. Get in touch with the school.',
   depthQ: 'How much do you want written out?', depthFull: 'Everything', depthGuided: 'The main points', depthBrief: 'Just the outline',
   beforeBell: 'Before the lesson starts', theLesson: 'The lesson', fbGood: 'Good', fbOk: 'OK', fbBad: 'Bad', fbOpen: 'Give feedback', fbOpenSub: 'Not part of the lesson · about 2 minutes', fbStarsQ: 'How was the lesson overall?', fbStar1: 'Poor', fbStar5: 'Very good', getReady: 'Get ready', readySheet: 'Pupil sheet', readySheetHint: 'Print it, or copy it onto the board.', readyBoard: 'Write on the board', readyKit: 'Gather', readyGoal: 'The goal', readyDone: 'Done – hide', readyShow: 'Show again', readyAllDone: 'Everything is ready. Time to start.', stepOf: 'Step {i} of {n}', stepDone: 'Done – next step', stepReopen: 'Reopen', nextUp: 'Next up:', lastStep: 'Last step. Then: feedback.', stepNow: 'Now', shortBtn: 'Short on time?', shortOn: 'Short version on', shortOff: 'Show full', shortNote: 'Skip the steps marked “Can skip” and give only the standard tasks.', canSkip: 'Can skip', fbH: 'Feedback', fbNot: 'Not part of the lesson', fbSteps: 'How did each step go?', fbSkipped: 'Skipped', fbNotePh: 'What should change? (optional)', fbJump: 'Feedback ↓', fbSavedS: 'Saved', fbIntro: 'Two minutes, entirely optional. What you write here makes the plan better for the next substitute.', ifWrong: 'If something goes wrong', afterH: 'After the lesson',
   recallH: 'Recap — what they already know', recallWhy: 'Builds on',
@@ -607,15 +607,21 @@ function renderLinked(d) {
   LINKED = d;
   const emb = d.url ? embedUrl(d.url) : null;
   const what = d.label || (d.url ? l.linkedFrom : l.linkedNote);
+  const until = d.expires_at ? new Date(d.expires_at) : null;
+  const untilLine = until && !d.expired
+    ? '<p class="hint">' + esc(l.linkedUntil) + ' ' +
+      esc(runDate(new Date(until.getTime() - 1000).toISOString().slice(0, 10))) + '</p>' : '';
   $('out').innerHTML =
     '<div class="card">' +
       '<span class="kicker">' + esc(l.linkedKicker) + '</span>' +
       '<h1>' + esc(what) + '</h1>' +
+      untilLine +
+      (d.expired ? '<div class="flag"><span>!</span><div><b>' + esc(l.linkedGoneH) + '</b> ' + esc(l.linkedGoneB) + '</div></div>' : '') +
       // Typed instructions have no button to press, so they must not be told
       // to press one. The teacher's own words are never translated — they are
       // the teacher's, and a rough translation of a safety instruction is worse
       // than the original.
-      '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + '</p>' +
+      (d.expired ? '' : '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + '</p>') +
       (d.note ? '<div class="ps"><h3>' + esc(l.linkedNoteH) + '</h3><p style="white-space:pre-wrap">' + esc(d.note) + '</p></div>' : '') +
       (d.url
         // The button always works. The preview often does not — a document
