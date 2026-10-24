@@ -118,10 +118,10 @@
   .proj .lead{font:400 clamp(18px,2.4vw,32px)/1.4 'Geist',system-ui,sans-serif;color:#b9cde2;margin:0}
   .proj ol{font:500 clamp(20px,3.2vw,46px)/1.6 'Geist Mono',ui-monospace,monospace;
     margin:0;padding-left:1.6em;display:grid;gap:1.1vh}
-  .proj .nav{position:absolute;bottom:18px;right:22px;display:flex;gap:8px;align-items:center}
-  .proj .nav button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:9px;
+  .proj .pnav{position:absolute;bottom:18px;right:22px;display:flex;gap:8px;align-items:center}
+  .proj .pnav button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:9px;
     padding:9px 16px;font:inherit;font-size:15px;cursor:pointer}
-  .proj .nav button:disabled{opacity:.3;cursor:default}
+  .proj .pnav button:disabled{opacity:.3;cursor:default}
   .proj .count{position:absolute;bottom:24px;left:22px;font-size:14px;color:#8fa9c4;
     font-variant-numeric:tabular-nums}
   .proj .endcard{justify-items:center;text-align:center;justify-self:center}
@@ -274,7 +274,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="cf590571f911">
+<meta name="lk-build" content="f81e58e5d89c">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -1292,7 +1292,7 @@ document.addEventListener('keydown', (e) => {
     return part + body +
       (sl.end ? '' : '<span class="count">' + (i + 1) + ' / ' + shown + '</span>') +
       '<button class="cl" data-projclose>' + esc(l.projHint) + '</button>' +
-      '<div class="nav">' +
+      '<div class="pnav">' +
         '<button data-projgo="-1"' + (i === 0 ? ' disabled' : '') + '>' + esc(l.projPrev) + '</button>' +
         '<button data-projgo="1"' + (i === n - 1 ? ' disabled' : '') + '>' + esc(l.projNext) + '</button>' +
       '</div>';
