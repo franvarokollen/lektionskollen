@@ -1386,6 +1386,7 @@ function coordView(p, r) {
           (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t('copyMail')) + '</span></button>' : '') +
           (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t('copyLink')) + '</span></button>' : '')
         : '<span class="hint">' + esc(t('nothingBefore')) + '</span><span class="spacer"></span>' +
+          '<button class="btn btn-ghost" data-frompool>' + esc(t('fromPool')) + '</button>' +
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
           apprButtons(0)) +
     '</div></div>';
@@ -1565,7 +1566,7 @@ document.addEventListener('click', async (e) => {
   }
   if (POP && !e.target.closest('#cv-pop')) closePop();
 
-  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank');
+  const el = e.target.closest('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-frompool],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el;
 
@@ -1597,6 +1598,7 @@ document.addEventListener('click', async (e) => {
   if (t2.hasAttribute('data-close')) return closeAddin();
   if (t2.hasAttribute('data-generate')) return generate();
   if (t2.hasAttribute('data-regen')) return showRequest();
+  if (t2.hasAttribute('data-frompool')) { showRequest(); const br = document.querySelector('.bankrow'); if (br) br.scrollIntoView({ block: 'center' }); return; }
   if (t2.hasAttribute('data-view')) { state.view = t2.getAttribute('data-view'); return showPlan(); }
   if (t2.hasAttribute('data-planlang')) return setLang(t2.getAttribute('data-planlang'));
   if (t2.hasAttribute('data-viewplan')) return usePlan(t2.getAttribute('data-viewplan'));
