@@ -274,7 +274,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="5f77d217f30e">
+<meta name="lk-build" content="055c344dfe55">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -428,7 +428,7 @@ const SV_LABELS = {
   aEasier: 'Lättare', aHarder: 'Svårare',
   barLbl: 'Tid kvar att fylla (min):',
   working: 'Tar fram något…',
-  srcLibrary: 'Simulerat stöd – ingen AI-modell ansluten än', srcCache: 'Sparat svar från tidigare', simTag: 'Simulerad', simBanner: 'Simulerad plan – ingen AI-modell är ansluten än.', srcModel: 'Genererat under lektionen',
+  srcLibrary: 'Simulerat stöd – ingen AI-modell ansluten än', srcCache: 'Sparat svar från tidigare', srcStored: 'Ytterligare innehåll – sparat tidigare i den här planen', genNew: 'Skapa ett nytt', simTag: 'Simulerad', simBanner: 'Simulerad plan – ingen AI-modell är ansluten än.', srcModel: 'Genererat under lektionen',
   srcFallback: 'Färdigskrivet stöd (modellen svarade inte)',
   boardNow: 'Skriv upp på tavlan', tasksNow: 'Uppgifter med facit',
   saved: 'Sparat i planen — markerat för granskning.',
@@ -489,7 +489,7 @@ const EN_LABELS = {
   aEasier: 'Easier', aHarder: 'Harder',
   barLbl: 'Minutes left to fill:',
   working: 'Working on it…',
-  srcLibrary: 'Simulated support – no AI model connected yet', srcCache: 'Saved answer from before', simTag: 'Simulated', simBanner: 'Simulated plan – no AI model is connected yet.', srcModel: 'Generated during the lesson',
+  srcLibrary: 'Simulated support – no AI model connected yet', srcCache: 'Saved answer from before', srcStored: 'Additional content – saved earlier in this plan', genNew: 'Generate a new one', simTag: 'Simulated', simBanner: 'Simulated plan – no AI model is connected yet.', srcModel: 'Generated during the lesson',
   srcFallback: 'Written support (the model did not answer)',
   boardNow: 'Write this on the board', tasksNow: 'Tasks with answers',
   saved: 'Saved to the plan — flagged for review.',
@@ -771,32 +771,29 @@ function extraBody(x) {
   return { body: x.body, exact: false, lang: x.language };
 }
 
-function extrasFor(ref) {
-  const l = L();
-  // An extra with nothing in the language being read would draw an empty box.
-  // Also skip rows with nothing to show (old seed rows use a {h, steps}
-  // shape): they drew a tag and an empty box.
-  const hasContent = (b) => b && (b.title || (b.lines || []).length || b.board || (b.tasks || []).length);
-  // kept === false is a coordinator's "dismiss"; null is not yet reviewed.
-  return EXTRAS.filter((x) => x.section_ref === ref && x.kept !== false && hasContent(extraBody(x).body)).map((x) => {
-    const { body, exact, lang } = extraBody(x);
-    const note = exact ? ''
-      : ' · ' + esc(lang === 'sv' ? l.onlyOther : l.onlyOtherEn);
-    return '<div class="extra"><span class="tag">' + esc(x.model === 'canned' ? l.simTag : l.genTag) + note + '</span>' +
-      '<b>' + esc(body?.title || '') + '</b>' +
-      '<ul style="margin:4px 0 0;padding-left:16px">' +
-        (body?.lines || []).map((li) => '<li>' + esc(li) + '</li>').join('') +
-      '</ul>' +
-      (body?.board ? '<div class="board" style="margin-top:7px">' + esc(body.board) + '</div>' : '') +
-      ((body?.tasks || []).length || body?.board
-        ? '<div class="strow noprint"><button class="stbtn" data-student="x:' + x.id + '">' + esc(l.forStudents) + '</button></div>' : '') +
-      '</div>';
-  }).join('');
+// Generated extras no longer sit open under their section. They wait out of
+// sight and come back, labelled as additional content, when the same help is
+// asked for again (see storedFor). A page that fills up with everything every
+// substitute ever pressed is a page nobody can read mid-lesson.
+function extrasFor() { return ''; }
+
+// Content to show, not an empty box: old seed rows use a {h, steps} shape.
+const extraHasContent = (b) => b && (b.title || (b.lines || []).length || b.board || (b.tasks || []).length);
+
+// The newest stored extra for the same help on the same part of this plan, in
+// the language being read. A filler is time-specific, so it is never reused.
+function storedFor(opts) {
+  if (opts.kind === 'filler') return null;
+  const hit = EXTRAS.filter((x) =>
+    x.section_ref === opts.ref && x.kind === opts.kind &&
+    (x.variant || '') === (opts.variant || '') && x.kept !== false)
+    .filter((x) => { const b = extraBody(x); return b.exact && extraHasContent(b.body); });
+  return hit.length ? hit[hit.length - 1] : null;
 }
 
 function sheetHtml(extra, source, saveNote, extraId, opts) {
   const l = L();
-  const srcTxt = source === 'model' ? l.srcModel : source === 'cache' ? l.srcCache : source === 'fallback' ? l.srcFallback : l.srcLibrary;
+  const srcTxt = source === 'stored' ? l.srcStored : source === 'model' ? l.srcModel : source === 'cache' ? l.srcCache : source === 'fallback' ? l.srcFallback : l.srcLibrary;
   let h = '<h3>' + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) +
           (extra.minutes ? ' · ' + extra.minutes + ' min' : '') + '</div>';
   h += '<ol>' + (extra.lines || []).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ol>';
@@ -821,10 +818,22 @@ function sheetHtml(extra, source, saveNote, extraId, opts) {
   return h;
 }
 
+let LASTASSIST = null;
 async function runAssist(opts) {
   const l = L();
-  $('sheetbody').innerHTML = '<h3><span class="spin"></span> ' + esc(l.working) + '</h3>';
+  LASTASSIST = opts;
   $('sheet').hidden = false;
+
+  // Already made for this part of this plan? Show that first: no model call,
+  // no allowance used, and the next substitute gets the same, tested answer.
+  const have = opts.fresh ? null : storedFor(opts);
+  if (have) {
+    $('sheetbody').innerHTML = sheetHtml(extraBody(have).body, 'stored', '', have.id, opts) +
+      '<div class="strow noprint"><button class="stbtn" data-assistnew="1">' + esc(l.genNew) + '</button>' +
+      '<button class="stbtn" data-student="x:' + have.id + '">' + esc(l.forStudents) + '</button></div>';
+    return;
+  }
+  $('sheetbody').innerHTML = '<h3><span class="spin"></span> ' + esc(l.working) + '</h3>';
 
   const p = currentBody();
   const payload = {
@@ -838,6 +847,7 @@ async function runAssist(opts) {
     year_group: DATA.year_group,
     topic: p?.title || DATA.title,
     minutes_left: opts.minutes || undefined,
+    fresh: opts.fresh || undefined,
   };
 
   // Check the quota first. Once a real model is connected, a blocked
@@ -1563,6 +1573,10 @@ document.addEventListener('click', async (e) => {
       variant: a.getAttribute('data-variant') || '',
       text: a.closest('.phase, .ps')?.innerText?.slice(0, 1200) || '',
     });
+  }
+
+  if (e.target.closest('[data-assistnew]') && LASTASSIST) {
+    return runAssist(Object.assign({}, LASTASSIST, { fresh: true }));
   }
 
   const fill = e.target.closest('[data-fill]');
