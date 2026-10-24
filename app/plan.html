@@ -207,6 +207,11 @@
   .stbtn:hover{background:var(--line-soft)}
   .stbtn.presentbtn{background:#1b5fc4;color:#fff;border-color:#1b5fc4;padding:10px 18px;font-size:15px;box-shadow:0 2px 6px rgba(27,95,196,.35)}
   .stbtn.presentbtn:hover{background:#154c9d}
+  .startrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 0 4px}
+  .startbtn{background:#1b5fc4;color:#fff;border:0;border-radius:12px;padding:14px 26px;font:inherit;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(27,95,196,.4)}
+  .startbtn:hover{background:#154c9d}
+  .startbtn:focus-visible{outline:3px solid #9cc2f5;outline-offset:2px}
+  .starthint{font-size:13px;color:var(--ink-soft);flex:1;min-width:200px}
   .strow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
   #student{position:fixed;inset:0;z-index:90;background:#fff;overflow:auto;padding:20px 16px 60px}
   #student .in{max-width:760px;margin:0 auto}
@@ -269,7 +274,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="c2202d896e21">
+<meta name="lk-build" content="cf590571f911">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -392,7 +397,7 @@ const SV_LABELS = {
   modelAns: 'Svar', togetherH: 'Ett tillsammans',
   miscH: 'Vanliga fel — och vad du säger', miscWhy: 'Varför de svarar så', miscSay: 'Säg då',
   whereH: 'Var sakerna finns', railWhere: 'Du är här',
-  teachBtn: '▶ Starta lektionsläge', prepBtn: '← Hela planen', projBtn: 'Visa för klassen',
+  teachBtn: '▶ Starta lektionen', teachHint: 'Ett steg i taget, helskärm. Börja här när du står i klassrummet.', prepBtn: '← Hela planen', projBtn: 'Visa för klassen',
   nextPhase: 'Nästa', prevPhase: 'Tillbaka', phaseOf: 'av',
   projTitle: 'På tavlan', projHint: 'Stäng',
   projDeck: 'Visa hela lektionen', projModel: 'Exempel på tavlan',
@@ -454,7 +459,7 @@ const EN_LABELS = {
   modelAns: 'Answer', togetherH: 'One together',
   miscH: 'Common wrong answers — and what to say', miscWhy: 'Why they say it', miscSay: 'Then say',
   whereH: 'Where things are', railWhere: 'You are here',
-  teachBtn: '▶ Start teach mode', prepBtn: '← Full plan', projBtn: 'Show to the class',
+  teachBtn: '▶ Start the lesson', teachHint: 'One step at a time, full screen. Press this when you are in the classroom.', prepBtn: '← Full plan', projBtn: 'Show to the class',
   nextPhase: 'Next', prevPhase: 'Back', phaseOf: 'of',
   projTitle: 'On the board', projHint: 'Close',
   projDeck: 'Show the whole lesson', projModel: 'Worked example',
@@ -941,7 +946,9 @@ function render(d, keepScroll) {
           '<button data-pick="' + c + '"' + (c === LANG ? ' class="on"' : '') + '>' + (c === 'sv' ? 'SV' : 'EN') + '</button>').join('') + '</div>'
       : '') +
     '</div></div>' +
-    '<div class="strow noprint"><button class="stbtn pri" data-teach="1">' + esc(l.teachBtn) + '</button>' +
+    '<div class="startrow noprint"><button class="startbtn" data-teach="1">' + esc(l.teachBtn) + '</button>' +
+    '<span class="starthint">' + esc(l.teachHint) + '</span></div>' +
+    '<div class="strow noprint">' +
     '<button class="stbtn" data-quick="1">' + esc(l.quickBtn) + '</button>' +
     '<button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button>' +
     '<button class="stbtn" data-pack>' + esc(l.packBtn) + '</button></div>' +
