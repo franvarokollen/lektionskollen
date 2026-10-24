@@ -122,6 +122,7 @@ export function buildMessages(r: Record<string, unknown>) {
     '2. Embed everything: real questions WITH answers, maths WITH worked solutions, texts written out in full.',
     '3. Exactly ONE lesson. No alternatives, no "choose A or B".',
     '4. Script the teacher: what the substitute SAYS goes in quotes in "say".',
+    '4b. Any sentence or text the pupils are asked about goes in quote marks INSIDE the question, written out in full ("Is \"The school starts at 8\" a fact or an opinion?"). Never "the text you were given" or "the sentence on the board" without the words themselves.',
     '5. Anticipate pupils: likely answers, the common misconception, and the recovery move.',
     '6. Check understanding without hands-up (cold call, mini-whiteboards, exit ticket).',
     '7. Structure follows explicit instruction (Skolverket strukturerad undervisning / Rosenshine).',
