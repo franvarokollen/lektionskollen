@@ -160,6 +160,7 @@ Deno.serve(async (req) => {
         model,
         messages: msgs,
         ...temperature(),
+        ...thinking(),
         // 8000 was fine when nothing thought before answering. Current Claude
         // models reason first, and that reasoning is billed against the same
         // budget — so a plan this size could burn the whole allowance before a
