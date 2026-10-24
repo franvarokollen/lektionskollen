@@ -125,6 +125,17 @@
     function phaseCard(ph, i) {
       var ref = 'phase:' + i;
       var isModel = i === 1;
+
+      function clock(tt) {
+        // Shift the plan's own clock (it starts wherever it was written) onto the
+        // real lesson time, when the page knows it: class links do.
+        var sh = o.shiftMin || 0;
+        if (!sh || !tt) return tt;
+        return String(tt).replace(/(\d{1,2}):(\d{2})/g, function (_, h, mi) {
+          var v = ((+h * 60 + +mi + sh) % 1440 + 1440) % 1440;
+          return ('0' + Math.floor(v / 60)).slice(-2) + ':' + ('0' + (v % 60)).slice(-2);
+        });
+      }
       var isDone = !!(o.done && o.done[i]);
       var isCur = o.interactive && !isDone && firstOpen() === i;
       var skip = o.short && SKIPPABLE[i];
@@ -134,7 +145,7 @@
       if (isDone) {
         return '<div class="ph ' + kind(i) + ' ph-done" id="ph' + i + '">' +
           '<div class="ph-h"><span class="ph-n">&#10003;</span><strong>' + esc(ph.n) + '</strong>' +
-          '<span class="ph-t">' + esc(ph.t) + '</span>' +
+          '<span class="ph-t">' + esc(clock(ph.t)) + '</span>' +
           '<button class="ph-re noprint" data-stepre="' + i + '">' + esc(t('stepReopen') || 'Reopen') + '</button></div></div>';
       }
       return '<div class="ph ' + kind(i) + (isCur ? ' ph-cur' : '') + (skip ? ' ph-skip' : '') + '" id="ph' + i + '">' +
@@ -143,7 +154,7 @@
           (skip ? ' · <b class="canskip">' + esc(t('canSkip') || 'Can skip') + '</b>' : '') + '</div>' +
         '<div class="ph-h"><span class="ph-n">' + (i + 1) + '</span>' +
         '<strong>' + esc(ph.n) + '</strong>' + flag(ref) +
-        '<span class="ph-t">' + esc(ph.t) + '</span></div>' +
+        '<span class="ph-t">' + esc(clock(ph.t)) + '</span></div>' +
         (depth === 'full' && ph.say
           ? '<div class="say"><em>' + esc(t('say')) + '</em>' + esc(ph.say) + '</div>' : '') +
         (isModel ? modelBlock(p.model) : '') +
