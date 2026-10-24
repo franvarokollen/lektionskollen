@@ -68,7 +68,7 @@ window.LK_T = {
     allWritten: 'Allt material är utskrivet i planen.', ok: 'ok', requires: 'Kräver:',
     approvedTitle: 'Godkänd.', subLink: 'Vikarielänk:',
     nothingBefore: 'Inget går till vikarien innan du godkänt.',
-    regen: 'Skapa ny', approve: 'Godkänn', seeSubView: 'Se vikariens vy',
+    regen: 'Skapa ny', fromPool: 'Välj från banken', approve: 'Godkänn', seeSubView: 'Se vikariens vy',
     copyLink: 'Kopiera vikarielänk', copied: 'Vikarielänk kopierad', copiedShort: 'Kopierad', copyMail: 'Kopiera mejltext', mailHi: 'Hej!', mailIntro: 'Här är lektionsplanen för', mailNote: 'Länken öppnas direkt, ingen inloggning behövs. Säg gärna vad som funkade (eller inte) efter lektionen.', mailBye: 'Vänliga hälsningar', back: 'Tillbaka', open: 'Öppna',
 
     first90: 'De första 90 sekunderna', overview: 'Översikt', goalShort: 'Mål:',
@@ -219,7 +219,7 @@ window.LK_T = {
     allWritten: 'Every material is written out in the plan.', ok: 'ok', requires: 'Requires:',
     approvedTitle: 'Approved.', subLink: 'Substitute link:',
     nothingBefore: 'Nothing reaches the substitute until you approve it.',
-    regen: 'Generate another', approve: 'Approve', seeSubView: "See the substitute's view",
+    regen: 'Generate another', fromPool: 'Pick from the pool', approve: 'Approve', seeSubView: "See the substitute's view",
     copyLink: 'Copy substitute link', copied: 'Substitute link copied', copiedShort: 'Copied', copyMail: 'Copy email text', mailHi: 'Hi,', mailIntro: 'Here is the lesson plan for', mailNote: 'The link opens straight away, no login needed. Please tell us what worked (or did not) after the lesson.', mailBye: 'Kind regards', back: 'Back', open: 'Open',
 
     first90: 'The first ninety seconds', overview: 'Overview', goalShort: 'Goal:',
