@@ -58,30 +58,35 @@ function compare(a, b, labelA, labelB, where) {
   else ok(`${where}: nothing left untranslated`);
 }
 
-console.log('i18n.js');
-const i18nSrc = read('i18n.js');
+console.log('i18n.ts');
+// Duplicate keys are checked in the TypeScript (the compiler rejects them too, but
+// this names the block); the values are compared from the built file the page loads.
+const srcOf = (f) => readFileSync(new URL('../app-src/' + f, import.meta.url), 'utf8');
+const i18nSrc = srcOf('i18n.ts');
 const sandbox = { window: {} };
 createContext(sandbox);
-runInContext(i18nSrc, sandbox);
+runInContext(read('i18n.js'), sandbox);
 const T = sandbox.window.LK_T;
 if (!T || !T.sv || !T.en) { fail('i18n.js did not define window.LK_T.sv and .en'); }
 else {
-  const svBlock = i18nSrc.slice(i18nSrc.indexOf('sv: {'), i18nSrc.indexOf('en: {'));
-  const enBlock = i18nSrc.slice(i18nSrc.indexOf('en: {'));
+  const svBlock = i18nSrc.slice(i18nSrc.indexOf('const sv = {'), i18nSrc.indexOf('const en: Strings = {'));
+  const enBlock = i18nSrc.slice(i18nSrc.indexOf('const en: Strings = {'));
   duplicateKeys(svBlock, 'sv');
   duplicateKeys(enBlock, 'en');
   compare(T.sv, T.en, 'sv', 'en', 'app strings');
 }
 
-console.log('plan.html');
-const plan = read('plan.html');
+console.log('plan-labels.ts');
+const labelsSrc = srcOf('plan-labels.ts');
 const literal = (name) => {
-  const i = plan.indexOf(`const ${name} = {`);
+  const i = labelsSrc.indexOf(`const ${name}`);
   if (i < 0) return null;
-  return plan.slice(i + `const ${name} = `.length, plan.indexOf('\n};', i) + 2);
+  const open = labelsSrc.indexOf('= {', i) + 2;
+  const close = labelsSrc.indexOf('\n}', open) + 2;
+  return labelsSrc.slice(open, close);
 };
 const SV = literal('SV_LABELS'), EN = literal('EN_LABELS');
-if (!SV || !EN) fail('plan.html: could not find SV_LABELS / EN_LABELS');
+if (!SV || !EN) fail('plan-labels.ts: could not find SV_LABELS / EN_LABELS');
 else {
   duplicateKeys(SV, 'SV_LABELS');
   duplicateKeys(EN, 'EN_LABELS');

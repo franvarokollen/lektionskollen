@@ -14,6 +14,7 @@ const ENTRIES = {
   'app/i18n.js': 'app-src/i18n.entry.ts',
   'app/plan-view.js': 'app-src/plan-view.entry.ts',
   'app/lk.js': 'app-src/lk.ts',
+  'app/plan.js': 'app-src/plan.ts',
 };
 const only = process.argv.includes('--check');
 let stale = 0;

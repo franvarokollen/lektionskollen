@@ -7,8 +7,9 @@
 // exit answer, and the answer to the "one together" question the class has to
 // attempt first.
 //
-// deckOf is read straight out of app/plan.html rather than copied, so this
-// cannot pass against a stale duplicate of the function it is testing.
+// deckOf is imported from the same TypeScript the page is built from
+// (app-src/deck.ts, transpiled here), not copied, so this cannot pass against
+// a stale duplicate of the function it is testing.
 //
 //   node tools/deck-check.mjs                 the built-in fixture
 //   node tools/deck-check.mjs plan.json ...   bodies from lk_plan
@@ -16,18 +17,13 @@
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { transform } from 'esbuild';
 
-const page = readFileSync(new URL('../app/plan.html', import.meta.url), 'utf8');
-const from = page.indexOf('  /** Is this text already on a slide');
-const to = page.indexOf('  var DECK = null, DI = 0;');
-if (from === -1 || to === -1 || to < from) {
-  console.error('deck-check: could not find deckOf in app/plan.html');
-  process.exit(2);
-}
+const ts = readFileSync(new URL('../app-src/deck.ts', import.meta.url), 'utf8');
+const { code } = await transform(ts, { loader: 'ts', format: 'esm', target: 'es2020' });
 const dir = mkdtempSync(join(tmpdir(), 'lk-deck-'));
 const mod = join(dir, 'deck.mjs');
-writeFileSync(mod, page.slice(from, to).replace('function deckOf', 'export function deckOf')
-  .replace('function deckScope', 'export function deckScope').replace('function deckAll', 'export function deckAll'));
+writeFileSync(mod, code);
 const { deckOf, deckScope, deckAll } = await import(`file://${mod}`);
 
 const L = { projModel: 'Worked example', projStep: 'Step', projTasks: 'Tasks', projExit: 'Before you go' };
