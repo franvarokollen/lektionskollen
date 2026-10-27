@@ -1,13 +1,29 @@
 #!/bin/sh
-# Keep the build stamp honest: anything staged under app/ restamps the pages.
 # Install once:  ln -s ../../tools/pre-commit .git/hooks/pre-commit
+#
+# 1. The app is written in TypeScript under app-src/ and built into app/*.js,
+#    which is what Pages serves. Typecheck, rebuild, and stage the output, so a
+#    commit can never carry source and a stale bundle (or a bundle nobody can
+#    trace back to source).
+if git diff --cached --name-only | grep -q '^app-src/\|^tsconfig.json$\|^tools/build-app.mjs$'; then
+  node_modules/.bin/tsc -p . || { echo "pre-commit: typecheck failed"; exit 1; }
+  node tools/build-app.mjs >/dev/null || exit 1
+  git add app/*.js
+fi
+
+# 2. Keep the build stamp honest: anything staged under app/ restamps the pages.
 if git diff --cached --name-only | grep -q '^app/'; then
   node tools/stamp-build.mjs || exit 1
   git add app/index.html app/plan.html app/version.txt
 fi
 
-# The projector reads the plan's fields directly, so a careless edit there is
-# how a class gets shown the answers. Cheap enough to run on every commit.
-if git diff --cached --name-only | grep -q '^app/plan.html$'; then
+# 3. The projector reads the plan's fields directly, so a careless edit there is
+#    how a class gets shown the answers. Cheap enough to run on every commit.
+if git diff --cached --name-only | grep -q '^app-src/deck.ts$'; then
   node tools/deck-check.mjs || exit 1
+fi
+
+# 4. Both languages, every time.
+if git diff --cached --name-only | grep -q '^app-src/i18n.ts$\|^app-src/plan-labels.ts$'; then
+  node tools/i18n-check.mjs || exit 1
 fi
