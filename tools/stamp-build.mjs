@@ -21,7 +21,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 const PAGES = ['app/index.html', 'app/plan.html'];
-const HASHED = [...PAGES, 'app/lk.js', 'app/lk.css', 'app/i18n.js'];
+const HASHED = [...PAGES, 'app/lk.js', 'app/lk.css', 'app/i18n.js', 'app/plan.js', 'app/plan-view.js'];
 const STAMP = /(<meta name="lk-build" content=")[^"]*(">)/;
 
 // The build id is a hash of what is actually served. Hashing the files with
