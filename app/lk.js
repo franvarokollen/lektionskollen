@@ -224,6 +224,9 @@
     checks: {},
     // Which shelf of the pool is open, remembered between visits.
     pool: loadPoolPick(),
+    pshare: null,
+    shareAi: void 0,
+    hasOrigin: false,
     // Set once a plan is opened: who approved it and how.
     shareToken: void 0,
     approved: void 0,
@@ -234,14 +237,61 @@
     apprSubject: void 0,
     apprStale: void 0
   };
+  var AUTH_KEY = "lk.mockAuth";
+  function mockAuth() {
+    if (EMBED) return { method: "fvk" };
+    try {
+      return JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
+    } catch {
+      return null;
+    }
+  }
+  function showSignIn() {
+    $("signin").hidden = false;
+    applyStatic();
+  }
+  function mockSignIn(method) {
+    let email;
+    if (method === "email") {
+      email = maybe$("si-email")?.value.trim() || "";
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        toast(t("siBadEmail"));
+        return;
+      }
+    }
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify({ method, email }));
+    } catch {
+    }
+    $("signin").hidden = true;
+    boot();
+  }
+  function authLabel() {
+    const a = mockAuth();
+    if (!a) return "";
+    return t("via_" + a.method) + (a.email ? " \xB7 " + a.email : "");
+  }
+  function fvkLinkCard() {
+    return '<h4 style="margin-top:18px">' + esc(t("fvkLinkTitle")) + '</h4><p class="hint">' + esc(t("fvkLinkNote")) + '</p><div class="covrow"><span class="chip chip-neutral">' + esc(t(EMBED ? "fvkLinked" : "fvkNotLinked")) + "</span>" + (EMBED ? "" : "<button data-fvklink>" + esc(t("fvkLinkBtn")) + "</button>") + "</div>";
+  }
   function boot() {
     document.documentElement.lang = LANG;
     applyStatic();
+    if (!mockAuth()) {
+      showSignIn();
+      return;
+    }
     renderNav();
     enterApp().then(() => Promise.all([loadFeedback(), loadUses()])).then(() => EMBED ? openEmbed() : loadCoverPlans().then(renderRows)).catch(() => {
     });
   }
-  $("signout").addEventListener("click", () => location.reload());
+  $("signout").addEventListener("click", () => {
+    try {
+      localStorage.removeItem(AUTH_KEY);
+    } catch {
+    }
+    location.reload();
+  });
   async function enterApp() {
     const { data, error } = await sb.rpc("lk_me");
     if (error) {
@@ -255,7 +305,10 @@
     state.me = data;
     $("app").hidden = false;
     $("schoolname").textContent = data.school;
-    $("username").textContent = data.role === "demo" ? "Delad testmilj\xF6" : data.role;
+    $("username").textContent = data.role === "demo" ? t("demoRole") : data.role;
+    $("username").title = authLabel();
+    const via = maybe$("userauth");
+    if (via) via.textContent = authLabel();
     $("pagesub").textContent = (/* @__PURE__ */ new Date()).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     renderRows();
     loadBank();
@@ -614,10 +667,10 @@
   async function loadBank() {
     const scope = $("f-scope").value || "all";
     const approval = $("f-approval").value || "any";
-    const { data, error } = await sb.rpc(
-      "lk_pool",
-      { p_subject: null, p_year: null, p_scope: scope, p_approval: approval }
-    );
+    const origin = $("f-origin").value || "any";
+    const args = { p_subject: null, p_year: null, p_scope: scope, p_approval: approval };
+    if (origin !== "any") args.p_origin = origin;
+    const { data, error } = await sb.rpc("lk_pool", args);
     if (error) {
       $("bankgrid").innerHTML = '<p class="note">' + esc(t("errBank")) + " " + esc(error.message) + "</p>";
       return;
@@ -635,6 +688,9 @@
       }
     };
     fixed($("f-scope"), [["all", t("allSources")], ["mine", t("ourSchool")], ["shared", t("sharedOnly")]]);
+    if (state.bank.some((b) => b.origin)) state.hasOrigin = true;
+    $("f-origin").hidden = !state.hasOrigin;
+    fixed($("f-origin"), [["any", t("filtAnyOrigin")], ["ai", t("filtAi")], ["teacher", t("filtTeacherMade")]]);
     fixed($("f-approval"), [
       ["any", t("filtAnyAppr")],
       ["approved", t("filtApproved")],
@@ -686,7 +742,12 @@
     const who = [b.approved_name, rank >= 2 && b.approved_subject ? subjectLabel(b.approved_subject) : ""].filter(Boolean).join(", ");
     const status = apprStars(rank, who) + (!b.approved ? '<span class="chip chip-warn">' + esc(t("notApproved")) + "</span>" : b.approval_stale ? '<span class="chip chip-warn">' + esc(t("chipStale")) + "</span>" : '<span class="aplvl">' + esc(apprLevelName(rank)) + "</span>");
     const score = !b.approved ? "" : n ? '<span class="pc-score ' + (sc >= 75 ? "hi" : sc >= 55 ? "mid" : sc >= 40 ? "lo" : "bad") + '">' + sc + '</span><span class="pc-n">' + esc(fillT(n === 1 ? "scOne" : "scMany", { n })) + "</span>" : '<span class="pc-new">' + esc(t("scNew")) + "</span>";
-    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + '</div><p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + "</span> \xB7 " : "") + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status + score + "</div>" + usedLine(b.id) + "</div>";
+    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + "</div>" + originLine(b) + '<p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + "</span> \xB7 " : "") + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status + score + "</div>" + usedLine(b.id) + "</div>";
+  }
+  function originLine(b) {
+    if (!b.origin) return "";
+    const tch = b.origin === "teacher";
+    return '<p class="pc-orig"><span class="orig ' + (tch ? "tch" : "ai") + '">' + esc(t(tch ? "origTeacher" : "origAi")) + "</span>" + (tch && b.author_name ? '<span class="muted">' + esc(b.author_name) + "</span>" : "") + (b.mine && b.share_allowed === false ? '<span class="orig loc">' + esc(t("localOnly")) + "</span>" : "") + "</p>";
   }
   function loadPoolPick() {
     try {
@@ -1064,6 +1125,14 @@
     state.plan = pickBody();
     state.planId = data.id;
     applyApproval(data);
+    state.pshare = data.origin ? {
+      origin: data.origin,
+      author: data.author_name || null,
+      allowed: !!data.share_allowed,
+      choice: data.share_choice ?? null,
+      mine: !!data.mine,
+      shared: !!data.shared
+    } : null;
     state.shareToken = data.share_token;
     state.model = data.model || null;
     if (!state.row) state.row = { id: "", raw: "", subject: data.subject, year: data.year_group, group: "\u2014", mins: data.minutes, time: "", start: "", end: "", room: "\u2014", teacher: "\u2014", cover: null };
@@ -1107,7 +1176,14 @@
     }, 0);
     const lt = subLinkToken();
     const link = lt ? planUrl(lt) : null;
-    return '<div class="plan"><div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t("whatItIs")) + "</h4><p>" + esc(p.summary) + '</p></div><div class="twocol"><div class="callout"><strong>' + esc(t("goal")) + "</strong>" + esc(p.goal) + '</div><div class="callout"><strong>' + esc(t("curriculum")) + '</strong><span style="font-size:12.5px">' + esc(p.curriculum) + '</span></div></div><div class="ps"><h4>' + esc(t("toCheck")) + "</h4><ul><li>" + esc(t("phasesSum")) + " <b>" + sum + " " + esc(t("min")) + "</b> \u2014 " + esc(t("lessonIs")) + " " + r.mins + " " + esc(t("min")) + ". " + (sum === r.mins ? '<span class="chip chip-ok">' + esc(t("matches")) + "</span>" : '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>") + "</li><li>" + esc(t("allWritten")) + ' <span class="chip chip-ok">' + esc(t("ok")) + "</span></li><li>" + esc(t("requires")) + " " + esc(p.equipment?.need || "\u2014") + "</li></ul></div>" + (state.approved ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>\u2713</span><div><b>' + esc(t("approvedTitle")) + "</b> " + apprSignedLine() + " " + (link ? esc(t("subLink")) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t("copyLink")) + '">' + CHK + '<span class="cl-label">' + esc(link) + "</span></button>" : "") + "</div></div>" : "") + '<div class="foot">' + (state.approved ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t("seeSubView")) + "</button>" + (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyMail")) + "</span></button>" : "") + (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyLink")) + "</span></button>" : "") : '<span class="hint">' + esc(t("nothingBefore")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-frompool>' + esc(t("fromPool")) + '</button><button class="btn btn-ghost" data-regen>' + esc(t("regen")) + "</button>" + apprButtons(0)) + "</div></div>";
+    return '<div class="plan"><div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t("whatItIs")) + "</h4><p>" + esc(p.summary) + '</p></div><div class="twocol"><div class="callout"><strong>' + esc(t("goal")) + "</strong>" + esc(p.goal) + '</div><div class="callout"><strong>' + esc(t("curriculum")) + '</strong><span style="font-size:12.5px">' + esc(p.curriculum) + '</span></div></div><div class="ps"><h4>' + esc(t("toCheck")) + "</h4><ul><li>" + esc(t("phasesSum")) + " <b>" + sum + " " + esc(t("min")) + "</b> \u2014 " + esc(t("lessonIs")) + " " + r.mins + " " + esc(t("min")) + ". " + (sum === r.mins ? '<span class="chip chip-ok">' + esc(t("matches")) + "</span>" : '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>") + "</li><li>" + esc(t("allWritten")) + ' <span class="chip chip-ok">' + esc(t("ok")) + "</span></li><li>" + esc(t("requires")) + " " + esc(p.equipment?.need || "\u2014") + "</li></ul></div>" + (state.approved ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>\u2713</span><div><b>' + esc(t("approvedTitle")) + "</b> " + apprSignedLine() + " " + (link ? esc(t("subLink")) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t("copyLink")) + '">' + CHK + '<span class="cl-label">' + esc(link) + "</span></button>" : "") + "</div></div>" : "") + shareTick() + '<div class="foot">' + (state.approved ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t("seeSubView")) + "</button>" + (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyMail")) + "</span></button>" : "") + (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyLink")) + "</span></button>" : "") : '<span class="hint">' + esc(t("nothingBefore")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-frompool>' + esc(t("fromPool")) + '</button><button class="btn btn-ghost" data-regen>' + esc(t("regen")) + "</button>" + apprButtons(0)) + "</div></div>";
+  }
+  function shareTick() {
+    const s = state.pshare;
+    if (!s || !s.mine) return "";
+    const hint = s.origin === "teacher" ? t("shareHintTeacher") : fillT("shareHintAi", { s: t(state.shareAi === false ? "setOff" : "setOn") });
+    const now = !s.allowed ? t("shareOff") : s.shared ? t("shareNow") : t("shareWaits");
+    return '<label class="sharetick"><input type="checkbox" data-shareplan' + (s.allowed ? " checked" : "") + "><span><b>" + esc(t("shareTitle")) + '</b> <span class="orig ' + (s.origin === "teacher" ? "tch" : "ai") + '">' + esc(t(s.origin === "teacher" ? "origTeacher" : "origAi")) + '</span><br><span class="hint">' + esc(now) + " " + esc(hint) + "</span></span></label>";
   }
   function assistRow(ref, label) {
     const a = (k, v, txt) => '<button data-assist="' + k + '" data-ref="' + esc(ref) + '"' + (v ? ' data-variant="' + v + '"' : "") + ' data-alabel="' + esc(label) + '">' + esc(txt) + "</button>";
@@ -1219,6 +1295,45 @@
     }
     const tab = tg.closest("[data-tab]");
     if (tab) return showPlansTab(tab.getAttribute("data-tab"));
+    const shp = tg.closest("[data-shareplan]");
+    if (shp && state.planId) {
+      const want = shp.checked;
+      const { data, error } = await sb.rpc("lk_set_plan_share", { p_id: state.planId, p_allow: want });
+      if (error || !data || data.error) {
+        shp.checked = !want;
+        toast(error?.message || t("errNeedsDb"));
+        return;
+      }
+      if (state.pshare) {
+        state.pshare.allowed = !!data.share_allowed;
+        state.pshare.choice = want;
+        state.pshare.shared = !!data.shared;
+      }
+      toast(t(want ? "shareOnToast" : "shareOffToast"));
+      showPlan();
+      loadBank();
+      return;
+    }
+    const sai = tg.closest("[data-shareai]");
+    if (sai) {
+      const on = sai.getAttribute("data-shareai") === "1";
+      const { error } = await sb.rpc("lk_set_share_ai", { p_on: on });
+      if (error) {
+        toast(error.message);
+        return;
+      }
+      state.shareAi = on;
+      renderSettings();
+      toast(t("shareSaved"));
+      loadBank();
+      return;
+    }
+    if (tg.closest("[data-fvklink]")) {
+      toast(t("authLater"));
+      return;
+    }
+    const signin = tg.closest("[data-signin]");
+    if (signin) return mockSignIn(signin.getAttribute("data-signin"));
     const psub = tg.closest("[data-poolsub]");
     if (psub) return openShelf(psub.getAttribute("data-poolsub"), "");
     const pyr = tg.closest("[data-poolyr]");
@@ -1458,7 +1573,7 @@
   $("overlay").addEventListener("mousedown", (e) => {
     if (e.target.id === "overlay") closeAddin();
   });
-  ["f-scope", "f-approval"].forEach((id) => $(id).addEventListener("change", loadBank));
+  ["f-scope", "f-approval", "f-origin"].forEach((id) => $(id).addEventListener("change", loadBank));
   var KIND_KEY = { explain: "aExplain", exercise: "aExercise", filler: "aFill" };
   function kindLabel(kind, variant) {
     if (kind === "level") return t(variant === "easier" ? "aEasier" : "aHarder");
@@ -1478,12 +1593,14 @@
   async function loadSettings() {
     const { data } = await sb.rpc("lk_get_settings");
     if (data && data.assist_cap !== void 0) state.cap = data.assist_cap;
+    state.shareAi = data && typeof data.share_ai === "boolean" ? data.share_ai : void 0;
     renderSettings();
   }
   function renderSettings() {
     const box = maybe$("fbsettings");
     if (!box) return;
-    box.innerHTML = "<h4>" + esc(t("capTitle")) + '</h4><p class="hint">' + esc(t("capNote")) + '</p><div class="covrow">' + [[5, "5"], [20, "20"], [-1, t("capUnlimited")]].map(([v, lbl]) => '<button data-cap="' + v + '"' + (state.cap === v ? ' class="on"' : "") + ">" + esc(lbl) + "</button>").join("") + "</div>";
+    box.innerHTML = "<h4>" + esc(t("capTitle")) + '</h4><p class="hint">' + esc(t("capNote")) + '</p><div class="covrow">' + [[5, "5"], [20, "20"], [-1, t("capUnlimited")]].map(([v, lbl]) => '<button data-cap="' + v + '"' + (state.cap === v ? ' class="on"' : "") + ">" + esc(lbl) + "</button>").join("") + "</div>" + // Only once the database knows the setting; an older one would just error.
+    (state.shareAi === void 0 ? "" : '<h4 style="margin-top:18px">' + esc(t("shareAiTitle")) + '</h4><p class="hint">' + esc(t("shareAiNote")) + '</p><div class="covrow"><button data-shareai="1"' + (state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOn")) + '</button><button data-shareai="0"' + (!state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOff")) + "</button></div>") + fvkLinkCard();
   }
   async function loadFeedback() {
     loadSettings();

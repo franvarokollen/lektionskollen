@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="./lk.css">
-<meta name="lk-build" content="489342d1ed5c">
+<meta name="lk-build" content="8f1113ee7b63">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -48,6 +48,29 @@
 </head>
 <body>
 
+<!-- Sign-in (mocked). Lektionskollen's own sign-in for schools without
+     Frånvarokollen; inside FVK this never shows. See docs/AUTH.md. -->
+<div class="signin" id="signin" hidden>
+  <div class="si-card">
+    <div class="si-brand"><span class="si-mark">LK</span><span>Lektionskollen</span></div>
+    <h2 data-t="siTitle">Logga in</h2>
+    <p class="hint" data-t="siLead"></p>
+    <button class="si-btn" data-signin="google"><span class="si-ico g">G</span><span data-t="siGoogle">Fortsätt med Google</span></button>
+    <button class="si-btn" data-signin="microsoft"><span class="si-ico ms"><i></i><i></i><i></i><i></i></span><span data-t="siMicrosoft">Fortsätt med Microsoft</span></button>
+    <div class="si-or"><span data-t="siOr">eller</span></div>
+    <div class="si-email">
+      <input id="si-email" type="email" autocomplete="email" placeholder="namn@skola.se">
+      <button class="btn btn-ghost" data-signin="email" data-t="siEmailBtn">Skicka länk</button>
+    </div>
+    <p class="si-fvk" data-t="siFvk"></p>
+    <div class="si-demo">
+      <span class="chip chip-warn" data-t="siMockChip">Demo</span>
+      <span class="hint" data-t="siMockNote"></span>
+      <button class="btn btn-primary btn-sm" data-signin="demo" data-t="siDemo">Öppna demoskolan</button>
+    </div>
+  </div>
+</div>
+
 <div class="shell" id="app">
   <aside class="sidebar">
     <div class="sb-top">
@@ -72,7 +95,7 @@
     <div class="sb-user">
       <div class="userrow">
         <div class="avatar" id="avatar">TS</div>
-        <div class="userinfo"><p id="username">…</p></div>
+        <div class="userinfo"><p id="username">…</p><p class="userauth" id="userauth"></p></div>
         <button class="signout" id="signout" data-t="signOut">Logga ut</button>
       </div>
     </div>
@@ -153,6 +176,7 @@
         <div class="filters">
           <div class="seg" id="poolview"></div>
           <select id="f-scope"></select>
+          <select id="f-origin" hidden></select>
           <select id="f-approval"></select>
           <span class="spacer"></span>
           <button class="btn btn-ghost btn-sm" id="refreshbank" data-t="refresh">Uppdatera</button>
