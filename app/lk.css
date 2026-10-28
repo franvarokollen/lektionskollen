@@ -976,3 +976,28 @@ button.cv:hover{outline:2px solid var(--navy);outline-offset:1px}
 .crcheck details{margin-top:6px;color:var(--ink-soft)}
 .crcheck summary{cursor:pointer;font-size:12.5px}
 .crlabel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
+
+/* ── Waiting for the AI: Kollen the owl ── */
+.gen.wait{padding:26px 20px 30px;gap:12px}
+.owl{width:150px;height:140px;overflow:visible}
+.owl-bob{animation:owlbob 2.4s ease-in-out infinite;transform-origin:70px 110px}
+.owl-eyes{animation:owlread 3.2s ease-in-out infinite}
+.owl-lids{transform-origin:70px 56px;transform:scaleY(0);animation:owlblink 4.6s infinite}
+.owl-tassel{transform-origin:100px 34px;animation:owltassel 2.4s ease-in-out infinite}
+.owl-ink line{stroke-dasharray:26;stroke-dashoffset:26;animation:owlink 4s linear infinite}
+.owl-ink .l2{animation-delay:1s}.owl-ink .l3{animation-delay:2s}.owl-ink .l4{animation-delay:3s}
+.owl-pencil{animation:owlpencil 4s linear infinite}
+@keyframes owlbob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(-2deg)}}
+@keyframes owlread{0%,100%{transform:translateX(-3px)}50%{transform:translateX(3px)}}
+@keyframes owlblink{0%,92%,100%{transform:scaleY(0)}95%{transform:scaleY(1)}}
+@keyframes owltassel{0%,100%{transform:rotate(0)}50%{transform:rotate(10deg)}}
+@keyframes owlink{0%{stroke-dashoffset:26;opacity:1}22%{stroke-dashoffset:0}85%{opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+@keyframes owlpencil{0%{transform:translate(40px,106px)}22%{transform:translate(62px,103px)}
+  25%{transform:translate(40px,111px)}47%{transform:translate(60px,108px)}
+  50%{transform:translate(80px,104px)}72%{transform:translate(102px,106px)}
+  75%{transform:translate(80px,109px)}97%{transform:translate(98px,111px)}100%{transform:translate(40px,106px)}}
+.waitrow{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink-soft)}
+.waitrow .mono{font-weight:600;color:var(--navy)}
+.waittip{max-width:420px;min-height:36px;transition:opacity .3s}
+.gen.wait .bar i{background:var(--lk-grad);transition:width 1s linear}
+@media (prefers-reduced-motion:reduce){.owl *{animation:none!important}.owl-lids{transform:scaleY(0)}}
