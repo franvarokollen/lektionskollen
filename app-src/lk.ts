@@ -70,7 +70,7 @@ interface QueueItem {
   language?: string; language_alt?: string; body?: Extra | null; body_alt?: Extra | null;
 }
 interface TermRow { week: number | string; topic?: string; note?: string }
-interface TermCover { subject: string; year_group: string }
+interface TermCover { subject: string; year_group: string; weeks?: number; first_week?: number; last_week?: number; updated_at?: string }
 interface Verdict {
   ok?: boolean; warnings?: number; blockers?: number; subject_checked?: boolean; problems?: CheckProblem[];
 }
@@ -1796,6 +1796,15 @@ document.addEventListener('click', async (e) => {
   const blk = tg.closest<HTMLElement>('[data-blk]');
   if (blk) { const r = blk.getBoundingClientRect(); return openPop(blk.getAttribute('data-blk')!, r.right + 6, r.top); }
   if (await crClick(tg)) return;
+  const tpc = tg.closest<HTMLElement>('[data-tpcell]');
+  if (tpc) {
+    const [cs, cy] = tpc.getAttribute('data-tpcell')!.split('|');
+    $<HTMLSelectElement>('tp-subject').value = cs!; $<HTMLSelectElement>('tp-year').value = cy!;
+    renderTermCoverage();
+    await renderTermStored();
+    $('tp-stored').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   const tab = tg.closest<HTMLElement>('[data-tab]');
   if (tab) return showPlansTab(tab.getAttribute('data-tab')!);
   const shp = tg.closest<HTMLInputElement>('[data-shareplan]');
@@ -2233,7 +2242,43 @@ async function loadTerm() {
   keep($<HTMLSelectElement>('tp-subject'), subs, subjectLabel);
   keep($<HTMLSelectElement>('tp-year'), yrs, yearLabel);
   $<HTMLTextAreaElement>('tp-raw').placeholder = t('tpPastePh');
+  renderTermCoverage();
   renderTermStored();
+}
+
+/** The year planning at a glance, laid out like the bank's Coverage: every
+ *  subject down, F to Åk 9 across, each cell the number of weeks planned. The
+ *  gaps are the point — a missing year plan means every plan for that class
+ *  is a guess from the curriculum. A cell opens that subject and year below. */
+const TERM_FULL = 30;   // of about 40 teaching weeks: "the year is planned"
+function renderTermCoverage() {
+  const box = maybe$('tp-cov');
+  if (!box) return;
+  const cov = state.termCoverage;
+  const by = new Map(cov.map((c) => [canonSubject(c.subject) + '|' + canonYear(c.year_group), c] as [string, TermCover]));
+  const subs = [...new Set([...CATALOG_SUBJECTS, ...cov.map((c) => canonSubject(c.subject))])]
+    .filter(Boolean).sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b), LANG));
+  const yrs = [...new Set([...CATALOG_YEARS, ...cov.map((c) => canonYear(c.year_group))])]
+    .filter(Boolean).sort((a, b) => yearNum(a) - yearNum(b));
+  const { subject: curS, year: curY } = termWhere();
+  const planned = cov.length;
+  const head = '<tr><th></th>' + yrs.map((y) => '<th>' + esc(y === 'F' ? 'F' : yearLabel(y).replace(/^\D+/, '')) + '</th>').join('') + '</tr>';
+  const body = subs.map((s) => '<tr><th>' + esc(subjectLabel(s)) + '</th>' + yrs.map((y) => {
+    const c = by.get(s + '|' + y);
+    const n = Number(c?.weeks) || 0;
+    const on = s === curS && y === curY ? ' sel' : '';
+    const tip = n
+      ? fillT('tpCellTip', { n, a: c?.first_week ?? '', b: c?.last_week ?? '' }) + ' — ' + subjectLabel(s) + ', ' + yearLabel(y)
+      : t('tpCellEmpty') + ' — ' + subjectLabel(s) + ', ' + yearLabel(y);
+    return '<td><button class="cv ' + (n >= TERM_FULL ? 'full' : n ? 'some' : 'empty') + on + '" data-tpcell="' + esc(s) + '|' + esc(y) +
+      '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + (n || '+') + '</button></td>';
+  }).join('') + '</tr>').join('');
+  box.innerHTML = '<div class="bcard fx" style="max-width:900px"><h4>' + esc(t('tpCovH')) + '</h4>' +
+    '<p class="hint">' + esc(fillT('tpCovNote', { n: planned, full: TERM_FULL })) + '</p>' +
+    '<div class="poolcov"><table>' + head + body + '</table></div>' +
+    '<p class="cvlegend"><span class="cv full">36</span>' + esc(fillT('tpLegFull', { n: TERM_FULL })) +
+    '<span class="cv some">8</span>' + esc(t('tpLegSome')) +
+    '<span class="cv empty">+</span>' + esc(t('tpCellEmpty')) + '</p></div>';
 }
 
 /** The school year as an editable grid, one row per week, autumn first.
@@ -2449,7 +2494,7 @@ async function saveTerm() {
 }
 
 ['tp-subject', 'tp-year'].forEach((id) =>
-  $(id).addEventListener('change', () => { $('tp-preview').innerHTML = ''; renderTermStored(); }));
+  $(id).addEventListener('change', () => { $('tp-preview').innerHTML = ''; renderTermCoverage(); renderTermStored(); }));
 $('tp-reload').addEventListener('click', loadTerm);
 $('tp-read').addEventListener('click', readTerm);
 $('tp-pick').addEventListener('click', () => $('tp-file').click());

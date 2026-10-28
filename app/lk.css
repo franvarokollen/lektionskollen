@@ -976,3 +976,7 @@ button.cv:hover{outline:2px solid var(--navy);outline-offset:1px}
 .crcheck details{margin-top:6px;color:var(--ink-soft)}
 .crcheck summary{cursor:pointer;font-size:12.5px}
 .crlabel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
+
+/* Term plan coverage: the open subject and year stand out. */
+.poolcov .cv.sel{outline:2px solid var(--navy);outline-offset:1px}
+#tp-cov .cv.empty{cursor:pointer}
