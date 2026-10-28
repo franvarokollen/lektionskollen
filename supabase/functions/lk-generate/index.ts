@@ -14,7 +14,7 @@
 // used, because it points at the two things that still work: the class
 // teacher's own linked plan, and the bank of approved plans.
 
-import { buildMessages, buildTranslateMessages } from './prompt.ts'
+import { buildConvertMessages, buildMessages, buildTranslateMessages } from './prompt.ts'
 import { parseModelJson } from './repair.ts'
 
 // Temperature is omitted unless AI_TEMPERATURE is set. Anthropic's OpenAI
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
   // it: a school that has entered nothing gets exactly the behaviour it had
   // before.
   const fetchRecent = async () => {
-    if (translate || !r.subject || !r.year_group) return null
+    if (translate || convertText || !r.subject || !r.year_group) return null
     const rows = await rpc('lk_term_recent',
       { p_subject: r.subject, p_year: r.year_group, p_week: null, p_back: 3 })
     return Array.isArray(rows) && rows.length ? rows : null
@@ -107,6 +107,11 @@ Deno.serve(async (req) => {
   const bigModel = Deno.env.get('AI_MODEL')
   // A translation needs no planning, so it can run on the cheaper model.
   const translate = body.translate as Record<string, unknown> | undefined
+  // A teacher's own plan, pasted or uploaded: sorted into LK's shape, never
+  // written. Capped so a whole pasted handbook cannot run up a bill.
+  const convertIn = body.convert as { text?: string } | undefined
+  const convertText = typeof convertIn?.text === 'string' ? convertIn.text.slice(0, 20_000).trim() : ''
+  if (convertIn && !convertText) return json({ error: 'empty_text' }, 400)
   const model = translate ? (Deno.env.get('AI_MODEL_SMALL') || bigModel) : bigModel
   const t0 = Date.now()
 
@@ -149,6 +154,8 @@ Deno.serve(async (req) => {
   try {
     const messages = translate
       ? buildTranslateMessages(translate, String(r.language || 'sv'))
+      : convertText
+      ? buildConvertMessages(convertText, r)
       : buildMessages({ ...r, recent })
     const call = (msgs: unknown[]) => fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -212,7 +219,10 @@ Deno.serve(async (req) => {
     // plan, so this can only ever help.
     let gate: { blockers?: number; problems?: Array<Record<string, string>> } | null = null
     let fixedByGate = false
-    if (!translate && data) {
+    // Not for a teacher's own plan: the repair round would fill gaps by
+    // writing content, which is exactly what converting must not do. The
+    // teacher sees the gaps in the editor instead.
+    if (!translate && !convertText && data) {
       const check = (plan: unknown) => rpc('lk_check_plan',
         { p_body: plan, p_minutes: Number(r.minutes) || null, p_language: String(r.language || 'sv') })
       gate = await check(data)
