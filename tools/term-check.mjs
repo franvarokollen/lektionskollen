@@ -1,17 +1,32 @@
 // Does a pasted year plan become the right weeks, without a model?
-// Lifted from app/lk.js so it cannot pass against a stale copy.
+// The real parser (app-src/lk-term.ts), bundled here so this cannot pass
+// against a stale copy. Its imports — the database, the page — are stubbed.
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { build } from 'esbuild';
 
-const src = readFileSync(new URL('../app/lk.js', import.meta.url), 'utf8');
-// esbuild writes top-level consts as var; accept either.
-const from = Math.max(src.indexOf('const TERM_WEEK ='), src.indexOf('var TERM_WEEK ='));
-const to = src.indexOf('async function readTerm()');
-if (from < 0 || to < from) { console.error('term-check: parser not found'); process.exit(2); }
+const r = await build({
+  stdin: { contents: "export { parseTermPaste, termPasteIsRows, schoolYearPos } from './app-src/lk-term.ts';",
+           resolveDir: new URL('..', import.meta.url).pathname, loader: 'ts' },
+  bundle: true, format: 'esm', write: false, logLevel: 'warning',
+  plugins: [{ name: 'stub-app', setup(b) {
+    // Everything the term tab imports, except the catalogue (pure, and real),
+    // becomes a stub exporting exactly the names the importer asks for.
+    b.onResolve({ filter: /^\.\/lk(-[\w-]+)?$/ }, (a) => (a.path === './lk-catalog' ? undefined
+      : { path: a.path, namespace: 'stub', pluginData: a.importer }));
+    b.onLoad({ filter: /.*/, namespace: 'stub' }, (a) => {
+      const src = readFileSync(a.pluginData, 'utf8');
+      const m = new RegExp("import \\{ ([^}]*) \\} from '" + a.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "'").exec(src);
+      const names = m ? m[1].split(',').map((x) => x.trim()).filter(Boolean) : [];
+      const fake = { LANG: '"sv"', t: '(k) => k', fillT: '(k) => k', esc: '(x) => String(x ?? "")', state: '{}' };
+      return { contents: names.map((n) => `export const ${n} = ${fake[n] ?? '() => {}'};`).join('\n'), loader: 'js' };
+    });
+  } }],
+});
 const dir = mkdtempSync(join(tmpdir(), 'lk-term-'));
 const mod = join(dir, 't.mjs');
-writeFileSync(mod, src.slice(from, to) + '\nexport { parseTermPaste, termPasteIsRows, schoolYearPos };');
+writeFileSync(mod, r.outputFiles[0].text);
 const { parseTermPaste, termPasteIsRows, schoolYearPos } = await import('file://' + mod);
 
 let bad = 0;

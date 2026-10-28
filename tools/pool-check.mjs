@@ -9,9 +9,10 @@
 //   the ranking is lost, so the first card in a row is not the best plan;
 //   a coverage cell counts a different number of plans than its shelf shows.
 //
-// renderBank is lifted out of app/lk.js rather than copied, so this cannot
-// pass against a stale duplicate. Everything it touches that is not the
-// pool itself is stubbed.
+// renderBank is the real module (app-src/lk-pool.ts, with the real subject
+// and year catalogue), bundled here so this cannot pass against a stale
+// duplicate. Only lk-core — the database client, the page, the strings — is
+// stubbed.
 //
 //   node tools/pool-check.mjs                  the built-in fixture
 //   node tools/pool-check.mjs pool.json        rows from lk_pool
@@ -19,48 +20,36 @@
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { build } from 'esbuild';
 
-const src = readFileSync(new URL('../app/lk.js', import.meta.url), 'utf8');
-const from = src.indexOf('function yearNum(');
-const to = src.indexOf('function fillT(');
-if (from === -1 || to === -1 || to < from) {
-  console.error('pool-check: could not find renderBank in app/lk.js');
-  process.exit(2);
-}
-
-const STUB = `
-let LANG = 'sv';
+const CORE = `
+export let LANG = 'sv';
 export function setLang(l) { LANG = l; }
-const SUBJECTS_EN = { Matematik:'Maths', Svenska:'Swedish', Engelska:'English',
-  Biologi:'Biology', Fysik:'Physics', Kemi:'Chemistry', Historia:'History',
-  Geografi:'Geography', Musik:'Music', Idrott:'PE', Bild:'Art',
-  'Samhällskunskap':'Civics' };
-function subjectLabel(s){ if (LANG!=='en'||!s) return s||''; return SUBJECTS_EN[s]||s; }
-function yearLabel(y){ if (y==='F') return LANG==='en'?'Preschool class':'Förskoleklass';
-  if (LANG!=='en'||!y) return y||'';
-  const m=/^\\s*Åk\\s*(\\d+)/.exec(y); return m?'Year '+m[1]:y; }
-const esc = (x)=>String(x==null?'':x);
-const t = (k)=>k;
-const fillT = (k,o)=>k+JSON.stringify(o);
-const CHK = '';
-const canonSubject = (x) => String(x || '').trim();
-const canonYear = (x) => String(x || '').trim();
-const CATALOG_YEARS = ['F','Åk 1','Åk 2','Åk 3','Åk 4','Åk 5','Åk 6','Åk 7','Åk 8','Åk 9'];
-const CATALOG_SUBJECTS = ['Matematik','Svenska','Engelska','Biologi','Musik','Bild','Samhällskunskap'];
-const usedLine = ()=>'';
-const rowTitle = (b)=>b.title;
+export const esc = (x) => String(x == null ? '' : x);
+export const t = (k) => k;
+export const fillT = (k, o) => k + JSON.stringify(o);
+export const CHK = '';
 export const state = { bank: [], pool: { view: 'shelf', sub: '', yr: '' } };
 const EL = { innerHTML: '' };
-const $ = () => EL;
-const maybe$ = () => null;
-const localStorage = { getItem: () => null, setItem: () => {} };
+export const $ = () => EL;
+export const maybe$ = () => null;
+export const sb = {};
 export const out = () => EL.innerHTML;
-export { renderBank, yearNum };
 `;
 
+const r = await build({
+  stdin: { contents: "export { renderBank, yearNum } from './app-src/lk-pool.ts'; export { state, out, setLang } from 'lk-core-stub';",
+           resolveDir: new URL('..', import.meta.url).pathname, loader: 'ts' },
+  bundle: true, format: 'esm', write: false, logLevel: 'warning',
+  plugins: [{ name: 'stub-core', setup(b) {
+    b.onResolve({ filter: /(^|\/)lk-core(-stub)?$/ }, () => ({ path: 'lk-core', namespace: 'stub' }));
+    b.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: CORE, loader: 'js' }));
+  } }],
+});
 const dir = mkdtempSync(join(tmpdir(), 'lk-pool-'));
 const mod = join(dir, 'pool.mjs');
-writeFileSync(mod, STUB + '\n' + src.slice(from, to));
+// localStorage is only touched to remember the pick; node has none.
+writeFileSync(mod, 'const localStorage = { getItem: () => null, setItem: () => {} };\n' + r.outputFiles[0].text);
 const { renderBank, yearNum, state, out, setLang } = await import(`file://${mod}`);
 
 // Deliberately awkward: a two-digit year, a non-numeric year, one subject
