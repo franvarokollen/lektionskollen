@@ -1,68 +1,30 @@
 # Embedding Lektionskollen in Frånvarokollen
 
-Lektionskollen is a self-contained **add-in**. FVK loads it in an `<iframe>` and the two sides talk **only** through `postMessage`.
-It never reads FVK's database, and FVK never reaches into its UI.
+FVK opens Lektionskollen in an `<iframe>` (a side panel) on one covered lesson. The two talk only through the URL going in and `postMessage` coming out. LK never reads FVK's database; FVK stores nothing about LK.
 
-- **Add-in URL:** `https://<host>/lektionskollen/embed.html`
-- **Reference host:** `index.html` (the mock-FVK test harness). `src/harness/AddinFrame.jsx` is a working ~40-line host implementation.
-- **Protocol id:** every message is `{ protocol: "lektionskollen/1", type, payload }`
+The full, current integration (files to copy into FVK, patches, tests, the open auth bridge) is in [`fvk-integration/README.md`](../fvk-integration/README.md) and [`HANDOVER-FVK-INTEGRATION.md`](HANDOVER-FVK-INTEGRATION.md). This page is the contract in brief.
 
-## Lifecycle
+## In: the URL
 
 ```
-FVK                                   Add-in (iframe)
- │  user presses "Lektionsplan behövs"
- │── create iframe(embed.html) ───────▶│
- │◀──────────────── lk:ready ──────────│
- │── lk:init {mode, absence, …} ──────▶│  form prefilled from the absence
- │                                     │  … generates plan …
- │◀──────────── lk:plan-created ───────│  FVK marks the absence "has plan"
- │◀──────────── lk:send-to-sub ────────│  FVK sends it to the assigned vikarie
- │◀──────────────── lk:close ──────────│  FVK removes the iframe
+https://<host>/lektionskollen/app/?embed=1&lang=sv&ref=<lessonKey>
+  &subject=&code=&year=&group=&mins=&start=&end=&room=&teacher=&cover=&practical=
 ```
 
-## FVK → add-in
+The parameter list in `fvk-integration/src/lib/lektionskollen/lesson-to-request.ts` is the whole contract. No pupil data crosses; adding a parameter is a decision, not an accident.
 
-| type | payload | notes |
-|------|---------|-------|
-| `lk:init` | `{ mode: "request" \| "view", absence, planId?, lang: "sv" \| "en", token? }` | Send it after `lk:ready`. You can send it again to reuse the same iframe. |
-| `lk:set-lang` | `{ lang }` | Switch the UI language live. |
+## Out: messages to the parent
 
-**`absence`** carries the only FVK data the add-in receives. Keep it minimal, and **never send pupil data**.
+Every message is `{ source: 'lektionskollen', type, ...payload }`.
 
-```json
-{
-  "id": "abs-1002",            // FVK absence/cover id → stored as absence_ref
-  "teacher": "Anna Lindqvist",
-  "group": "8A",
-  "yearGroup": "Åk 8",
-  "subject": "Matematik",
-  "time": "09:40–10:40",
-  "durationMinutes": 60,
-  "cover": "Erik (vikarie)"     // or null
-}
-```
+| `type` | When | Payload |
+|--------|------|---------|
+| `lk:ready` | The panel is up | `ref` |
+| `lk:plan` | A plan was approved for this lesson | the substitute's link and plan details |
+| `lk:close` | The user closed the panel | — |
 
-**`token`** is the signed-in user's Supabase JWT (production), which the add-in uses to call the `generate-lesson` edge function.
-`ai` is a test-only override (`{ aiMode, baseUrl, model, jsonMode }`) that the harness uses. Ignore it in FVK.
+FVK must check `event.origin` against the LK host before trusting a message (see the handover, §4).
 
-## Add-in → FVK
+## Sign-in
 
-| type | payload | FVK should |
-|------|---------|------------|
-| `lk:ready` | `{ protocol }` | Reply with `lk:init`. |
-| `lk:plan-created` | `{ absenceRef, planId, title, model, durationMs }` | Store `planId` on the absence and show a "View plan" button. |
-| `lk:send-to-sub` | `{ absenceRef, planId, title }` | Send the plan link to the assigned vikarie (FVK owns the contact details). |
-| `lk:close` | `{}` | Remove the iframe. |
-| `lk:resize` | `{ height }` | Optional: size the iframe to its content. |
-| `lk:error` | `{ code, message }` | Optional: log it or show a message. |
-
-## Security
-- The add-in only accepts messages from origins listed in `VITE_ALLOWED_HOST_ORIGINS`. The test build uses `*`; production should set it to FVK's origin(s).
-- After `lk:init`, the add-in replies **only** to the origin that initialised it.
-- Data model: Lektionskollen's own tables (`lesson_requests`, `lesson_plans`) are keyed by `absence_ref`. FVK keeps the absence, Lektionskollen keeps the plan.
-
-## Open items for integration (phase 2)
-- **Shared auth:** decide whether this is the same Supabase project as FVK or a separate one with a token exchange.
-- **Plan storage:** move it from localStorage to `lesson_plans`. While storage is per-browser, `planId` only resolves in the browser that created the plan.
-- **Vikarie view:** a read-only page at `embed.html?share=<share_token>` that needs no login.
+LK has its own sign-in for schools without FVK. When linked, FVK hands its signed-in user over so nobody signs in twice. See [`AUTH.md`](AUTH.md).

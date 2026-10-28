@@ -354,7 +354,7 @@ function renderLoudPicker() {
   const el = maybe$('cv-loud');
   if (!el) return;
   el.innerHTML = '<span class="lbl">' + esc(t('cvHow')) + '</span>' +
-    [['quiet', 'cvQuiet'], ['marked', 'cvMarked'], ['nudge', 'cvNudge']].map(([v, k]) =>
+    ([['quiet', 'cvQuiet'], ['marked', 'cvMarked'], ['nudge', 'cvNudge']] as const).map(([v, k]) =>
       '<button class="' + (LOUD === v ? 'on' : '') + '" data-loud="' + v + '">' + esc(t(k)) + '</button>').join('') +
     '<span class="hint">' + esc(t('cvHowNote')) + '</span>';
 }
@@ -556,7 +556,7 @@ async function checkLink(url: string) {
   } catch {
     r = { status: 'unreachable' };
   }
-  const map: Record<string, string[]> = {
+  const map: Record<string, [string, string]> = {
     ok: ['ok', 'lkOk'],
     missing: ['bad', 'lkMissing'],
     private: ['warn', 'lkPrivate'],
@@ -564,7 +564,7 @@ async function checkLink(url: string) {
     unreachable: ['warn', 'lkUnreachable'],
     bad: ['bad', r && r.reason === 'not_http' ? 'lkNotHttp' : r && r.reason === 'private_address' ? 'lkPrivateAddr' : 'lkNotUrl'],
   };
-  const m = map[(r && r.status) || 'unreachable'] || map.unreachable;
+  const m = map[(r && r.status) || 'unreachable'] || map.unreachable!;
   box.className = 'linkstate ' + m[0];
   box.textContent = t(m[1]);
 }
@@ -642,7 +642,7 @@ function gridModel(): Grid {
     if (!c) { c = { teacher: r.teacher, blocks: [] }; cols.push(c); }
     c.blocks.push(r);
   });
-  const all = ROWS.map((r) => [hhmmToMins(r.start), hhmmToMins(r.end)]);
+  const all = ROWS.map((r) => [hhmmToMins(r.start), hhmmToMins(r.end)] as const);
   const from = Math.floor(Math.min(...all.map((x) => x[0])) / 60) * 60;
   const to = Math.ceil(Math.max(...all.map((x) => x[1])) / 60) * 60;
   const marks: number[] = [];
@@ -1175,7 +1175,7 @@ async function loadUses() {
 function usedLine(planId: string) {
   const u = usesOf(planId);
   if (!u.length) return '';
-  const last = u[0];
+  const last = u[0]!;
   return '<p class="shline used">' + esc(fillT('usedLast', { g: last.group_name, d: fmtDate(last.used_on) })) +
     (u.length > 1 ? ' ' + esc(fillT('usedTimes', { n: u.length })) : '') + '</p>';
 }
@@ -1329,7 +1329,7 @@ function showRequest() {
         matches.map((b) => { const had = usesOf(b.id, r.group); return '<button class="bankcard' + (had.length ? ' hadit' : '') + '" data-usebank="' + b.id + '">' +
           '<div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div>' +
           '<div class="m">' + b.minutes + ' ' + esc(t('min')) + ' · ' + b.rating_count + ' ' + esc(t('ratings')) + (b.shared ? ' · ' + esc(t('sharedTag')) : '') + '</div>' +
-          (had.length ? '<div class="hadwarn">⚠ ' + esc(fillT('hadIt', { g: r.group, d: fmtDate(had[0].used_on) })) + '</div>' : '') + '</div>' +
+          (had.length ? '<div class="hadwarn">⚠ ' + esc(fillT('hadIt', { g: r.group, d: fmtDate(had[0]!.used_on) })) + '</div>' : '') + '</div>' +
           '<span class="stars">' + stars(b.rating) + '</span>' +
           '<span class="btn btn-soft btn-sm">' + esc(t('use')) + '</span></button>'; }).join('') + '</div></div>'
       : '<div><div class="sect-h">' + esc(t('fromBank')) + '</div><p class="hint">' + esc(t('bankNone')) + ' ' + esc(subjectLabel(r.subject)) + ' ' + esc(yearLabel(r.year)) + ' ' + esc(t('bankNoneTail')) +
@@ -1667,7 +1667,7 @@ function showPlan() {
 }
 
 function minDiff(a: string, b: string) {
-  const [h1, m1] = a.split(':').map(Number), [h2, m2] = b.split(':').map(Number);
+  const [h1 = 0, m1 = 0] = a.split(':').map(Number), [h2 = 0, m2 = 0] = b.split(':').map(Number);
   return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
 

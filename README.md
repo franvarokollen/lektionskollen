@@ -1,84 +1,47 @@
 # Lektionskollen
 
-On-demand substitute lesson plans, built as a **Frånvarokollen add-in**. See [PLAN.md](PLAN.md), and for the FVK handover see [docs/EMBED.md](docs/EMBED.md).
+Lesson plans for Swedish schools: **create** them (with AI, from your own document, or by hand) and keep a **bank** of them, shared between schools when a plan has earned it. A standalone product that can be linked into Frånvarokollen (FVK) when a school has both.
 
-The repo contains two pages:
+Live: `https://franvarobot.github.io/lektionskollen/` (redirects to `app/`). Every push to `main` is served as-is by GitHub Pages. The old app stays at `/legacy/`.
 
-| Page | What it is |
+## What is where
+
+| Path | What it is |
 |------|------------|
-| `index.html` | **Test harness**: a mock FVK host that embeds the add-in exactly as FVK will, plus a live postMessage log and an AI-source switch. |
-| `embed.html` | **The add-in**: what FVK loads in an iframe. |
+| `app/` | **What Pages serves.** `index.html` (coordinator app), `plan.html` (the substitute's page), `lk.css`, and the built `*.js`. |
+| `app-src/` | The TypeScript the `app/*.js` files are built from. **Edit here, never `app/*.js`.** |
+| `supabase/migrations/` | Database schema and every `lk_*` function, in order. |
+| `supabase/functions/` | Edge functions: `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
+| `fvk-integration/` | Drop-in files for FVK's own codebase (not built here). |
+| `docs/` | `AUTH.md` (sign-in plan), `HANDOVER-FVK-INTEGRATION.md` + `FVK-ISSUES-lektionskollen.md` (the FVK link), `EMBED.md`. |
+| `tools/` | Build and checks (below). |
+| `legacy/` | The previous app, kept for reference. |
 
-## Test it online
-Every push to `main` deploys to `https://franvarobot.github.io/lektionskollen/`. The old app stays at `/legacy/`.
+## Work on it
 
-In the harness, press **⚙** (top right) to choose the AI source:
-- **Local model (this PC):** the page calls LM Studio or Ollama on `localhost`. Enable CORS in the server, and allow Chrome's *local network access* prompt.
-- **Hosted (Supabase):** the `generate-lesson` edge function, which is the production path. This needs the `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` repo Variables.
-
-## Run locally
-1. Start a local model with an OpenAI-compatible server:
-   - **LM Studio:** load a model (for example *Qwen2.5 14B Instruct* or *Gemma 3 12B*), start the server on port 1234, and **enable CORS**.
-   - **Ollama:** `OLLAMA_ORIGINS=* ollama serve`, then `ollama pull qwen2.5:14b`. Choose JSON mode `json_object` in ⚙.
-2. Run the app:
-   ```bash
-   npm install
-   npm run dev        # harness → http://localhost:5173   add-in → /embed.html
-   ```
-3. Press **Lektionsplan behövs** on an absence.
-
-> Models under ~12B parameters tend to produce weak Swedish and break the JSON. The repair parser helps, but quality comes from the model.
-
-## Edge function (the hosted path)
 ```bash
-supabase init && supabase start && supabase db reset
-cp supabase/functions/.env.example supabase/functions/.env
-supabase functions serve generate-lesson --env-file supabase/functions/.env
-```
-To switch model provider, change `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY` in the function secrets. No code change is needed.
-
-## Structure
-```
-index.html / embed.html     harness / add-in entry points
-src/
-  harness/                  mock FVK host: HarnessApp, AddinFrame, SettingsPanel, EventLog
-  embed/                    the add-in: EmbedApp (lk:init → form → plan → events)
-  components/               RequestModal, PlanView, AbsenceList, PlanLibrary
-  lib/bridge.js             postMessage protocol (lektionskollen/1)
-  lib/config.js             AI source: host init > harness settings > build env
-  lib/ai.js                 local model or edge function
-  lib/store.js              localStorage now → Supabase in phase 2
-supabase/
-  functions/_shared/        prompt.ts, generate.ts, json.ts (shared by the app AND the edge function)
-  functions/generate-lesson/
-  migrations/               schools, members, lesson_requests, lesson_plans, usage_events (+ RLS)
-docs/EMBED.md               the integration contract for FVK
-legacy/                     the old Vikarieplaneringen app
+npm ci
+node tools/build-app.mjs      # app-src/*.ts → app/*.js
+npm run check:app             # everything CI runs
+cd app && python3 -m http.server 8099   # then open http://localhost:8099
 ```
 
-## Both languages, every time
+Install the pre-commit hook once: `ln -s ../../tools/pre-commit .git/hooks/pre-commit`. It typechecks, rebuilds and restamps on every commit, so source and bundle cannot drift.
 
-Swedish and English are equal here: a coordinator may run the app in either,
-and a substitute opens the plan link in whichever they read. Three separate
-bugs shipped because a string was added to one side only, or pasted into the
-wrong block where a duplicate silently overwrote it.
+### Checks (`npm run check:app`, and CI on every PR)
 
-```
-node tools/i18n-check.mjs
-```
+| Check | Guards |
+|-------|--------|
+| `tsc` | Strict TypeScript, including unused code and unchecked index access |
+| `build-app --check` | The committed `app/*.js` is exactly what `app-src/` builds |
+| `i18n-check` | Every string in both Swedish and English, no duplicates |
+| `deck-check` | The projector never shows pupils an answer |
+| `pool-check` | The bank keeps every plan, in rank, on the right shelf |
+| `term-check` | A pasted year plan becomes the right weeks |
+| `prompt-check` | The generator's prompt fits the year group and subject |
 
-Run it before any push that touches text. It fails on a key present in one
-language and not the other, on a duplicate key inside one block, and on a value
-identical in both (usually a forgotten translation — genuine same-in-both words
-are listed in the script).
+`tools/smoke.mjs` records a behaviour fingerprint of every screen in both languages, to compare before and after a change.
 
-Three things the check cannot see, so they need remembering:
+## The AI
 
-- **Plan content.** A generated plan is written in both languages by
-  `lk-generate`; anything seeded by hand needs `body_alt` and `language_alt`
-  filling too, or the toggle leaves the reader on the Swedish text.
-- **Subject and year group.** Stored as the Swedish the timetable imports
-  (`Matematik`, `Åk 7`) and turned at display time by `subjectLabel()` and
-  `yearLabel()` in `app/lk.js`. A new subject needs a line in `SUBJECTS_EN`.
-- **Messages built in code.** Errors and toasts are easy to write as a bare
-  Swedish string. They belong in `i18n.js` like everything else.
+`lk-generate` needs `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY` as function secrets (see `supabase/functions/README.md`). Changing provider is a secret change, not a code change.

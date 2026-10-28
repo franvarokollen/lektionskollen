@@ -701,7 +701,7 @@ function openStudent(which: string) {
   const has = (k: string) => (p.tasks || []).some((x) => (x.tier || 'core') === k);
   const picker = which !== 'lesson' || !(has('support') || has('extension')) ? '' :
     '<span class="stier">' + esc(l.tierQ) + '</span>' +
-    [['support', l.tierSupport], ['core', l.tierStandard], ['extension', l.tierChallenge]]
+    ([['support', l.tierSupport], ['core', l.tierStandard], ['extension', l.tierChallenge]] as const)
       .filter((x) => has(x[0]))
       .map((x) => '<button class="stbtn' + (STIER === x[0] ? ' on' : '') + '" data-stier="' + x[0] + '">' +
         esc(x[1]) + '</button>').join('');
@@ -786,7 +786,7 @@ document.addEventListener('keydown', (e) => {
     const box = document.querySelector('.proj');
     if (!box || !DECK || !DECK.length) return;
     DI = Math.max(0, Math.min(DI, DECK.length - 1));
-    box.innerHTML = slideHtml(DECK[DI], DI, DECK.length, L());
+    box.innerHTML = slideHtml(DECK[DI]!, DI, DECK.length, L());
   }
 
   /** scope: a section number shows that section alone, ending on a stop
@@ -857,7 +857,7 @@ document.addEventListener('click', async (e) => {
   // ── Per-step feedback ──────────────────────────────────
   const sb1 = tg.closest<HTMLElement>('[data-sec]');
   if (sb1) {
-    const [ref, verdict] = sb1.getAttribute('data-sec')!.split('|');
+    const [ref = '', verdict = ''] = sb1.getAttribute('data-sec')!.split('|');
     const idx = Number(ref.split(':')[1]);
     const label = ((DATA && bodies(DATA)[LANG] || {}).phases || [])[idx]?.n || ref;
     PROG.sec[ref] = Object.assign({}, PROG.sec[ref], { v: verdict }); saveProg();
@@ -980,7 +980,7 @@ document.addEventListener('click', async (e) => {
   const asp = tg.closest<HTMLElement>('[data-asp]');
   if (asp) {
     const parts = asp.getAttribute('data-asp')!.split(':');
-    ASPECTS[parts[0]] = parts[1];
+    ASPECTS[parts[0]!] = parts[1]!;
     [...$('q-' + parts[0]).children].forEach((x) => x.classList.toggle('on', x === asp));
     // "No" and "with changes" are the answers worth a reason, so ask then.
     if (parts[0] === 'reuse') {
