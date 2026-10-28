@@ -7,6 +7,9 @@ html,body{height:100%}
    Single-theme by design: these are Frånvarokollen's production tokens
    (src/app/globals.css), and FVK ships light only. */
 :root {
+  /* LK's own brand moment: the sign-in navy. Used where the screen is LK's,
+     never on the FVK replica around it. */
+  --lk-grad:linear-gradient(160deg,#0d2340 0%,#1b4776 60%,#153a62 100%);
   --paper:#faf8f5; --card:#fff; --ink:#112d4e; --ink-soft:#5a6577; --ink-faint:#8a919b;
   --navy:#1b4776; --navy-deep:#0d2340; --navy-mid:#153a62;
   --blue:#0f71f6; --red:#e71e3c;
@@ -117,8 +120,14 @@ tr.muted .who{color:var(--ink-faint)}
 .seam .tag{background:var(--navy);color:#fff;border-radius:5px;padding:2px 7px;font-weight:600;font-size:10.5px;letter-spacing:.02em}
 .seam code{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
 .addin-body{padding:20px;display:flex;flex-direction:column;gap:18px}
-.addin-head{display:flex;align-items:flex-start;gap:12px}
-.addin-head h2{font-size:17px;letter-spacing:-.01em}
+.addin-head{display:flex;align-items:flex-start;gap:12px;
+  /* The panel's title as a navy band: says "this is Lektionskollen" even inside FVK. */
+  margin:-20px -20px 0;padding:18px 20px 16px;background:var(--lk-grad);color:#fff}
+.addin-head h2{font-size:17px;letter-spacing:-.01em;color:#fff}
+.addin-head .plan-meta{color:#b8c9dc}
+.addin-head .from{color:#9fb3c8}
+.addin-head .x{color:rgba(255,255,255,.7)}
+.addin-head .x:hover{color:#fff}
 .x{background:none;border:0;color:var(--ink-faint);font-size:18px;line-height:1;padding:4px}
 
 .derived{background:#f6f9fd;border:1px solid #dbe8f7;border-radius:var(--r);padding:12px 14px;display:flex;
@@ -903,8 +912,7 @@ button.cv:hover{outline:2px solid var(--navy);outline-offset:1px}
 .userauth{margin:0;font-size:11px;color:rgba(232,237,242,.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── Sign-in (mocked) ── */
-.signin{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;
-  background:linear-gradient(160deg,var(--navy-deep),var(--navy) 60%,var(--navy-mid))}
+.signin{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;background:var(--lk-grad)}
 .signin[hidden]{display:none!important}
 .si-card{background:#fff;border-radius:16px;width:100%;max-width:400px;padding:26px 26px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .si-brand{display:flex;align-items:center;gap:9px;margin:-4px 0 16px;font-weight:650;color:var(--navy)}
