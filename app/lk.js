@@ -1297,6 +1297,16 @@
       return openPop(blk.getAttribute("data-blk"), r.right + 6, r.top);
     }
     if (await crClick(tg)) return;
+    const tpc = tg.closest("[data-tpcell]");
+    if (tpc) {
+      const [cs, cy] = tpc.getAttribute("data-tpcell").split("|");
+      $("tp-subject").value = cs;
+      $("tp-year").value = cy;
+      renderTermCoverage();
+      await renderTermStored();
+      $("tp-stored").scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     const tab = tg.closest("[data-tab]");
     if (tab) return showPlansTab(tab.getAttribute("data-tab"));
     const shp = tg.closest("[data-shareplan]");
@@ -1726,7 +1736,28 @@
     keep($("tp-subject"), subs, subjectLabel);
     keep($("tp-year"), yrs, yearLabel);
     $("tp-raw").placeholder = t("tpPastePh");
+    renderTermCoverage();
     renderTermStored();
+  }
+  var TERM_FULL = 30;
+  function renderTermCoverage() {
+    const box = maybe$("tp-cov");
+    if (!box) return;
+    const cov = state.termCoverage;
+    const by = new Map(cov.map((c) => [canonSubject(c.subject) + "|" + canonYear(c.year_group), c]));
+    const subs = [.../* @__PURE__ */ new Set([...CATALOG_SUBJECTS, ...cov.map((c) => canonSubject(c.subject))])].filter(Boolean).sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b), LANG));
+    const yrs = [.../* @__PURE__ */ new Set([...CATALOG_YEARS, ...cov.map((c) => canonYear(c.year_group))])].filter(Boolean).sort((a, b) => yearNum(a) - yearNum(b));
+    const { subject: curS, year: curY } = termWhere();
+    const planned = cov.length;
+    const head = "<tr><th></th>" + yrs.map((y) => "<th>" + esc(y === "F" ? "F" : yearLabel(y).replace(/^\D+/, "")) + "</th>").join("") + "</tr>";
+    const body = subs.map((s) => "<tr><th>" + esc(subjectLabel(s)) + "</th>" + yrs.map((y) => {
+      const c = by.get(s + "|" + y);
+      const n = Number(c?.weeks) || 0;
+      const on = s === curS && y === curY ? " sel" : "";
+      const tip = n ? fillT("tpCellTip", { n, a: c?.first_week ?? "", b: c?.last_week ?? "" }) + " \u2014 " + subjectLabel(s) + ", " + yearLabel(y) : t("tpCellEmpty") + " \u2014 " + subjectLabel(s) + ", " + yearLabel(y);
+      return '<td><button class="cv ' + (n >= TERM_FULL ? "full" : n ? "some" : "empty") + on + '" data-tpcell="' + esc(s) + "|" + esc(y) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + (n || "+") + "</button></td>";
+    }).join("") + "</tr>").join("");
+    box.innerHTML = '<div class="bcard fx" style="max-width:900px"><h4>' + esc(t("tpCovH")) + '</h4><p class="hint">' + esc(fillT("tpCovNote", { n: planned, full: TERM_FULL })) + '</p><div class="poolcov"><table>' + head + body + '</table></div><p class="cvlegend"><span class="cv full">36</span>' + esc(fillT("tpLegFull", { n: TERM_FULL })) + '<span class="cv some">8</span>' + esc(t("tpLegSome")) + '<span class="cv empty">+</span>' + esc(t("tpCellEmpty")) + "</p></div>";
   }
   var GRID_WEEKS = (() => {
     const w = [];
@@ -1921,6 +1952,7 @@
   }
   ["tp-subject", "tp-year"].forEach((id) => $(id).addEventListener("change", () => {
     $("tp-preview").innerHTML = "";
+    renderTermCoverage();
     renderTermStored();
   }));
   $("tp-reload").addEventListener("click", loadTerm);
