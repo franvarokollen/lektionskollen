@@ -178,7 +178,7 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .ps p{margin:0 0 7px}
 .ps ul,.ps ol{margin:0;padding-left:19px}
 .ps li{margin-bottom:4px}
-.board{background:#15402e;color:#eef5ef;border-radius:var(--r);padding:13px 15px;white-space:pre-wrap;
+.board{background:var(--lk-grad);color:#eef3f9;border-radius:var(--r);padding:13px 15px;white-space:pre-wrap;
   font-family:var(--mono);font-size:13px;line-height:1.65}
 .phase{border:1px solid var(--line);border-radius:var(--r);padding:11px 13px;margin-bottom:9px}
 .phase-h{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;flex-wrap:wrap}
