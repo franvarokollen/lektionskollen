@@ -43,6 +43,8 @@ const esc = (x)=>String(x==null?'':x);
 const t = (k)=>k;
 const fillT = (k,o)=>k+JSON.stringify(o);
 const CHK = '';
+const canonSubject = (x) => String(x || '').trim();
+const canonYear = (x) => String(x || '').trim();
 const CATALOG_YEARS = ['F','Åk 1','Åk 2','Åk 3','Åk 4','Åk 5','Åk 6','Åk 7','Åk 8','Åk 9'];
 const CATALOG_SUBJECTS = ['Matematik','Svenska','Engelska','Biologi','Musik','Bild','Samhällskunskap'];
 const usedLine = ()=>'';
@@ -108,19 +110,21 @@ function check(name, rows) {
       if (cards.length !== r.n) fails.push(`${r.label}: rail says ${r.n}, shelf shows ${cards.length}`);
       seen.push(...cards);
 
-      // Each grid is one year group: its cards must keep lk_pool's relative order.
-      for (const m of html.matchAll(/<div class="grid">(.*?)<\/div><\/div>/gs)) {
-        const ids = [...m[1].matchAll(/data-viewplan="([^"]+)"/g)].map((x) => x[1]);
-        const at = ids.map((id) => ranked.indexOf(id));
-        if (at.some((v, k) => k && v < at[k - 1])) fails.push(`${r.label}: rank order broken inside a year group`);
+      // All years is one grid: years ascending, lk_pool's order kept inside each.
+      const ids = [...html.matchAll(/data-viewplan="([^"]+)"/g)].map((m) => m[1]);
+      const yrOf = (id) => rows.find((x) => x.id === id).year_group || '';
+      const yn = ids.map((id) => yearNum(yrOf(id)));
+      if (yn.some((v, k) => k && v < yn[k - 1])) fails.push(`${r.label}: cards not in year order`);
+      for (const y of new Set(ids.map(yrOf))) {
+        const at = ids.filter((id) => yrOf(id) === y).map((id) => ranked.indexOf(id));
+        if (at.some((v, k) => k && v < at[k - 1])) fails.push(`${r.label} ${y}: rank order broken`);
       }
-      // Years ascending, numerically — headers and chips alike.
-      const ys = [...html.matchAll(/class="poolyear"><h4>([^<]*)<\/h4>/g)].map((m) => m[1]);
+      if ((html.match(/class="pc-yr"/g) || []).length !== ids.length) fails.push(`${r.label}: a card in All years does not name its year`);
+      // Chips sorted on the stored value (F, Åk 1 …), not the label the reader sees.
       const chips = [...html.matchAll(/data-poolyr="([^"]+)"/g)].map((m) => m[1]);
-      // Sorted on the stored value (F, Åk 1 …), not the label the reader sees.
       const nums = chips.map(yearNum);
       if (nums.some((v, k) => k && v < nums[k - 1])) fails.push(`${r.label}: year chips out of order: ${chips.join(', ')}`);
-      if (ys.length !== chips.length) fails.push(`${r.label}: ${ys.length} year sections for ${chips.length} chips`);
+
       // One chip opens exactly that year's plans.
       for (const y of chips) {
         state.pool = { view: 'shelf', sub: r.key, yr: y };
