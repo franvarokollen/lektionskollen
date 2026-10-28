@@ -1001,3 +1001,7 @@ button.cv:hover{outline:2px solid var(--navy);outline-offset:1px}
 .waittip{max-width:420px;min-height:36px;transition:opacity .3s}
 .gen.wait .bar i{background:var(--lk-grad);transition:width 1s linear}
 @media (prefers-reduced-motion:reduce){.owl *{animation:none!important}.owl-lids{transform:scaleY(0)}}
+
+/* Term plan coverage: the open subject and year stand out. */
+.poolcov .cv.sel{outline:2px solid var(--navy);outline-offset:1px}
+#tp-cov .cv.empty{cursor:pointer}
