@@ -68,6 +68,12 @@ interface QueueItem {
   id: number | string; subject: string; year_group: string; kind: string; variant?: string; section_label?: string;
   model?: string; title?: string; created_at: string; reviewed?: boolean; created_by_kind?: string;
   language?: string; language_alt?: string; body?: Extra | null; body_alt?: Extra | null;
+  plan_id?: string; section_ref?: string; kept?: boolean; sub_verdict?: 'up' | 'down' | null; auto_reason?: string | null; reviewed_at?: string | null;
+}
+/** Something on a plan that a person should look at, and why. */
+interface Attn {
+  kind: 'bad' | 'help' | 'low' | 'extra'; plan: string; title: string; subject: string; year: string;
+  ref?: string; label?: string; bad?: number; total?: number; help?: number; helpKinds?: string; notes?: string[]; extra?: QueueItem;
 }
 interface TermRow { week: number | string; topic?: string; note?: string }
 interface TermCover { subject: string; year_group: string; weeks?: number; first_week?: number; last_week?: number; updated_at?: string }
@@ -194,7 +200,7 @@ const state = {
   me: null as Me | null, row: null as Row | null, plan: null as Plan | null,
   bodies: null as Partial<Record<Lang, Plan>> | null, planId: null as string | null,
   view: 'coordinator', bank: [] as BankRow[], screen: 'cover', fb: [] as FbPlan[], pending: 0,
-  queue: [] as QueueItem[], model: null as string | null, cap: 20, uses: [] as UseRow[],
+  queue: [] as QueueItem[], extras: [] as QueueItem[], attn: [] as Attn[], fixes: {} as Record<string, { busy?: boolean; before?: Plan; after?: Plan; err?: string }>, model: null as string | null, cap: 20, uses: [] as UseRow[],
   share: {} as Record<string, Standing>, termCoverage: [] as TermCover[], tab: 'bank', checks: {} as Record<string, Verdict | null>,
   // Which shelf of the pool is open, remembered between visits.
   pool: loadPoolPick(),
@@ -1854,6 +1860,12 @@ document.addEventListener('click', async (e) => {
   const blk = tg.closest<HTMLElement>('[data-blk]');
   if (blk) { const r = blk.getBoundingClientRect(); return openPop(blk.getAttribute('data-blk')!, r.right + 6, r.top); }
   if (await crClick(tg)) return;
+  const fbf = tg.closest<HTMLElement>('[data-fbfix]');
+  if (fbf) return draftFix(Number(fbf.getAttribute('data-fbfix')));
+  const fbu = tg.closest<HTMLElement>('[data-fbuse]');
+  if (fbu) return useFix(Number(fbu.getAttribute('data-fbuse')));
+  const fbd = tg.closest<HTMLElement>('[data-fbdrop]');
+  if (fbd) { const a = state.attn[Number(fbd.getAttribute('data-fbdrop'))]; if (a) delete state.fixes[a.plan + '|' + (a.ref || '')]; return renderFeedback(); }
   const tpc = tg.closest<HTMLElement>('[data-tpcell]');
   if (tpc) {
     const [cs, cy] = tpc.getAttribute('data-tpcell')!.split('|');
@@ -2114,15 +2126,23 @@ function renderSettings() {
 
 async function loadFeedback() {
   loadSettings();
+  // Let the rule run first, so the page shows what is left after it.
+  // Silently: an older database simply does not have it yet.
+  await Promise.resolve(sb.rpc('lk_auto_review')).catch(() => null);
   const [ex, ov, rn] = await Promise.all([sb.rpc('lk_extras', { p_id: null }), sb.rpc('lk_feedback_overview'), sb.rpc('lk_feedback_runs')]);
   if (ex.error || ov.error) {
     $('fbqueue').innerHTML = '<p class="note">' + esc((ex.error || ov.error)!.message) + '</p>';
     return;
   }
-  state.queue = ((ex.data || []) as QueueItem[]).filter((x) => !x.reviewed && x.created_by_kind === 'vikarie');
+  const extras = ((ex.data || []) as QueueItem[]).filter((x) => x.created_by_kind === 'vikarie');
+  state.extras = extras;
+  // Only extra help that fails the check waits for a person; the rest is
+  // decided by the substitute's thumb or, failing that, a day with no complaint.
+  state.queue = extras.filter((x) => !x.reviewed && !extraOk(x.body));
   const runs = rn.data || {};
   state.fb = ((ov.data || []) as FbPlan[]).map((x) => ({ ...x, runs: runs[x.id] || [] }));
-  state.pending = state.queue.length;
+  state.attn = attention();
+  state.pending = state.attn.length;
   renderFeedback();
   renderNav();
   setTitles();
@@ -2216,22 +2236,123 @@ function fbBody(p: FbPlan) {
   return h;
 }
 
+/* ── Feedback on autopilot ────────────────────────────────
+   One coordinator cannot read every piece of extra help and every plan's
+   feedback. So the page is a short to-do list, usually empty:
+
+     extra help    decided by the substitute's thumb, or kept after a day with
+                   no complaint; only help that fails the check waits here
+     plans         only the ones with a signal: a step rated bad by two or
+                   more, the same step needing help three times, or a plan
+                   most substitutes would not reuse
+     the fix       for a weak step, the AI drafts a rewrite of just that step
+                   from what substitutes said; a person reads it and accepts
+
+   Above it, the week in four numbers; below it, everything else, folded. */
+function extraOk(b: Extra | null | undefined) {
+  if (!b) return false;
+  const has = (b.lines || []).some((x) => String(x || '').trim()) || !!String(b.board || '').trim() || (b.tasks || []).length > 0;
+  const pointer = (a?: string) => !String(a || '').trim() || /^(se |see |enligt |as above|som ovan)/i.test(String(a).trim());
+  return has && !(b.tasks || []).some((t) => !String(t.q || '').trim() || pointer(t.a));
+}
+
+function attention(): Attn[] {
+  const out: Attn[] = [];
+  for (const p of state.fb) {
+    const base = { plan: p.id, title: p.title || p.subject, subject: p.subject, year: p.year_group };
+    const notesOf = (label?: string) => (p.feedback?.notes || []).filter((n) => !label || n.section_label === label).map((n) => n.note);
+    for (const x of p.sections || []) {
+      const total = x.good + x.ok + x.bad;
+      if (x.bad >= 2) out.push({ ...base, kind: 'bad', ref: x.section_ref, label: x.section_label || x.section_ref, bad: x.bad, total, notes: [...(x.notes || []), ...notesOf(x.section_label)] });
+    }
+    const byRef = new Map<string, { n: number; label?: string; kinds: Set<string> }>();
+    for (const h of p.heat || []) {
+      const k = h.section_ref || 'lesson';
+      const v = byRef.get(k) || { n: 0, label: h.section_label, kinds: new Set<string>() };
+      v.n += h.n; v.kinds.add(kindLabel(h.kind, '')); byRef.set(k, v);
+    }
+    byRef.forEach((v, ref) => {
+      if (v.n >= 3 && !out.some((o) => o.plan === p.id && o.ref === ref)) {
+        out.push({ ...base, kind: 'help', ref, label: v.label || t('wholeLesson'), help: v.n, helpKinds: [...v.kinds].join(', '), notes: notesOf(v.label) });
+      }
+    });
+    if ((p.ratings || 0) >= 3 && (p.yes || 0) / (p.ratings || 1) < 0.5) out.push({ ...base, kind: 'low', bad: (p.ratings || 0) - (p.yes || 0), total: p.ratings });
+  }
+  for (const x of state.queue) {
+    out.push({ kind: 'extra', plan: x.plan_id || '', title: x.title || '', subject: x.subject, year: x.year_group, extra: x, label: x.section_label });
+  }
+  return out;
+}
+
+function fbSummary() {
+  const weekAgo = Date.now() - 7 * 864e5;
+  const runs = state.fb.flatMap((p) => p.runs || []).filter((r) => new Date(r.date).getTime() >= weekAgo);
+  const answered = runs.filter((r) => r.answered);
+  const stars = answered.map((r) => Number(String(r.stars || '').replace(',', '.'))).filter((n) => n > 0);
+  const avg = stars.length ? (stars.reduce((a, n) => a + n, 0) / stars.length).toFixed(1).replace('.', LANG === 'sv' ? ',' : '.') : '—';
+  const auto = state.extras.filter((x) => x.reviewed && x.auto_reason && x.auto_reason !== 'check_failed').length;
+  const waiting = state.extras.filter((x) => !x.reviewed && extraOk(x.body)).length;
+  const tile = (n: string | number, k: string, cls = '') => '<div class="fbtile' + cls + '"><b>' + esc(String(n)) + '</b><span>' + esc(t(k)) + '</span></div>';
+  return '<div class="fbtiles">' +
+    tile(runs.length, 'fbTLessons') + tile(answered.length ? '★ ' + avg : '—', 'fbTStars') +
+    tile(auto, 'fbTAuto') + tile(state.attn.length, 'fbTNeeds', state.attn.length ? ' hot' : ' calm') + '</div>' +
+    (waiting ? '<p class="hint">' + esc(fillT('fbWaiting', { n: waiting })) + '</p>' : '');
+}
+
+function attnCard(a: Attn, i: number) {
+  const head = '<div class="tags"><span class="chip chip-neutral">' + esc(subjectLabel(a.subject)) + '</span><span class="chip chip-neutral">' + esc(yearLabel(a.year)) + '</span>' +
+    '<span class="chip ' + (a.kind === 'extra' ? 'chip-blue' : 'chip-warn') + '">' + esc(t('fbWhy_' + a.kind)) + '</span></div>' +
+    '<h4>' + esc(a.title) + '</h4>';
+  if (a.kind === 'extra') {
+    const x = a.extra!;
+    return '<div class="bcard fx attn">' + head +
+      '<p class="fbreason">' + esc(fillT('fbExtraFailed', { s: x.section_label || t('wholeLesson'), k: kindLabel(x.kind, x.variant) })) + '</p>' +
+      extraText(x) +
+      '<div style="display:flex;gap:6px"><button class="btn btn-ok btn-sm" data-review="' + x.id + ':1">' + esc(t('keep')) + '</button>' +
+      '<button class="btn btn-ghost btn-sm" data-review="' + x.id + ':0">' + esc(t('hide')) + '</button></div></div>';
+  }
+  const why = a.kind === 'bad' ? fillT('fbBadStep', { s: a.label, b: a.bad, n: a.total })
+    : a.kind === 'help' ? fillT('fbHelpStep', { s: a.label, n: a.help, k: a.helpKinds })
+    : fillT('fbLowPlan', { b: a.bad, n: a.total });
+  const key = a.plan + '|' + (a.ref || '');
+  const fx = state.fixes[key];
+  let fixBox = '';
+  if (fx?.busy) fixBox = '<div class="fixbox"><span class="spin"></span> ' + esc(t('fbFixing')) + '</div>';
+  else if (fx?.err) fixBox = '<div class="fixbox err">' + esc(fx.err) + '</div>';
+  else if (fx?.after) fixBox = '<div class="fixbox">' + fixDiff(fx.before!, fx.after) +
+    '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-primary btn-sm" data-fbuse="' + i + '">' + esc(t('fbUseFix')) + '</button>' +
+    '<button class="btn btn-ghost btn-sm" data-fbdrop="' + i + '">' + esc(t('fbDropFix')) + '</button></div>' +
+    '<p class="hint">' + esc(t('fbFixReapprove')) + '</p></div>';
+  return '<div class="bcard fx attn">' + head + '<p class="fbreason">' + esc(why) + '</p>' +
+    ((a.notes || []).length ? a.notes!.slice(0, 3).map((n) => '<blockquote>' + esc(n) + '</blockquote>').join('') : '') +
+    (fixBox || '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+      (a.kind !== 'low' ? '<button class="btn btn-primary btn-sm" data-fbfix="' + i + '">✦ ' + esc(t('fbDraftFix')) + '</button>' : '') +
+      '<button class="btn btn-ghost btn-sm" data-viewplan="' + a.plan + '">' + esc(t('openPlan')) + ' →</button></div>') +
+    '</div>';
+}
+
+/** What the AI changed, as before/after text — only the parts that differ. */
+function fixDiff(before: Plan, after: Plan) {
+  const flat = (o: unknown, path = '', acc: Record<string, string> = {}) => {
+    if (o && typeof o === 'object') {
+      for (const [k, v] of Object.entries(o as Record<string, unknown>)) flat(v, path ? path + '.' + k : k, acc);
+    } else if (o != null && String(o).trim()) acc[path] = String(o);
+    return acc;
+  };
+  const a = flat(before), b = flat(after);
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => a[k] !== b[k]);
+  if (!keys.length) return '<p class="hint">' + esc(t('fbNoChange')) + '</p>';
+  return '<div class="fixdiff">' + keys.slice(0, 14).map((k) =>
+    '<div class="fd"><code>' + esc(k) + '</code>' +
+      (a[k] ? '<del>' + esc(a[k]) + '</del>' : '') + (b[k] ? '<ins>' + esc(b[k]) + '</ins>' : '') + '</div>').join('') +
+    (keys.length > 14 ? '<p class="hint">+' + (keys.length - 14) + '</p>' : '') + '</div>';
+}
+
 function renderFeedback() {
-  const q = state.queue;
-  $('fbqueue').innerHTML = q.length
-    ? q.map((x) =>
-      '<div class="bcard fx">' +
-        '<div class="tags"><span class="chip chip-neutral">' + esc(subjectLabel(x.subject)) + '</span>' +
-          '<span class="chip chip-neutral">' + esc(yearLabel(x.year_group)) + '</span>' +
-          '<span class="chip chip-blue">' + esc(kindLabel(x.kind, x.variant)) + '</span>' +
-          (x.section_label ? '<span class="chip chip-neutral">' + esc(x.section_label) + '</span>' : '') +
-          (x.model === 'canned' ? '<span class="chip chip-warn">' + esc(t('simTag')) + '</span>' : '') + '</div>' +
-        '<div class="plan-meta">' + esc(x.title || '') + ' · ' + new Date(x.created_at).toLocaleString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' }) + '</div>' +
-        extraText(x) +
-        '<div style="display:flex;gap:6px"><button class="btn btn-ok btn-sm" data-review="' + x.id + ':1">' + esc(t('keep')) + '</button>' +
-        '<button class="btn btn-ghost btn-sm" data-review="' + x.id + ':0">' + esc(t('hide')) + '</button></div>' +
-      '</div>').join('')
-    : '<p class="note">' + esc(t('queueEmpty')) + '</p>';
+  const sum = maybe$('fbsummary'); if (sum) sum.innerHTML = fbSummary();
+  $('fbqueue').innerHTML = state.attn.length
+    ? state.attn.map(attnCard).join('')
+    : '<p class="note fbcalm">✓ ' + esc(t('fbAllGood')) + '</p>';
 
   $('fbplans').innerHTML = state.fb.length
     ? state.fb.map((p) =>
@@ -2242,6 +2363,56 @@ function renderFeedback() {
         '<div><span class="btn btn-soft btn-sm">' + esc(t('openPlan')) + ' →</span></div>' +
       '</div>').join('')
     : '<p class="note">' + esc(t('fbEmpty')) + '</p>';
+  const auto = state.extras.filter((x) => x.reviewed);
+  const ah = maybe$('fbautoH'); if (ah) ah.textContent = fillT('fbAutoH', { n: auto.length });
+  const ab = maybe$('fbauto');
+  if (ab) ab.innerHTML = auto.length ? auto.map((x) =>
+    '<div class="bcard fx"><div class="tags"><span class="chip ' + (x.kept ? 'chip-ok' : 'chip-neutral') + '">' + esc(t(x.kept ? 'fbKept' : 'fbHidden')) + '</span>' +
+      '<span class="chip chip-neutral">' + esc(t('fbReason_' + (x.auto_reason || 'person'))) + '</span>' +
+      '<span class="chip chip-blue">' + esc(kindLabel(x.kind, x.variant)) + '</span></div>' +
+      '<div class="plan-meta">' + esc((x.title || '') + (x.section_label ? ' · ' + x.section_label : '')) + '</div>' + extraText(x) + '</div>').join('')
+    : '<p class="note">—</p>';
+}
+
+/** Draft a fix for one flagged step: the AI rewrites only that part. */
+async function draftFix(i: number) {
+  const a = state.attn[i]; if (!a) return;
+  const key = a.plan + '|' + (a.ref || '');
+  state.fixes[key] = { busy: true }; renderFeedback();
+  const { data: pl, error } = await sb.rpc('lk_plan', { p_id: a.plan });
+  if (error || !pl) { state.fixes[key] = { err: error?.message || t('errUnknown') }; renderFeedback(); return; }
+  const res = await sb.functions.invoke('lk-generate', { body: {
+    request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: pl.language },
+    fix: { plan: pl.body, ref: a.ref, label: a.label, language: pl.language,
+           feedback: { bad: a.bad, total: a.total, help: a.help, helpKinds: a.helpKinds, notes: a.notes } },
+  } });
+  if (res.error || res.data?.error || !res.data?.plan) {
+    state.fixes[key] = { err: res.data?.error === 'no_model' ? t('errNoModel') : (res.data?.detail || res.data?.error || res.error?.message || t('errUnknown')) };
+  } else state.fixes[key] = { before: pl.body as Plan, after: res.data.plan as Plan };
+  renderFeedback();
+}
+
+async function useFix(i: number) {
+  const a = state.attn[i]; if (!a) return;
+  const key = a.plan + '|' + (a.ref || '');
+  const fx = state.fixes[key]; if (!fx?.after) return;
+  const { data, error } = await sb.rpc('lk_update_plan_body', { p_id: a.plan, p_body: fx.after, p_note: fillT('fbFixNote', { s: a.label || '' }) });
+  if (error || !data || data.ok === false) { toast(error?.message || t('errNeedsDb'), 8000); return; }
+  delete state.fixes[key];
+  delete state.checks[a.plan];
+  toast(t('fbFixed'));
+  // The translation was of the old body: write the other language again.
+  const { data: pl } = await sb.rpc('lk_plan', { p_id: a.plan });
+  if (pl) {
+    const other = pl.language === 'en' ? 'sv' : 'en';
+    (async () => {
+      try {
+        const tr = await sb.functions.invoke('lk-generate', { body: { request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: other }, translate: pl.body } });
+        if (!tr.error && tr.data?.plan) await sb.rpc('lk_fill_alt', { p_id: a.plan, p_language: other, p_body: tr.data.plan });
+      } catch { /* the plan still works in its own language */ }
+    })();
+  }
+  loadFeedback();
 }
 
 /** Bank or feedback, inside the one Lesson plans screen. */
