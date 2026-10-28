@@ -842,7 +842,7 @@ function apprStars(rank: unknown, who?: string, bare?: boolean) {
  *  everything else (the full score breakdown, the why-shared checklist) is
  *  one click away on the plan itself. The whole card opens it; only the
  *  copy-link button is its own target. */
-function bankCard(b: BankRow) {
+function bankCard(b: BankRow, withYear?: boolean) {
   const st = b.st || {};
   const sc = st.score != null ? Math.round(st.score * 100) : null;
   const n = st.n || 0;
@@ -863,7 +863,8 @@ function bankCard(b: BankRow) {
     '<div class="pc-head"><h4>' + esc(rowTitle(b)) + '</h4>' +
       (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t('copyLink')) + '">' + CHK + '</button>' : '') +
     '</div>' +
-    '<p class="pc-meta">' + b.minutes + ' ' + esc(t('min')) +
+    '<p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + '</span> · ' : '') +
+      b.minutes + ' ' + esc(t('min')) +
       (b.mine ? '' : ' · ' + esc(b.school || '')) + '</p>' +
     '<div class="pc-status">' + status + score + '</div>' +
     usedLine(b.id) +
@@ -902,10 +903,11 @@ function savePoolPick() {
 function groupPool(rows: BankRow[]) {
   const bySubject = new Map<string, Map<string, BankRow[]>>();
   for (const b of rows) {
-    const sub = b.subject || '';
+    // Canonical, so "Idrott" and "Idrott och hälsa" are one entry, not two "PE"s.
+    const sub = canonSubject(b.subject);
     if (!bySubject.has(sub)) bySubject.set(sub, new Map());
     const years = bySubject.get(sub)!;
-    const yr = b.year_group || '';
+    const yr = canonYear(b.year_group);
     if (!years.has(yr)) years.set(yr, []);
     years.get(yr)!.push(b);
   }
@@ -971,10 +973,13 @@ function renderBank() {
   const chips = '<div class="yrchips">' + chip('', t('allYears'), total) +
     order.map((y) => chip(y, yearLabel(y), years.get(y)!.length)).join('') + '</div>';
 
-  const shown = yr ? [yr] : order;
-  const shelf = shown.map((y) =>
-    '<div class="poolyear">' + (yr ? '' : '<h4>' + esc(yearLabel(y)) + '</h4>') +
-    '<div class="grid">' + years.get(y)!.map(bankCard).join('') + '</div></div>').join('');
+  // All years fill the width as one grid, youngest first and best-first
+  // within each year, each card naming its year. A heading per year left most
+  // of the screen empty, since a year rarely holds more than a card or two.
+  const shelf = '<div class="poolyear"><div class="grid">' +
+    (yr ? years.get(yr)!.map((b) => bankCard(b))
+        : order.flatMap((y) => years.get(y)!.map((b) => bankCard(b, true)))).join('') +
+    '</div></div>';
 
   g.innerHTML = '<div class="poolwrap">' + rail +
     '<section class="poolsub poolmain" style="--acc:' + acc(sub) + '">' +
@@ -1175,7 +1180,7 @@ function openAddin(id: string) {
   state.plan = null; state.planId = null; state.view = 'coordinator';
   // The pool then opens on this absence's shelf, which is the one the
   // coordinator is most likely to go looking in next.
-  if (state.row) { state.pool.sub = state.row.subject; state.pool.yr = state.row.year; savePoolPick(); }
+  if (state.row) { state.pool.sub = canonSubject(state.row.subject); state.pool.yr = canonYear(state.row.year); savePoolPick(); }
   $('overlay').hidden = false;
   document.body.style.overflow = 'hidden';
   showRequest();
@@ -1692,7 +1697,7 @@ document.addEventListener('click', async (e) => {
   if (pview) { state.pool.view = pview.getAttribute('data-poolview') === 'cover' ? 'cover' : 'shelf'; savePoolPick(); return renderBank(); }
   if (tg.closest<HTMLElement>('[data-poolgo]') && state.row) {
     // From an absence with nothing approved for it: straight to its shelf.
-    state.pool = { view: 'shelf', sub: state.row.subject, yr: state.row.year };
+    state.pool = { view: 'shelf', sub: canonSubject(state.row.subject), yr: canonYear(state.row.year) };
     savePoolPick();
     closeAddin();
     state.tab = 'bank';

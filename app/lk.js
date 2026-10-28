@@ -678,7 +678,7 @@
     for (let i = 1; i <= APPR_MAX; i++) s += '<i class="' + (i <= n ? "on" : "off") + '">\u2605</i>';
     return '<span class="apstars r' + n + '" role="img" aria-label="' + esc(tip) + '" title="' + esc(tip) + '">' + s + (bare ? "" : "<b>" + n + "/" + APPR_MAX + "</b>") + "</span>";
   }
-  function bankCard(b) {
+  function bankCard(b, withYear) {
     const st = b.st || {};
     const sc = st.score != null ? Math.round(st.score * 100) : null;
     const n = st.n || 0;
@@ -686,7 +686,7 @@
     const who = [b.approved_name, rank >= 2 && b.approved_subject ? subjectLabel(b.approved_subject) : ""].filter(Boolean).join(", ");
     const status = apprStars(rank, who) + (!b.approved ? '<span class="chip chip-warn">' + esc(t("notApproved")) + "</span>" : b.approval_stale ? '<span class="chip chip-warn">' + esc(t("chipStale")) + "</span>" : '<span class="aplvl">' + esc(apprLevelName(rank)) + "</span>");
     const score = !b.approved ? "" : n ? '<span class="pc-score ' + (sc >= 75 ? "hi" : sc >= 55 ? "mid" : sc >= 40 ? "lo" : "bad") + '">' + sc + '</span><span class="pc-n">' + esc(fillT(n === 1 ? "scOne" : "scMany", { n })) + "</span>" : '<span class="pc-new">' + esc(t("scNew")) + "</span>";
-    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + '</div><p class="pc-meta">' + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status + score + "</div>" + usedLine(b.id) + "</div>";
+    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + '</div><p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + "</span> \xB7 " : "") + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status + score + "</div>" + usedLine(b.id) + "</div>";
   }
   function loadPoolPick() {
     try {
@@ -705,10 +705,10 @@
   function groupPool(rows) {
     const bySubject = /* @__PURE__ */ new Map();
     for (const b of rows) {
-      const sub = b.subject || "";
+      const sub = canonSubject(b.subject);
       if (!bySubject.has(sub)) bySubject.set(sub, /* @__PURE__ */ new Map());
       const years = bySubject.get(sub);
-      const yr = b.year_group || "";
+      const yr = canonYear(b.year_group);
       if (!years.has(yr)) years.set(yr, []);
       years.get(yr).push(b);
     }
@@ -757,8 +757,7 @@
     const total = [...years.values()].reduce((a, x) => a + x.length, 0);
     const chip = (v, label, n) => '<button class="' + (v === yr ? "on" : "") + '" data-poolyr="' + esc(v) + '">' + esc(label) + ' <span class="n">' + n + "</span></button>";
     const chips = '<div class="yrchips">' + chip("", t("allYears"), total) + order.map((y) => chip(y, yearLabel(y), years.get(y).length)).join("") + "</div>";
-    const shown = yr ? [yr] : order;
-    const shelf = shown.map((y) => '<div class="poolyear">' + (yr ? "" : "<h4>" + esc(yearLabel(y)) + "</h4>") + '<div class="grid">' + years.get(y).map(bankCard).join("") + "</div></div>").join("");
+    const shelf = '<div class="poolyear"><div class="grid">' + (yr ? years.get(yr).map((b) => bankCard(b)) : order.flatMap((y) => years.get(y).map((b) => bankCard(b, true)))).join("") + "</div></div>";
     g.innerHTML = '<div class="poolwrap">' + rail + '<section class="poolsub poolmain" style="--acc:' + acc(sub) + '"><h3><span class="dot"></span>' + esc(subjectLabel(sub)) + '<span class="n">' + total + "</span></h3>" + chips + shelf + "</section></div>";
   }
   function poolCoverage(bySubject) {
@@ -907,8 +906,8 @@
     state.planId = null;
     state.view = "coordinator";
     if (state.row) {
-      state.pool.sub = state.row.subject;
-      state.pool.yr = state.row.year;
+      state.pool.sub = canonSubject(state.row.subject);
+      state.pool.yr = canonYear(state.row.year);
       savePoolPick();
     }
     $("overlay").hidden = false;
@@ -1236,7 +1235,7 @@
       return renderBank();
     }
     if (tg.closest("[data-poolgo]") && state.row) {
-      state.pool = { view: "shelf", sub: state.row.subject, yr: state.row.year };
+      state.pool = { view: "shelf", sub: canonSubject(state.row.subject), yr: canonYear(state.row.year) };
       savePoolPick();
       closeAddin();
       state.tab = "bank";
