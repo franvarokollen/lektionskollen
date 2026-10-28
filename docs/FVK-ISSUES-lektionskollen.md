@@ -13,8 +13,9 @@ Rule for all of them: **add, never replace.** With the flag off, FVK renders and
 
 **Body**
 
-Lektionskollen (LK) is a finished add-on hosted separately (own Supabase project, own deployment). FVK stays the
-gatekeeper for schools and users. This epic tracks the FVK side of the integration.
+Lektionskollen (LK) is a separate product (own Supabase project, own deployment, own sign-in since 2026-10-28) that a
+school can buy alone or link to FVK. This epic tracks the FVK side of the link: FVK bridges its signed-in user into LK
+so linked schools sign in once.
 
 - Handover: `HANDOVER-FVK-INTEGRATION.md` (LK repo, `docs/`).
 - Footprint in FVK: one button in the lesson popover, one CSP allowance, one optional sidebar entry, one optional email line.
@@ -23,7 +24,8 @@ gatekeeper for schools and users. This epic tracks the FVK side of the integrati
 
 Children: #1 (flag and files), #2 (popover button), #3 (CSP and origin checks), #4 (surface map), #5 (auth), #6 (per-school switch), #7 (email line), #8 (sidebar, optional).
 
-Decision record (Baz, 2026-10-24): LK has no login of its own; it trusts FVK's login.
+Decision record: ~~(Baz, 2026-10-24) LK has no login of its own; it trusts FVK's login.~~ Superseded by (Baz,
+2026-10-28): LK is standalone with its own sign-in; the FVK link is an optional bridge. See LK `docs/AUTH.md`, LK issue #159.
 
 ---
 
@@ -104,11 +106,12 @@ Decision record (Baz, 2026-10-24): LK has no login of its own; it trusts FVK's l
 
 ---
 
-## 5. feat(auth): signed token handshake from FVK to Lektionskollen — **blocks enabling for real schools**
+## 5. feat(auth): signed token bridge from FVK to Lektionskollen — **blocks linking real schools**
 
 **Body**
 
-**Story.** LK has no login of its own; FVK's login decides which schools and users get access. Today the panel runs on LK's anonymous key and falls back to LK's demo school. Enabling it for a real school before this ships would not scope lookups to that school (two schools with the same `lessonKey` could see each other's plan status).
+**Story.** LK has its own sign-in (since 2026-10-28), but a coordinator already signed in to FVK should not have to
+sign in again. FVK hands its signed-in user to LK; LK maps it to its own user by work email. Today the panel runs on LK's anonymous key and falls back to LK's demo school. Enabling it for a real school before this ships would not scope lookups to that school (two schools with the same `lessonKey` could see each other's plan status).
 
 **Design (LK side builds the verifier once the format is agreed)**
 1. FVK server route mints a short-lived signed token: school id, user id, role, expiry. Uses the user's existing FVK session.

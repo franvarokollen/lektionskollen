@@ -1,9 +1,15 @@
 # Handover — adding Lektionskollen to Frånvarokollen
 
 **To:** Gareth's AI session (and Gareth). **From:** the Lektionskollen (LK) build session, for Baz Shaw.
-**Date:** 2026-10-24. **Format:** follows `HANDOVER-TEMPLATE.md`. Read §0 and §1 first.
+**Date:** 2026-10-24, **updated 2026-10-28** (see §11 change log). **Format:** follows `HANDOVER-TEMPLATE.md`. Read §0 and §1 first.
 
-**The through-line.** LK is a finished, separately hosted add-on. Frånvarokollen (FVK) already carries two pure LK
+> **⚠ 2026-10-28 — direction changed.** LK is now a **standalone product** that a school can buy on its own, and that
+> can *optionally* be linked to FVK when a school has both. LK therefore gets **its own sign-in** (Google, Microsoft,
+> email link), and the FVK link becomes a **bridge**: FVK hands its signed-in user over so nobody signs in twice.
+> This replaces the 2026-10-24 decision "LK has no login of its own". §4.1 and §5 are updated; full plan in
+> `docs/AUTH.md` in the LK repo.
+
+**The through-line.** LK is a finished, separately hosted product that FVK can link to. Frånvarokollen (FVK) already carries two pure LK
 modules. What is left is a small, flag-gated, additive patch to FVK, an auth handshake that only FVK can build, and
 Gareth's own testing. Nothing here has been run inside FVK. Nobody on the LK side has the live FVK repo, so every FVK
 statement below comes from a zip of the repo (`Franvarokollen-dev.zip`, supplied by Baz on 2026-10-20/21).
@@ -102,13 +108,20 @@ of them.** Your session should map each and decide, entry by entry, with Baz. De
 ### 4.1 Auth — the add-on must not be switched on for real schools until this exists [verify]
 - Today the panel and `lk_plan_for_cover` run on the **anonymous** LK key. Anonymous calls fall back to LK's **demo school** (`02ee8d75-…`). [verified]
 - Consequence if enabled for a real school now: lookups would not be scoped to that school, so two schools whose `lessonKey` values collide could see each other's plan status. **This is the reason for the hard stop.**
-- **Decision (Baz, 2026-10-24):** LK has **no login of its own**. FVK is the gatekeeper for which schools and users get access, and LK trusts it.
-- **Design (LK side, to be built once you agree the format):**
+- ~~**Decision (Baz, 2026-10-24):** LK has no login of its own; FVK is the gatekeeper.~~ **Superseded 2026-10-28.**
+- **Decision (Baz, 2026-10-28):** LK is standalone with **its own sign-in** (Supabase Auth on LK's project: Google,
+  Microsoft, email link). For a school that has both products, FVK is a **bridge**, not the gatekeeper: a coordinator
+  signed in to FVK opens LK already signed in. A school without FVK signs in to LK directly. Same work email = same
+  LK user. Sign-in screen exists as a mock in LK (every option opens the demo school); see `docs/AUTH.md`.
+- **What this means for FVK:** the bridge below is still the only FVK-side auth work, and it is still the hard stop
+  for linking real schools. FVK does **not** need to manage LK users, roles or schools — LK owns those.
+- **Bridge design (LK side builds the verifier once you agree the format):**
   1. FVK mints a short-lived signed token: school id, user id, role, expiry.
   2. FVK passes it to the panel (query string or `postMessage` after `lk:ready`).
   3. An LK edge function verifies the signature and returns a session scoped to that school.
   4. `lk_*` functions read school and user from that session; the demo fallback survives only for the mock harness.
-- **Needed from you:** signing method (shared secret or public key), role names, which origin(s) to trust, and a test school plus test user. LK builds the verify side against whatever you choose.
+- **Needed from you:** how people sign in to FVK today (email + password, Google, Microsoft — decides whether a
+  linked school's staff can also use the same provider on LK directly); signing method (shared secret or public key), role names, which origin(s) to trust, and a test school plus test user. LK builds the verify side against whatever you choose.
 
 ### 4.2 Per-school switch
 `FEATURES.lektionskollen` is a global build-time boolean. A paid add-on needs a per-school switch (tier or column). Out of scope for the first patch; decide with Baz. [verify]
@@ -122,7 +135,11 @@ LK has its own model spend and its own quotas. No FVK data is stored in LK excep
 
 - **Separate project, iframe panel** — switchable per school, metered separately, removable, shared plan pool is a different trust boundary from FVK's school-scoped RLS. [carried-forward from `fvk-integration/README.md`]
 - **No pupil data crosses**, enforced by the function signature in `lesson-to-request.ts`. Adding a parameter is a decision.
-- **Trust FVK's login; no second login** (Baz, 2026-10-24). This replaced LK issues #136 (real login) and folded it into #137 (FVK integration).
+- ~~**Trust FVK's login; no second login** (Baz, 2026-10-24).~~ Superseded.
+- **LK is standalone, FVK link is optional** (Baz, 2026-10-28). LK has its own sign-in; FVK bridges its signed-in
+  user so linked schools still sign in once. A school can buy either product alone. LK issue #159; plan in `docs/AUTH.md`.
+- **Plan sharing is local by default** (Baz, 2026-10-28). Plans stay at their school; the cross-school pool takes only
+  approved plans that are allowed to be shared, labelled AI-made or Teacher-made. No FVK impact. LK issue #158.
 - **Footprint is deliberately small:** one button in the lesson popover, one line in the cover email, one optional sidebar entry.
 - **Surgical rule (Baz):** LK must sit beside existing menus and features without overriding, consuming or interrupting any of them.
 - **No hosted FVK copy.** Baz asked that FVK code not be placed in a new repo or public environment. The FVK zip stayed in a private sandbox; no FVK code was pushed anywhere.
@@ -177,6 +194,8 @@ Manual, with the flag **on**, against a test school and test user:
 ## 9. STILL IN THE HUMAN'S HANDS (Baz)
 
 - Tell Gareth, and agree the token format and role names (§4.1).
+- Tell Gareth that LK is now standalone with its own sign-in (2026-10-28) — FVK only bridges, it does not own LK users.
+- Find out how FVK sign-in works today (provider) — open question in §4.1 and `docs/AUTH.md`.
 - Decide the per-school switch (§4.2) and whether any menu other than the lesson popover needs an LK entry (§3b).
 - Provide the LK anon key for the three env vars when a test environment exists.
 - Commit this handover; update the human-authorship log.
@@ -187,7 +206,21 @@ Manual, with the flag **on**, against a test school and test user:
 
 The work is broken into FVK issues in `docs/FVK-ISSUES-lektionskollen.md` (one epic, eight issues).
 
-LK issues live in `franvarokollen/lektionskollen`: **#137** (FVK integration, includes the auth decision), **#148** (teacher-note translation, unrelated).
+LK issues live in `franvarokollen/lektionskollen`: **#137** (FVK integration), **#159** (standalone sign-in + FVK bridge, replaces the auth decision in #137), **#158** (sharing model, no FVK impact), **#148** (teacher-note translation, unrelated).
 Reference commits: LK `main` `b00927c`. LK repo paths cited here: `fvk-integration/`, `app-src/lk.ts` (strict TypeScript; embed mode `EMBED` / `toParent` / `openEmbed`, lines ~1045–1090; built to `app/lk.js`, never edit the build output), `supabase/migrations/20261021i_plan_for_cover.sql`.
 
 Note for FVK reviewers: the LK screens (coordinator app, substitute page, plan renderer) are strict TypeScript in `app-src/`, built with esbuild into `app/*.js`. `npm run check:app` runs typecheck, build-freshness, i18n and projector-answer checks.
+
+---
+
+## 11. CHANGE LOG — this is a living document
+
+Kept current by the LK sessions as decisions land. Newest first. Each entry says what changed for FVK.
+
+| Date | Change | FVK impact |
+|---|---|---|
+| 2026-10-28 | LK becomes a **standalone product** with its own sign-in; FVK link is an optional bridge (LK #159, `docs/AUTH.md`) | Auth work is still only the bridge (§4.1); FVK no longer acts as gatekeeper for LK users. New question: which sign-in provider FVK uses |
+| 2026-10-28 | **Plan sharing local by default**, AI-made / Teacher-made labels (LK #158) | None |
+| 2026-10-28 | LK plan panel gets a navy title band (LK #161) | Visual only, inside the iframe |
+| 2026-10-24 | First version of this handover | — |
+
