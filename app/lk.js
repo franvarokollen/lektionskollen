@@ -34,14 +34,21 @@
     applyStatic();
     renderNav();
     if (state.me) $("username").textContent = state.me.role === "demo" ? t("demoRole") : state.me.role;
+    const via = maybe$("userauth");
+    if (via) via.textContent = authLabel();
     renderRows();
     renderBank();
+    state.attn = attention();
     renderFeedback();
+    renderSettings();
     fillFilterOptions();
+    if (state.tab === "term") loadTerm();
     setTitles();
     if (state.bodies) state.plan = pickBody();
     if (!$("overlay").hidden) {
-      state.plan ? showPlan() : showRequest();
+      if (state.cr) renderCreate();
+      else if (state.plan) showPlan();
+      else if (state.row) showRequest();
     }
   }
   function applyStatic() {

@@ -1005,6 +1005,9 @@ button.cv:hover{outline:2px solid var(--navy);outline-offset:1px}
 /* Term plan coverage: the open subject and year stand out. */
 .poolcov .cv.sel{outline:2px solid var(--navy);outline-offset:1px}
 #tp-cov .cv.empty{cursor:pointer}
+.si-lang{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.si-lang button{border:0;background:#fff;padding:4px 10px;font:inherit;font-size:12px;font-weight:600;color:var(--ink-soft);cursor:pointer}
+.si-lang button.on{background:var(--navy);color:#fff}
 
 /* ── Feedback on autopilot ── */
 .fbtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}

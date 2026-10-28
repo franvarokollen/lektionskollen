@@ -100,13 +100,23 @@ function setLang(l: Lang) {
   applyStatic();
   renderNav();
   if (state.me) $('username').textContent = state.me.role === 'demo' ? t('demoRole') : state.me.role;
+  const via = maybe$('userauth'); if (via) via.textContent = authLabel();
   renderRows();
   renderBank();
+  // The to-do list holds labels (help kinds), so it is rebuilt in the new language.
+  state.attn = attention();
   renderFeedback();
+  renderSettings();
   fillFilterOptions();
+  // The term tab builds its selects and grids from labels, so it is rebuilt.
+  if (state.tab === 'term') loadTerm();
   setTitles();
   if (state.bodies) state.plan = pickBody();
-  if (!$('overlay').hidden) { state.plan ? showPlan() : showRequest(); }
+  if (!$('overlay').hidden) {
+    if (state.cr) renderCreate();
+    else if (state.plan) showPlan();
+    else if (state.row) showRequest();
+  }
 }
 
 /** Everything marked data-t in the HTML. */
