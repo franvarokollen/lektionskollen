@@ -1,0 +1,20 @@
+# Every push and PR runs the same checks a contributor runs locally
+# (npm run check:app). The app has no build step on Pages, so the committed
+# app/*.js must match app-src/ — build-app --check catches a stale bundle.
+name: check
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:app
