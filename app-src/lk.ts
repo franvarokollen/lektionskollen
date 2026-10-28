@@ -192,6 +192,8 @@ const state = {
   view: 'coordinator', bank: [] as BankRow[], screen: 'cover', fb: [] as FbPlan[], pending: 0,
   queue: [] as QueueItem[], model: null as string | null, cap: 20, uses: [] as UseRow[],
   share: {} as Record<string, Standing>, termCoverage: [] as TermCover[], tab: 'bank', checks: {} as Record<string, Verdict | null>,
+  // Which shelf of the pool is open, remembered between visits.
+  pool: loadPoolPick(),
   // Set once a plan is opened: who approved it and how.
   shareToken: undefined as string | null | undefined,
   approved: undefined as boolean | undefined,
@@ -759,15 +761,13 @@ function yearLabel(y: string | undefined) {
 
 /* ── Bank ──────────────────────────────────────────── */
 async function loadBank() {
-  const subject = $<HTMLSelectElement>('f-subject').value || null;
-  const year = $<HTMLSelectElement>('f-year').value || null;
   const scope = $<HTMLSelectElement>('f-scope').value || 'all';
   const approval = $<HTMLSelectElement>('f-approval').value || 'any';
   // lk_pool rather than lk_bank_ranked: same ranking, plus what kind of
   // approval each plan carries and whether that approval still matches the
   // body it was given to.
   const { data, error } = await sb.rpc('lk_pool',
-    { p_subject: subject, p_year: year, p_scope: scope, p_approval: approval });
+    { p_subject: null, p_year: null, p_scope: scope, p_approval: approval });
   if (error) { $('bankgrid').innerHTML = '<p class="note">' + esc(t('errBank')) + ' ' + esc(error.message) + '</p>'; return; }
   state.bank = data || [];
   fillFilterOptions();
@@ -775,19 +775,8 @@ async function loadBank() {
 }
 
 function fillFilterOptions() {
-  // Sorted by what the reader sees, not by the Swedish the database stores.
-  const byLabel = (fmt: (s: string) => string) => (a: string, b: string) => fmt(a).localeCompare(fmt(b), LANG === 'en' ? 'en' : 'sv');
-  const subs = [...new Set(state.bank.map((b) => b.subject))].sort(byLabel(subjectLabel));
-  const yrs = [...new Set(state.bank.map((b) => b.year_group))].sort(byLabel(yearLabel));
-  const keep = (sel: HTMLElement, list: string[], label: string, fmt?: (s: string) => string) => {
-    const cur = (sel as HTMLSelectElement).value;
-    // The value stays the Swedish one the database stores; only the label turns.
-    sel.innerHTML = '<option value="">' + esc(label) + '</option>' +
-      list.map((x) => '<option value="' + esc(x) + '"' + (x === cur ? ' selected' : '') + '>' +
-        esc(fmt ? fmt(x) : x) + '</option>').join('');
-  };
-  keep($('f-subject'), subs, t('allSubjects'), subjectLabel);
-  keep($('f-year'), yrs, t('allYears'), yearLabel);
+  // Subject and year group are picked on the shelf itself (rail and chips),
+  // so only the two filters that cut across every shelf stay as dropdowns.
   // Fixed options: rebuilding them mid-load would drop a choice made while loading.
   const fixed = (el: HTMLSelectElement, want: string[][]) => {
     const cur = el.value || want[0]![0]!;
@@ -882,18 +871,65 @@ function bankCard(b: BankRow) {
 }
 
 /* ── The pool ────────────────────────────────────────────
-   A flat grid sorted by rank answers "which plan is the best one", which is
-   not the question anybody arrives with. A teacher teaches one subject to a
-   few year groups and wants to see their own shelf; a coordinator covering
-   maths for Ak 8 wants that one row. So the pool is grouped: a header per
-   subject, a row per year group inside it.
+   One shelf at a time. The pool used to be every subject and every year group
+   on one long page — fine at thirty plans, a wall at three hundred, and F to
+   Åk 9 in every subject gets there. Nobody arrives wanting all of it: a
+   teacher wants their subject, a coordinator covering maths for Åk 8 wants
+   that one row. So a rail of subjects on the left, the year groups as chips
+   across the top, and only that shelf's cards.
 
    The ranking is not thrown away, it is scoped. state.bank arrives ranked
-   from lk_pool, and grouping it preserves that order inside each row, so the
-   best plan for Matematik Ak 8 is still the first card in that row. What is
-   lost is the global ordering across subjects, which nobody was reading. */
+   from lk_pool, and grouping it preserves that order inside each year group,
+   so the best plan for Matematik Åk 8 is still the first card in that row.
+
+   A second view, Coverage, is the whole catalogue as a grid — subjects down,
+   year groups across — so the gaps show: where there is no plan at all, or
+   none anyone has approved. A cell opens its shelf. */
+type PoolPick = { view: 'shelf' | 'cover'; sub: string; yr: string };
+
+function loadPoolPick(): PoolPick {
+  try {
+    const v = JSON.parse(localStorage.getItem('lk.pool') || '{}') as Partial<PoolPick>;
+    return { view: v.view === 'cover' ? 'cover' : 'shelf', sub: String(v.sub || ''), yr: String(v.yr || '') };
+  } catch { return { view: 'shelf', sub: '', yr: '' }; }
+}
+function savePoolPick() {
+  try { localStorage.setItem('lk.pool', JSON.stringify(state.pool)); } catch { /* private window */ }
+}
+
+/** subject → year group → plans, each list still in lk_pool's ranked order
+ *  (a Map keeps insertion order, so nothing is sorted twice). */
+function groupPool(rows: BankRow[]) {
+  const bySubject = new Map<string, Map<string, BankRow[]>>();
+  for (const b of rows) {
+    const sub = b.subject || '';
+    if (!bySubject.has(sub)) bySubject.set(sub, new Map());
+    const years = bySubject.get(sub)!;
+    const yr = b.year_group || '';
+    if (!years.has(yr)) years.set(yr, []);
+    years.get(yr)!.push(b);
+  }
+  return bySubject;
+}
+
+const byLabelSv = (fmt: (s: string) => string) => (a: string, b: string) =>
+  fmt(a).localeCompare(fmt(b), LANG === 'en' ? 'en' : 'sv');
+function sortYears(ys: string[]) {
+  return ys.slice().sort((a, b) => (yearNum(a) - yearNum(b)) || byLabelSv(yearLabel)(a, b));
+}
+
+function poolViewToggle() {
+  const v = state.pool.view;
+  const box = maybe$('poolview');
+  if (!box) return;
+  box.innerHTML =
+    '<button class="' + (v === 'shelf' ? 'on' : '') + '" data-poolview="shelf">' + esc(t('poolShelf')) + '</button>' +
+    '<button class="' + (v === 'cover' ? 'on' : '') + '" data-poolview="cover">' + esc(t('poolCover')) + '</button>';
+}
+
 function renderBank() {
   const g = $('bankgrid');
+  poolViewToggle();
   if (!state.bank.length) {
     // The "create one" line is wrong when a filter is simply matching nothing.
     const scope = maybe$<HTMLSelectElement>('f-scope')?.value;
@@ -905,35 +941,82 @@ function renderBank() {
     return;
   }
 
-  // Insertion order is the ranked order, so a Map keeps each group's cards in
-  // rank without sorting them again.
-  const bySubject = new Map<string, Map<string, BankRow[]>>();
-  for (const b of state.bank) {
-    const sub = b.subject || '';
-    if (!bySubject.has(sub)) bySubject.set(sub, new Map());
-    const years = bySubject.get(sub)!;
-    const yr = b.year_group || '';
-    if (!years.has(yr)) years.set(yr, []);
-    years.get(yr)!.push(b);
-  }
+  const bySubject = groupPool(state.bank);
+  const subjects = [...bySubject.keys()].sort(byLabelSv(subjectLabel));
+  // Colors by position in the rail, so neighbours never share one.
+  const acc = (sub: string) => SUBJECT_PALETTE[Math.max(0, subjects.indexOf(sub)) % SUBJECT_PALETTE.length];
 
-  const subjects = [...bySubject.keys()].sort((a, b) =>
-    subjectLabel(a).localeCompare(subjectLabel(b), LANG === 'en' ? 'en' : 'sv'));
+  if (state.pool.view === 'cover') { g.innerHTML = poolCoverage(bySubject); return; }
 
-  g.innerHTML = subjects.map((sub, i) => {
-    const years = bySubject.get(sub)!;
-    const n = [...years.values()].reduce((a, x) => a + x.length, 0);
-    const order = [...years.keys()].sort((a, b) => {
-      const d = yearNum(a) - yearNum(b);
-      return d || yearLabel(a).localeCompare(yearLabel(b), LANG === 'en' ? 'en' : 'sv');
-    });
-    return '<section class="poolsub" style="--acc:' + SUBJECT_PALETTE[i % SUBJECT_PALETTE.length] + '">' +
-      '<h3><span class="dot"></span>' + esc(subjectLabel(sub)) + '<span class="n">' + n + '</span></h3>' +
-      order.map((yr) =>
-        '<div class="poolyear"><h4>' + esc(yearLabel(yr)) + '</h4>' +
-        '<div class="grid">' + years.get(yr)!.map(bankCard).join('') + '</div></div>').join('') +
-    '</section>';
+  // Settle the pick: a remembered subject or year that this filter no longer
+  // has falls back rather than showing an empty shelf.
+  let sub = state.pool.sub;
+  if (!bySubject.has(sub)) sub = subjects[0]!;
+  const years = bySubject.get(sub)!;
+  let yr = state.pool.yr;
+  if (yr && !years.has(yr)) yr = '';
+  state.pool.sub = sub; state.pool.yr = yr;
+
+  const rail = '<nav class="poolrail" aria-label="' + esc(t('subjectLbl')) + '">' +
+    subjects.map((s) => {
+      const n = [...bySubject.get(s)!.values()].reduce((a, x) => a + x.length, 0);
+      return '<button class="' + (s === sub ? 'on' : '') + '" style="--acc:' + acc(s) + '" data-poolsub="' + esc(s) + '">' +
+        '<span class="dot"></span><span class="l">' + esc(subjectLabel(s)) + '</span><span class="n">' + n + '</span></button>';
+    }).join('') + '</nav>';
+
+  const order = sortYears([...years.keys()]);
+  const total = [...years.values()].reduce((a, x) => a + x.length, 0);
+  const chip = (v: string, label: string, n: number) =>
+    '<button class="' + (v === yr ? 'on' : '') + '" data-poolyr="' + esc(v) + '">' + esc(label) + ' <span class="n">' + n + '</span></button>';
+  const chips = '<div class="yrchips">' + chip('', t('allYears'), total) +
+    order.map((y) => chip(y, yearLabel(y), years.get(y)!.length)).join('') + '</div>';
+
+  const shown = yr ? [yr] : order;
+  const shelf = shown.map((y) =>
+    '<div class="poolyear">' + (yr ? '' : '<h4>' + esc(yearLabel(y)) + '</h4>') +
+    '<div class="grid">' + years.get(y)!.map(bankCard).join('') + '</div></div>').join('');
+
+  g.innerHTML = '<div class="poolwrap">' + rail +
+    '<section class="poolsub poolmain" style="--acc:' + acc(sub) + '">' +
+      '<h3><span class="dot"></span>' + esc(subjectLabel(sub)) + '<span class="n">' + total + '</span></h3>' +
+      chips + shelf +
+    '</section></div>';
+}
+
+/** The whole catalogue as one grid: every grundskola subject down, F to Åk 9
+ *  across, plus anything the pool holds outside the catalogue. Counts follow
+ *  the source and approval filters, so "Qualified only" shows where qualified
+ *  plans are missing. */
+function poolCoverage(bySubject: Map<string, Map<string, BankRow[]>>) {
+  const subs = [...new Set([...CATALOG_SUBJECTS, ...bySubject.keys()])].sort(byLabelSv(subjectLabel));
+  const present = [...bySubject.values()].flatMap((m) => [...m.keys()]);
+  const yrs = sortYears([...new Set([...CATALOG_YEARS, ...present])]);
+  const head = '<tr><th></th>' + yrs.map((y) => '<th>' + esc(y === 'F' ? 'F' : yearLabel(y).replace(/^\D+/, '')) + '</th>').join('') + '</tr>';
+  const body = subs.map((s) => {
+    const years = bySubject.get(s);
+    return '<tr><th>' + esc(subjectLabel(s)) + '</th>' + yrs.map((y) => {
+      const rows = years?.get(y) || [];
+      if (!rows.length) return '<td><span class="cv empty" title="' + esc(t('poolCellEmpty')) + '">·</span></td>';
+      const ok = rows.filter((b) => b.approved && !b.approval_stale).length;
+      const tip = fillT('poolCellTip', { n: rows.length, a: ok }) + ' — ' + subjectLabel(s) + ', ' + yearLabel(y);
+      return '<td><button class="cv ' + (ok ? (rows.length >= 3 ? 'full' : 'some') : 'unappr') + '" data-poolcell="' +
+        esc(s) + '|' + esc(y) + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' + rows.length + '</button></td>';
+    }).join('') + '</tr>';
   }).join('');
+  return '<div class="poolcov"><table>' + head + body + '</table></div>' +
+    '<p class="cvlegend"><span class="cv full">3</span>' + esc(t('poolLegFull')) +
+    '<span class="cv some">1</span>' + esc(t('poolLegSome')) +
+    '<span class="cv unappr">1</span>' + esc(t('poolLegUnappr')) +
+    '<span class="cv empty">·</span>' + esc(t('poolCellEmpty')) + '</p>';
+}
+
+/** Open a shelf: from the rail, a chip, a coverage cell, or an absence. */
+function openShelf(sub: string | null, yr: string | null) {
+  if (sub != null) state.pool.sub = sub;
+  if (yr != null) state.pool.yr = yr;
+  state.pool.view = 'shelf';
+  savePoolPick();
+  renderBank();
 }
 
 function fillT(k: string, o: Record<string, string | number | null | undefined>): string { return t(k).replace(/\{(\w+)\}/g, (_m, x: string) => String(o[x])); }
@@ -1090,6 +1173,9 @@ function openEmbed() {
 function openAddin(id: string) {
   state.row = ROWS.find((x) => x.id === id) || null;
   state.plan = null; state.planId = null; state.view = 'coordinator';
+  // The pool then opens on this absence's shelf, which is the one the
+  // coordinator is most likely to go looking in next.
+  if (state.row) { state.pool.sub = state.row.subject; state.pool.yr = state.row.year; savePoolPick(); }
   $('overlay').hidden = false;
   document.body.style.overflow = 'hidden';
   showRequest();
@@ -1131,7 +1217,8 @@ function showRequest() {
           (had.length ? '<div class="hadwarn">⚠ ' + esc(fillT('hadIt', { g: r.group, d: fmtDate(had[0].used_on) })) + '</div>' : '') + '</div>' +
           '<span class="stars">' + stars(b.rating) + '</span>' +
           '<span class="btn btn-soft btn-sm">' + esc(t('use')) + '</span></button>'; }).join('') + '</div></div>'
-      : '<div><div class="sect-h">' + esc(t('fromBank')) + '</div><p class="hint">' + esc(t('bankNone')) + ' ' + esc(subjectLabel(r.subject)) + ' ' + esc(yearLabel(r.year)) + ' ' + esc(t('bankNoneTail')) + '</p></div>') +
+      : '<div><div class="sect-h">' + esc(t('fromBank')) + '</div><p class="hint">' + esc(t('bankNone')) + ' ' + esc(subjectLabel(r.subject)) + ' ' + esc(yearLabel(r.year)) + ' ' + esc(t('bankNoneTail')) +
+        (EMBED ? '' : ' <button class="btn btn-ghost btn-sm" data-poolgo>' + esc(t('poolBrowse')) + ' →</button>') + '</p></div>') +
 
     (matches.length ? '<details class="steerbox"><summary>' + esc(t('noFit')) + '</summary>' : '') +
     '<div><div class="sect-h">' + esc(t('steer')) + '</div><div class="steer">' +
@@ -1595,6 +1682,22 @@ document.addEventListener('click', async (e) => {
   if (blk) { const r = blk.getBoundingClientRect(); return openPop(blk.getAttribute('data-blk')!, r.right + 6, r.top); }
   const tab = tg.closest<HTMLElement>('[data-tab]');
   if (tab) return showPlansTab(tab.getAttribute('data-tab')!);
+  const psub = tg.closest<HTMLElement>('[data-poolsub]');
+  if (psub) return openShelf(psub.getAttribute('data-poolsub')!, '');
+  const pyr = tg.closest<HTMLElement>('[data-poolyr]');
+  if (pyr) return openShelf(null, pyr.getAttribute('data-poolyr')!);
+  const pcell = tg.closest<HTMLElement>('[data-poolcell]');
+  if (pcell) { const [cs, cy] = pcell.getAttribute('data-poolcell')!.split('|'); return openShelf(cs!, cy!); }
+  const pview = tg.closest<HTMLElement>('[data-poolview]');
+  if (pview) { state.pool.view = pview.getAttribute('data-poolview') === 'cover' ? 'cover' : 'shelf'; savePoolPick(); return renderBank(); }
+  if (tg.closest<HTMLElement>('[data-poolgo]') && state.row) {
+    // From an absence with nothing approved for it: straight to its shelf.
+    state.pool = { view: 'shelf', sub: state.row.subject, yr: state.row.year };
+    savePoolPick();
+    closeAddin();
+    state.tab = 'bank';
+    return showScreen('plans');
+  }
   const loud = tg.closest<HTMLElement>('[data-loud]');
   if (loud) return setLoud(loud.getAttribute('data-loud')!);
   const po = tg.closest<HTMLElement>('[data-planopen]');
@@ -1762,7 +1865,7 @@ document.addEventListener('keydown', (e) => {
   if (!$('overlay').hidden) closeAddin();
 });
 $('overlay').addEventListener('mousedown', (e) => { if ((e.target as HTMLElement).id === 'overlay') closeAddin(); });
-['f-subject', 'f-year', 'f-scope', 'f-approval']
+['f-scope', 'f-approval']
   .forEach((id) => $(id).addEventListener('change', loadBank));
 
 /* ── Feedback tab: what substitutes did and said ───── */
