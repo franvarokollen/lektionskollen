@@ -239,3 +239,36 @@ export function buildTranslateMessages(plan: Record<string, unknown>, lang: stri
     { role: 'user', content: JSON.stringify(plan) },
   ]
 }
+
+/** A teacher's own plan, pasted or uploaded, into LK's shape. Their lesson,
+ *  their words: the model only sorts what is there into the fields. Anything
+ *  the text does not say stays an empty string, so the editor can show the
+ *  teacher exactly what is missing instead of hiding an invention in it. */
+export function buildConvertMessages(text: string, r: Record<string, unknown>) {
+  const ctx = [r.subject && `Subject: ${r.subject}`, r.year_group && `Year group: ${r.year_group}`,
+               r.minutes && `Lesson length: ${r.minutes} minutes`].filter(Boolean).join('\n')
+  return [
+    {
+      role: 'system',
+      content: [
+        'You turn a teacher\'s own lesson plan into JSON. It is their lesson: you sort, you do not write.',
+        '',
+        'OUTPUT one JSON object only, no markdown and no commentary, in exactly this shape:',
+        SCHEMA,
+        'plus one extra key: "gaps": string[] - short notes, in the teacher\'s language, on what the text did not cover.',
+        '',
+        'RULES',
+        '1. Use the teacher\'s own wording wherever it fits. Keep their language (Swedish stays Swedish).',
+        '2. Never invent content: no new tasks, answers, facts, examples or times that the text does not give.',
+        '   If something is missing, leave that string empty ("") or that array empty ([]) and name it in "gaps".',
+        '3. You MAY restructure: split a run of instructions into phases, pull the goal out of a sentence,',
+        '   turn "write on the board: ..." into "board", turn numbered exercises into tasks.',
+        '4. Phase times "t" only when the text gives durations; then as "00:00–00:10" from the lesson start.',
+        '5. Task tier: "core" unless the text says the task is for pupils who need support or who finish early.',
+        '6. Pupils are never named. If the text names a pupil, leave the name out and add a gap saying so.',
+        '7. Never copy more than a short quotation from a textbook; describe it ("page 42, exercises 1-6") instead.',
+      ].join('\n'),
+    },
+    { role: 'user', content: (ctx ? ctx + '\n\n' : '') + 'THE TEACHER\'S PLAN:\n' + text },
+  ]
+}
