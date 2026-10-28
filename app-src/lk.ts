@@ -1386,7 +1386,7 @@ async function generate() {
   // Both languages, so whoever opens the plan reads it in theirs. One
   // generation, then the other language is a translation of it: cheaper than
   // a second generation and the two stay the same lesson. (With no model set
-  // the written library answers both languages instantly.)
+  // the generator says so and nothing is saved.)
   const other: Lang = req.language === 'en' ? 'sv' : 'en';
   const main = await sb.functions.invoke('lk-generate', { body: { request: req } });
   let alt: { error: unknown; data?: any } = { error: new Error('skipped') };
