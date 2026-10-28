@@ -114,8 +114,12 @@ Deno.serve(async (req) => {
   if (convertIn && !convertText) return json({ error: 'empty_text' }, 400)
   // Rewrite one part of an existing plan from substitute feedback. Not a new
   // plan, so it takes no unit from the day's allowance.
+  // Each model call is metered: a rewrite is still a call a school pays for.
   const fixIn = body.fix as { plan?: Record<string, unknown> } & Record<string, unknown> | undefined
   if (fixIn && !fixIn.plan) return json({ error: 'fix needs plan' }, 400)
+  // Not metered (it belongs to the plan it came with), so its size is capped
+  // instead: a translation is of one plan, not of anything someone pastes in.
+  if (translate && JSON.stringify(translate).length > 60_000) return json({ error: 'too_large' }, 413)
   const model = translate ? (Deno.env.get('AI_MODEL_SMALL') || bigModel) : bigModel
   const t0 = Date.now()
 
@@ -126,26 +130,41 @@ Deno.serve(async (req) => {
 
   // A translation is part of the plan it came with, so it does not take a
   // second unit — the school asked for one plan and is getting one plan.
-  let took = false
+  // Everything else that calls the model does: a new plan, a converted one, a
+  // repair, a rewrite from feedback.
+  let charged: string | null = null   // the school the unit was taken from
   let unchecked = false
-  // A repair works on a plan that already exists, so it is not a new plan.
   const repairIn = body.repair as { plan?: Record<string, unknown> } | undefined
-  if (!translate && !repairIn?.plan && !fixIn) {
+  if (!translate) {
     const q = await rpc('lk_quota_take', { p_kind: 'plan' })
-    if (q && q.ok === false && q.reason === 'limit') {
-      return json({
-        error: 'quota', kind: 'plan',
-        limit: q.limit, resets_at: q.resets_at,
-      }, 429)
+    if (q && q.ok === false) {
+      if (q.reason === 'limit') {
+        return json({ error: 'quota', kind: 'plan', limit: q.limit, resets_at: q.resets_at }, 429)
+      }
+      // No school behind the caller: nobody to charge, so nothing to make.
+      return json({ error: 'no_school' }, 403)
     }
-    took = !!(q && q.ok)
-    // If the allowance could not be read, generate anyway: a school at ten to
-    // eight needs the plan more than we need the count. But say so in the
-    // response rather than letting the ceiling fail silently.
+    charged = q?.ok ? String(q.school ?? '') || null : null
+    // If the allowance could not be read at all, generate anyway: a school at
+    // ten to eight needs the plan more than we need the count. But say so in
+    // the response rather than letting the ceiling fail silently.
     unchecked = !q
   }
-  // Nothing is charged for a request that produced nothing.
-  const refund = async () => { if (took) await rpc('lk_quota_give_back', { p_kind: 'plan' }) }
+  // Nothing is charged for a request that produced nothing. Only this function
+  // can give a unit back (lk_quota_refund is not callable from a browser).
+  const refund = async () => {
+    const url = Deno.env.get('SUPABASE_URL')
+    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!charged || !url || !key) return
+    try {
+      await fetch(`${url}/rest/v1/rpc/lk_quota_refund`, {
+        method: 'POST',
+        headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_school: charged, p_kind: 'plan' }),
+      })
+    } catch { /* the unit stays used; better than failing the response */ }
+    charged = null
+  }
 
   // Read after the allowance, before the model: a request that is about to be
   // refused should not cost a query, and a term plan that cannot be read must
@@ -195,8 +214,9 @@ Deno.serve(async (req) => {
 
       if (!res.ok) {
         const text = await res.text().catch(() => '')
+        console.error('lk-generate model', res.status, text.slice(0, 500))
         await refund()
-        return json({ error: `Model error ${res.status}: ${text.slice(0, 300)}` }, 502)
+        return json({ error: `Model error ${res.status}` }, 502)
       }
       out = await res.json()
       content = out?.choices?.[0]?.message?.content ?? ''
@@ -212,7 +232,16 @@ Deno.serve(async (req) => {
         }, 502)
       }
 
-      ;({ data, repaired } = parseModelJson(content))
+      try {
+        ;({ data, repaired } = parseModelJson(content))
+      } catch {
+        // The model answered, but not with a plan. Not a network fault, and
+        // not the school's fault either, so no unit is used.
+        clearTimeout(timer)
+        await refund()
+        return json({ error: 'bad_output', detail: 'The model did not return a readable plan.',
+          finish_reason: out?.choices?.[0]?.finish_reason }, 502)
+      }
     }
 
     // ── The quality gate, applied before the coordinator sees anything ──
@@ -267,7 +296,9 @@ Deno.serve(async (req) => {
   } catch (e) {
     clearTimeout(timer)
     await refund()
-    const msg = (e as Error).name === 'AbortError' ? 'Model timed out' : `Could not reach the model at ${baseUrl}`
+    // The address of the model stays out of the answer; it is in the logs.
+    console.error('lk-generate', e)
+    const msg = (e as Error).name === 'AbortError' ? 'Model timed out' : 'Could not reach the model'
     return json({ error: msg }, 502)
   }
 })

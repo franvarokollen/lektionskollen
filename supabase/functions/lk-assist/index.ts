@@ -130,21 +130,23 @@ Deno.serve(async (req) => {
     return json({ ...hit.pair, model: hit.model ?? model, source: 'cache', ms: Date.now() - t0 })
   }
 
-  // ── Model configured ─────────────────────────────────────
   // ── The plan's allowance for extras ─────────────────────
   // Extras support a plan that already exists, so they do not spend the
-  // school's daily plan allowance. They have had their own cap all along —
-  // assist_quota_left, counting what a substitute actually created in the last
-  // day — and plan.html checks it before calling. This checks it again here,
-  // because a cap only the page enforces is a cap anyone can skip.
+  // school's daily plan allowance; each plan has its own cap per day. It is
+  // taken here, in one statement, before the model is called — a cap only the
+  // page enforced was a cap anyone could skip, and a request that names no
+  // plan used to skip it too. Cache hits above are free and not counted.
   //
-  // Over it, the written move is still a good answer, so this falls back rather
-  // than refusing: a substitute mid-lesson gets help either way.
-  if (body.plan_id) {
-    const left = await userRpc('lk_assist_quota_by_plan', { p_plan: body.plan_id })
-    if (typeof left === 'number' && left <= 0) return fallback('library')
-  }
+  // Over it, or with no plan named, the written move is still a good answer,
+  // so this falls back rather than refusing: a substitute mid-lesson gets
+  // help either way.
+  const take = await userRpc('lk_assist_take', {
+    p_token: typeof body.token === 'string' ? body.token : null,
+    p_plan: typeof body.plan_id === 'string' ? body.plan_id : null,
+  }) as { ok?: boolean } | null
+  if (!take?.ok) return fallback('library')
 
+  // ── Model configured ─────────────────────────────────────
   // Short timeout on purpose. A substitute standing in front of a class
   // will not wait sixty seconds, and a written fallback beats a spinner.
   const ctl = new AbortController()
@@ -177,6 +179,7 @@ Deno.serve(async (req) => {
     const content: string = out?.choices?.[0]?.message?.content ?? ''
     if (!content) return fallback('fallback')
 
+    // A malformed answer is caught below and becomes the written move.
     const { data, repaired } = parseModelJson(content)
     const raw = data as Extra & { alt?: Extra }
     if (!raw?.title || !Array.isArray(raw?.lines) || !raw.lines.length) return fallback('fallback')

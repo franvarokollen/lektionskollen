@@ -715,7 +715,9 @@
       year_group: DATA.year_group,
       topic: p?.title || DATA.title,
       minutes_left: opts.minutes || void 0,
-      fresh: opts.fresh || void 0
+      fresh: opts.fresh || void 0,
+      // The plan this help is charged to; lk-assist takes from its daily cap.
+      token
     };
     const q = await sb.rpc("lk_assist_quota", { p_token: token });
     if (typeof q.data === "number" && q.data <= 0) {

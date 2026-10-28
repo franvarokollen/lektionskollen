@@ -426,6 +426,8 @@ async function runAssist(opts: AssistOpts) {
     topic: p?.title || DATA.title,
     minutes_left: opts.minutes || undefined,
     fresh: opts.fresh || undefined,
+    // The plan this help is charged to; lk-assist takes from its daily cap.
+    token,
   };
 
   // Check the quota first. Once a real model is connected, a blocked

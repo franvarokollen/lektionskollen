@@ -133,6 +133,9 @@ async function checkSubject(
         // Anthropic's compatibility layer ignores response_format, so leave
         // AI_JSON_MODE unset there. The fence-stripping below covers it.
         ...(Deno.env.get('AI_JSON_MODE') ? { response_format: { type: 'json_object' } } : {}),
+        // A list of findings is short; without a ceiling the provider's
+        // default applies, which on some is the whole context.
+        max_tokens: Number(Deno.env.get('AI_VERIFY_MAX_TOKENS') ?? 4000),
       }),
       signal: AbortSignal.timeout(45000),
     });
@@ -160,8 +163,7 @@ async function checkSubject(
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
-  let payload: { plan_id?: string; body?: Record<string, unknown>; subject?: string;
-                 year?: string; minutes?: number | null; language?: string };
+  let payload: { plan_id?: string };
   try {
     payload = await req.json();
   } catch {
@@ -173,22 +175,22 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  let body = payload.body;
-  let subject = payload.subject ?? '';
-  let year = payload.year ?? '';
-  let minutes = payload.minutes ?? null;
-  let language = payload.language ?? '';
-
-  // A plan id is enough; the rest is looked up. The lektionskollen schema is
-  // not exposed to PostgREST by design, so this goes through its own function.
-  if (!body && payload.plan_id) {
-    const { data, error } = await db.rpc('lk_plan_for_verify', { p_id: payload.plan_id });
-    if (error || !data) return json({ error: 'plan_not_found', detail: error?.message }, 404);
-    body = data.body as Record<string, unknown>;
-    subject = data.subject; year = data.year_group;
-    minutes = data.minutes; language = data.language ?? language;
-  }
-  if (!body) return json({ error: 'no_plan' }, 400);
+  // Only a plan the caller can open: it is looked up as the caller, with the
+  // same scope as the app (own school's plans, and shared ones). A free-form
+  // body is not accepted — it made this a model anyone could call for free.
+  if (!payload.plan_id) return json({ error: 'no_plan' }, 400);
+  const asCaller = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+  );
+  const { data: plan, error: pErr } = await asCaller.rpc('lk_plan', { p_id: payload.plan_id });
+  if (pErr || !plan) return json({ error: 'plan_not_found' }, 404);
+  const body = plan.body as Record<string, unknown>;
+  const subject = String(plan.subject ?? '');
+  const year = String(plan.year_group ?? '');
+  const minutes = (plan.minutes ?? null) as number | null;
+  const language = String(plan.language ?? '');
 
   // lk_check_plan, not lk_validate_full: the whole deterministic verdict, which
   // includes the quality gate (missing material, unquoted sentences, repeats).

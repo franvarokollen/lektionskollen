@@ -1048,6 +1048,27 @@
     }, 1e3);
   }
   var panelSeq = 0;
+  async function invokeGen(body) {
+    const r = await sb.functions.invoke("lk-generate", { body });
+    if (r.error && !r.data) {
+      try {
+        const ctx = r.error.context;
+        if (ctx && typeof ctx.json === "function") return { data: await ctx.json(), error: r.error };
+      } catch {
+      }
+    }
+    return r;
+  }
+  function genErrText(data, error) {
+    const code = String(data?.error || "");
+    if (code === "no_model") return t("errNoModel");
+    if (code === "quota") return fillT("errQuota", { n: data?.limit ?? "" });
+    if (code === "bad_output") return t("errBadOutput");
+    if (code === "no_school") return t("errNoSchool");
+    if (code === "too_large") return t("errTooLarge");
+    if (code || error) console.warn("lk-generate", code, data?.detail, error);
+    return t("errUnknown");
+  }
   function stopWait() {
     if (waitTimer) {
       clearInterval(waitTimer);
@@ -1066,24 +1087,16 @@
     $("addin-content").innerHTML = waitHtml(t("genCalling"));
     startWait();
     const other = req.language === "en" ? "sv" : "en";
-    const main = await sb.functions.invoke("lk-generate", { body: { request: req } });
+    const main = await invokeGen({ request: req });
     let alt = { error: new Error("skipped") };
     if (!main.error && !main.data?.error) {
       waitSay(t("genTranslating"));
-      alt = await sb.functions.invoke("lk-generate", {
-        body: { request: { ...req, language: other }, translate: main.data.source === "model" ? main.data.plan : void 0 }
-      });
+      alt = await invokeGen({ request: { ...req, language: other }, translate: main.data.source === "model" ? main.data.plan : void 0 });
     }
     if (!stillHere()) return;
     stopWait();
     if (main.error || main.data?.error) {
-      const code = main.data?.error || "";
-      const saidMap = {
-        no_model: t("errNoModel"),
-        quota: fillT("errQuota", { n: main.data?.limit ?? "" })
-      };
-      const said = saidMap[code];
-      const msg = said || main.data?.detail || main.error?.message || t("errUnknown");
+      const msg = genErrText(main.data, main.error);
       $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><h2>' + esc(t("failed")) + '</h2><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="alert error">' + esc(msg) + '</div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-generate>' + esc(t("retry")) + "</button></div></div>";
       return;
     }
@@ -1856,7 +1869,7 @@
       renderFeedback();
       return;
     }
-    const res = await sb.functions.invoke("lk-generate", { body: {
+    const res = await invokeGen({
       request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: pl.language },
       fix: {
         plan: pl.body,
@@ -1865,9 +1878,9 @@
         language: pl.language,
         feedback: { bad: a.bad, total: a.total, help: a.help, helpKinds: a.helpKinds, notes: a.notes }
       }
-    } });
+    });
     if (res.error || res.data?.error || !res.data?.plan) {
-      state.fixes[key] = { err: res.data?.error === "no_model" ? t("errNoModel") : res.data?.detail || res.data?.error || res.error?.message || t("errUnknown") };
+      state.fixes[key] = { err: genErrText(res.data, res.error) };
     } else state.fixes[key] = { before: pl.body, after: res.data.plan };
     renderFeedback();
   }
@@ -1890,7 +1903,7 @@
       const other = pl.language === "en" ? "sv" : "en";
       (async () => {
         try {
-          const tr = await sb.functions.invoke("lk-generate", { body: { request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: other }, translate: pl.body } });
+          const tr = await invokeGen({ request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: other }, translate: pl.body });
           if (!tr.error && tr.data?.plan) await sb.rpc("lk_fill_alt", { p_id: a.plan, p_language: other, p_body: tr.data.plan });
         } catch {
         }
@@ -2396,13 +2409,12 @@
     renderCreate();
     startWait();
     const body = c.method === "ai" ? { request: crRequest() } : { request: crRequest(), convert: { text: c.source } };
-    const { data, error } = await sb.functions.invoke("lk-generate", { body });
+    const { data, error } = await invokeGen(body);
     if (state.cr !== c) return;
     stopWait();
     c.busy = "";
     if (error || !data || data.error || !data.plan) {
-      const code = data?.error || "";
-      toast(code === "no_model" ? t("errNoModel") : code === "quota" ? fillT("errQuota", { n: data?.limit ?? "" }) : data?.detail || error?.message || t("errUnknown"), 8e3);
+      toast(data?.error === "empty_text" ? t("crNeedText") : genErrText(data, error), 8e3);
       renderCreate();
       return;
     }
