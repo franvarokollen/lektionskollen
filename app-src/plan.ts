@@ -377,6 +377,12 @@ function sheetHtml(extra: Extra, source: string, saveNote: string, extraId: numb
   // "explain another way" on phase 2 knows exactly what confused the class.
   // Ask an hour later and you get "it was ok".
   if (extraId) {
+    // The substitute's thumb decides whether this help is kept for the next
+    // one — so nobody has to review it by hand.
+    h += '<div class="xverdict"><span>' + esc(l.xvQ) + '</span>' +
+         '<button data-xv="' + extraId + ':1">' + esc(l.xvUp) + '</button>' +
+         '<button data-xv="' + extraId + ':0">' + esc(l.xvDown) + '</button>' +
+         '<span class="hint" id="xvmsg"></span></div>';
     h += '<div class="note"><label for="noteq">' + esc(l.whatHappened) + '</label>' +
          '<div class="noterow">' +
            '<input id="noteq" type="text" maxlength="240" placeholder="' + esc(l.whatHappenedPh) + '">' +
@@ -1036,6 +1042,15 @@ document.addEventListener('click', async (e) => {
 
   if (tg.closest<HTMLElement>('[data-sheetclose]') || tg.id === 'sheet') {
     $('sheet').hidden = true;
+    return;
+  }
+
+  const xv = tg.closest<HTMLButtonElement>('[data-xv]');
+  if (xv) {
+    const [id, up] = xv.getAttribute('data-xv')!.split(':');
+    document.querySelectorAll<HTMLButtonElement>('[data-xv]').forEach((b) => { b.disabled = true; b.classList.toggle('on', b === xv); });
+    const { error } = await sb.rpc('lk_extra_verdict_by_token', { p_token: token, p_extra_id: Number(id), p_up: up === '1' });
+    const m = maybe$('xvmsg'); if (m) m.textContent = error ? '' : l.xvThanks;
     return;
   }
 

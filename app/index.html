@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="./lk.css">
-<meta name="lk-build" content="81d54ba9404c">
+<meta name="lk-build" content="6cadfcb63fac">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -190,11 +190,13 @@
       </div>
 
       <div id="tab-feedback" hidden>
-        <div class="filters"><h3 class="fb-h" data-t="queueTitle">Att granska</h3><span class="spacer"></span>
+        <!-- A short to-do list, usually empty: the routine is decided for you. -->
+        <div id="fbsummary"></div>
+        <div class="filters" style="margin-top:14px"><h3 class="fb-h" data-t="fbNeedsH">Behöver dig</h3><span class="spacer"></span>
           <button class="btn btn-ghost btn-sm" data-tab="feedback" data-t="refresh">Uppdatera</button></div>
         <div class="grid" id="fbqueue"></div>
-        <div class="filters" style="margin-top:22px"><h3 class="fb-h" data-t="plansTitle">Planer och vad vikarierna sa</h3></div>
-        <div class="grid" id="fbplans"></div>
+        <details class="fbmore"><summary data-t="plansTitle">Planer och vad vikarierna sa</summary><div class="grid" id="fbplans"></div></details>
+        <details class="fbmore"><summary id="fbautoH"></summary><div class="grid" id="fbauto"></div></details>
         <div class="bcard fx" id="fbsettings" style="margin-top:22px;max-width:520px"></div>
       </div>
 

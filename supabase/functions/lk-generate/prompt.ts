@@ -272,3 +272,31 @@ export function buildConvertMessages(text: string, r: Record<string, unknown>) {
     { role: 'user', content: (ctx ? ctx + '\n\n' : '') + 'THE TEACHER\'S PLAN:\n' + text },
   ]
 }
+
+/** Rewrite ONE part of an existing plan from what substitutes said about it.
+ *  Everything else must come back byte for byte, so the person accepting the
+ *  fix only has to read the part that changed. */
+export function buildFixMessages(plan: Record<string, unknown>, fix: Record<string, unknown>) {
+  const lang = String(fix.language || 'sv')
+  const fb = fix.feedback as Record<string, unknown> | undefined
+  const said = [
+    fb?.bad ? `${fb.bad} of ${fb.total ?? '?'} substitutes rated this part "bad".` : '',
+    fb?.help ? `Substitutes asked for extra help on this part ${fb.help} times (${fb.helpKinds ?? 'explain again'}).` : '',
+    ...((fb?.notes as string[] | undefined) ?? []).slice(0, 8).map((n) => `A substitute wrote: "${n}"`),
+  ].filter(Boolean).join('\n')
+  return [
+    {
+      role: 'system',
+      content: [
+        ANCHOR[lang] ?? ANCHOR.sv,
+        'You improve ONE part of a school lesson plan for a substitute teacher who may not know the subject.',
+        'Return the COMPLETE plan as JSON only, with the same keys and structure.',
+        `Change ONLY the part named "${fix.label ?? fix.ref}" (reference "${fix.ref ?? ''}"). Every other value must be identical, character for character.`,
+        'Make that part easier for a substitute to run: plainer words, every step spelled out, every question with its answer,',
+        'nothing the substitute has to produce that is not written in the plan. Keep its length and timing.',
+        'Swedish schools have no bells: never write "bell". No markdown, no commentary.',
+      ].join('\n'),
+    },
+    { role: 'user', content: 'WHAT SUBSTITUTES SAID:\n' + (said || '(no detail)') + '\n\nTHE PLAN:\n' + JSON.stringify(plan) },
+  ]
+}
