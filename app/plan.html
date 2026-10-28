@@ -13,8 +13,14 @@
   /* The vikarie's page: no app chrome, no login, reads on a phone. */
   .subwrap{max-width:720px;margin:0 auto;padding-block:20px 120px;
     padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-  .subhead{background:var(--navy-deep);color:#e8edf2;border-radius:12px;padding:16px 18px;margin-bottom:18px}
-  .subhead h1{font-size:20px;letter-spacing:-.015em}
+  /* The hero: LK's sign-in navy behind the title and the Start button. */
+  .subhead{background:var(--lk-grad);color:#e8edf2;border-radius:16px;padding:22px 22px 20px;margin-bottom:18px;
+    box-shadow:0 10px 30px rgba(13,35,64,.22)}
+  .subhead h1{font-size:23px;letter-spacing:-.015em;color:#fff}
+  .subhead .startrow{margin:18px 0 0}
+  .subhead .startbtn{background:#fff;color:#0d2340;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+  .subhead .startbtn:hover{background:#e8f0fb}
+  .subhead .starthint{color:#b8c9dc}
   .subhead .m{color:#9fb3c8;font-size:13px;margin-top:4px}
   .ratebox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:22px}
   .langpick{display:flex;gap:4px;background:rgba(255,255,255,.1);border-radius:10px;padding:3px}
@@ -274,7 +280,7 @@ a.openbtn:hover{opacity:.92;color:#fff}
   border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
 .depthrow button.on{background:var(--navy-deep);border-color:var(--navy-deep);color:#fff}
 </style>
-<meta name="lk-build" content="489342d1ed5c">
+<meta name="lk-build" content="461eaf8ca515">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way

@@ -548,9 +548,10 @@ function render(d: PlanRow, keepScroll?: boolean) {
       ? '<div class="langpick noprint">' + choices.map((c) =>
           '<button data-pick="' + c + '"' + (c === LANG ? ' class="on"' : '') + '>' + (c === 'sv' ? 'SV' : 'EN') + '</button>').join('') + '</div>'
       : '') +
-    '</div></div>' +
+    '</div>' +
+    // Start sits inside the hero: the first thing a substitute sees is what to press.
     '<div class="startrow noprint"><button class="startbtn" data-teach="1">' + esc(l.teachBtn) + '</button>' +
-    '<span class="starthint">' + esc(l.teachHint) + '</span></div>' +
+    '<span class="starthint">' + esc(l.teachHint) + '</span></div></div>' +
     '<div class="strow noprint">' +
     '<button class="stbtn" data-quick="1">' + esc(l.quickBtn) + '</button>' +
     '<button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button>' +
