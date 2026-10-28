@@ -14,7 +14,7 @@
 // used, because it points at the two things that still work: the class
 // teacher's own linked plan, and the bank of approved plans.
 
-import { buildConvertMessages, buildMessages, buildTranslateMessages } from './prompt.ts'
+import { buildConvertMessages, buildFixMessages, buildMessages, buildTranslateMessages } from './prompt.ts'
 import { parseModelJson } from './repair.ts'
 
 // Temperature is omitted unless AI_TEMPERATURE is set. Anthropic's OpenAI
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
   // it: a school that has entered nothing gets exactly the behaviour it had
   // before.
   const fetchRecent = async () => {
-    if (translate || convertText || !r.subject || !r.year_group) return null
+    if (translate || convertText || fixIn || !r.subject || !r.year_group) return null
     const rows = await rpc('lk_term_recent',
       { p_subject: r.subject, p_year: r.year_group, p_week: null, p_back: 3 })
     return Array.isArray(rows) && rows.length ? rows : null
@@ -112,6 +112,10 @@ Deno.serve(async (req) => {
   const convertIn = body.convert as { text?: string } | undefined
   const convertText = typeof convertIn?.text === 'string' ? convertIn.text.slice(0, 20_000).trim() : ''
   if (convertIn && !convertText) return json({ error: 'empty_text' }, 400)
+  // Rewrite one part of an existing plan from substitute feedback. Not a new
+  // plan, so it takes no unit from the day's allowance.
+  const fixIn = body.fix as { plan?: Record<string, unknown> } & Record<string, unknown> | undefined
+  if (fixIn && !fixIn.plan) return json({ error: 'fix needs plan' }, 400)
   const model = translate ? (Deno.env.get('AI_MODEL_SMALL') || bigModel) : bigModel
   const t0 = Date.now()
 
@@ -126,7 +130,7 @@ Deno.serve(async (req) => {
   let unchecked = false
   // A repair works on a plan that already exists, so it is not a new plan.
   const repairIn = body.repair as { plan?: Record<string, unknown> } | undefined
-  if (!translate && !repairIn?.plan) {
+  if (!translate && !repairIn?.plan && !fixIn) {
     const q = await rpc('lk_quota_take', { p_kind: 'plan' })
     if (q && q.ok === false && q.reason === 'limit') {
       return json({
@@ -156,6 +160,8 @@ Deno.serve(async (req) => {
       ? buildTranslateMessages(translate, String(r.language || 'sv'))
       : convertText
       ? buildConvertMessages(convertText, r)
+      : fixIn
+      ? buildFixMessages(fixIn.plan!, fixIn)
       : buildMessages({ ...r, recent })
     const call = (msgs: unknown[]) => fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',

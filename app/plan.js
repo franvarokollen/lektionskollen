@@ -204,6 +204,10 @@
     whatHappened: "Vad h\xE4nde? (frivilligt, en rad)",
     whatHappenedPh: "t.ex. de fastnade p\xE5 n\xE4mnaren",
     noteSaved: "Tack \u2014 sparat med planen.",
+    xvQ: "Hj\xE4lpte det h\xE4r?",
+    xvUp: "\u{1F44D} Ja",
+    xvDown: "\u{1F44E} Nej",
+    xvThanks: "Tack! N\xE4sta vikarie f\xE5r det du tyckte.",
     commentTitle: "Vad funkade, vad funkade inte? (frivilligt)",
     commentPh: "En rad r\xE4cker. Det \xE4r det h\xE4r ordinarie l\xE4rare och vi har mest nytta av.",
     send: "Skicka",
@@ -417,6 +421,10 @@
     whatHappened: "What happened? (optional, one line)",
     whatHappenedPh: "e.g. they got stuck on the denominator",
     noteSaved: "Thank you \u2014 saved with the plan.",
+    xvQ: "Did this help?",
+    xvUp: "\u{1F44D} Yes",
+    xvDown: "\u{1F44E} No",
+    xvThanks: "Thanks! The next substitute benefits from your answer.",
     commentTitle: "What worked, what did not? (optional)",
     commentPh: "One line is enough. This is the part the class teacher and we get most out of.",
     send: "Send",
@@ -737,6 +745,7 @@
     }
     h += '<div class="sheetfoot"><span class="hint">' + esc(saveNote) + "</span></div>";
     if (extraId) {
+      h += '<div class="xverdict"><span>' + esc(l.xvQ) + '</span><button data-xv="' + extraId + ':1">' + esc(l.xvUp) + '</button><button data-xv="' + extraId + ':0">' + esc(l.xvDown) + '</button><span class="hint" id="xvmsg"></span></div>';
       h += '<div class="note"><label for="noteq">' + esc(l.whatHappened) + '</label><div class="noterow"><input id="noteq" type="text" maxlength="240" placeholder="' + esc(l.whatHappenedPh) + '"><button data-note="' + extraId + '" data-noteref="' + esc(opts?.ref || "") + '">' + esc(l.send) + '</button></div><p id="notemsg" class="hint" style="margin:7px 0 0"></p></div>';
     }
     return h;
@@ -1332,6 +1341,18 @@
     }
     if (tg.closest("[data-sheetclose]") || tg.id === "sheet") {
       $("sheet").hidden = true;
+      return;
+    }
+    const xv = tg.closest("[data-xv]");
+    if (xv) {
+      const [id, up] = xv.getAttribute("data-xv").split(":");
+      document.querySelectorAll("[data-xv]").forEach((b) => {
+        b.disabled = true;
+        b.classList.toggle("on", b === xv);
+      });
+      const { error } = await sb.rpc("lk_extra_verdict_by_token", { p_token: token, p_extra_id: Number(id), p_up: up === "1" });
+      const m = maybe$("xvmsg");
+      if (m) m.textContent = error ? "" : l.xvThanks;
       return;
     }
     const noteBtn = tg.closest("[data-note]");

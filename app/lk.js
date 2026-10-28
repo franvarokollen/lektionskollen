@@ -215,6 +215,9 @@
     fb: [],
     pending: 0,
     queue: [],
+    extras: [],
+    attn: [],
+    fixes: {},
     model: null,
     cap: 20,
     uses: [],
@@ -1328,6 +1331,16 @@
       return openPop(blk.getAttribute("data-blk"), r.right + 6, r.top);
     }
     if (await crClick(tg)) return;
+    const fbf = tg.closest("[data-fbfix]");
+    if (fbf) return draftFix(Number(fbf.getAttribute("data-fbfix")));
+    const fbu = tg.closest("[data-fbuse]");
+    if (fbu) return useFix(Number(fbu.getAttribute("data-fbuse")));
+    const fbd = tg.closest("[data-fbdrop]");
+    if (fbd) {
+      const a2 = state.attn[Number(fbd.getAttribute("data-fbdrop"))];
+      if (a2) delete state.fixes[a2.plan + "|" + (a2.ref || "")];
+      return renderFeedback();
+    }
     const tpc = tg.closest("[data-tpcell]");
     if (tpc) {
       const [cs, cy] = tpc.getAttribute("data-tpcell").split("|");
@@ -1649,15 +1662,19 @@
   }
   async function loadFeedback() {
     loadSettings();
+    await Promise.resolve(sb.rpc("lk_auto_review")).catch(() => null);
     const [ex, ov, rn] = await Promise.all([sb.rpc("lk_extras", { p_id: null }), sb.rpc("lk_feedback_overview"), sb.rpc("lk_feedback_runs")]);
     if (ex.error || ov.error) {
       $("fbqueue").innerHTML = '<p class="note">' + esc((ex.error || ov.error).message) + "</p>";
       return;
     }
-    state.queue = (ex.data || []).filter((x) => !x.reviewed && x.created_by_kind === "vikarie");
+    const extras = (ex.data || []).filter((x) => x.created_by_kind === "vikarie");
+    state.extras = extras;
+    state.queue = extras.filter((x) => !x.reviewed && !extraOk(x.body));
     const runs = rn.data || {};
     state.fb = (ov.data || []).map((x) => ({ ...x, runs: runs[x.id] || [] }));
-    state.pending = state.queue.length;
+    state.attn = attention();
+    state.pending = state.attn.length;
     renderFeedback();
     renderNav();
     setTitles();
@@ -1722,10 +1739,143 @@
     if (said.length) h += '<div class="sect-h">' + esc(t("fbSaid")) + "</div>" + said.join("");
     return h;
   }
+  function extraOk(b) {
+    if (!b) return false;
+    const has = (b.lines || []).some((x) => String(x || "").trim()) || !!String(b.board || "").trim() || (b.tasks || []).length > 0;
+    const pointer = (a) => !String(a || "").trim() || /^(se |see |enligt |as above|som ovan)/i.test(String(a).trim());
+    return has && !(b.tasks || []).some((t2) => !String(t2.q || "").trim() || pointer(t2.a));
+  }
+  function attention() {
+    const out = [];
+    for (const p of state.fb) {
+      const base = { plan: p.id, title: p.title || p.subject, subject: p.subject, year: p.year_group };
+      const notesOf = (label) => (p.feedback?.notes || []).filter((n) => !label || n.section_label === label).map((n) => n.note);
+      for (const x of p.sections || []) {
+        const total = x.good + x.ok + x.bad;
+        if (x.bad >= 2) out.push({ ...base, kind: "bad", ref: x.section_ref, label: x.section_label || x.section_ref, bad: x.bad, total, notes: [...x.notes || [], ...notesOf(x.section_label)] });
+      }
+      const byRef = /* @__PURE__ */ new Map();
+      for (const h of p.heat || []) {
+        const k = h.section_ref || "lesson";
+        const v = byRef.get(k) || { n: 0, label: h.section_label, kinds: /* @__PURE__ */ new Set() };
+        v.n += h.n;
+        v.kinds.add(kindLabel(h.kind, ""));
+        byRef.set(k, v);
+      }
+      byRef.forEach((v, ref) => {
+        if (v.n >= 3 && !out.some((o) => o.plan === p.id && o.ref === ref)) {
+          out.push({ ...base, kind: "help", ref, label: v.label || t("wholeLesson"), help: v.n, helpKinds: [...v.kinds].join(", "), notes: notesOf(v.label) });
+        }
+      });
+      if ((p.ratings || 0) >= 3 && (p.yes || 0) / (p.ratings || 1) < 0.5) out.push({ ...base, kind: "low", bad: (p.ratings || 0) - (p.yes || 0), total: p.ratings });
+    }
+    for (const x of state.queue) {
+      out.push({ kind: "extra", plan: x.plan_id || "", title: x.title || "", subject: x.subject, year: x.year_group, extra: x, label: x.section_label });
+    }
+    return out;
+  }
+  function fbSummary() {
+    const weekAgo = Date.now() - 7 * 864e5;
+    const runs = state.fb.flatMap((p) => p.runs || []).filter((r) => new Date(r.date).getTime() >= weekAgo);
+    const answered = runs.filter((r) => r.answered);
+    const stars2 = answered.map((r) => Number(String(r.stars || "").replace(",", "."))).filter((n) => n > 0);
+    const avg = stars2.length ? (stars2.reduce((a, n) => a + n, 0) / stars2.length).toFixed(1).replace(".", LANG === "sv" ? "," : ".") : "\u2014";
+    const auto = state.extras.filter((x) => x.reviewed && x.auto_reason && x.auto_reason !== "check_failed").length;
+    const waiting = state.extras.filter((x) => !x.reviewed && extraOk(x.body)).length;
+    const tile = (n, k, cls = "") => '<div class="fbtile' + cls + '"><b>' + esc(String(n)) + "</b><span>" + esc(t(k)) + "</span></div>";
+    return '<div class="fbtiles">' + tile(runs.length, "fbTLessons") + tile(answered.length ? "\u2605 " + avg : "\u2014", "fbTStars") + tile(auto, "fbTAuto") + tile(state.attn.length, "fbTNeeds", state.attn.length ? " hot" : " calm") + "</div>" + (waiting ? '<p class="hint">' + esc(fillT("fbWaiting", { n: waiting })) + "</p>" : "");
+  }
+  function attnCard(a, i) {
+    const head = '<div class="tags"><span class="chip chip-neutral">' + esc(subjectLabel(a.subject)) + '</span><span class="chip chip-neutral">' + esc(yearLabel(a.year)) + '</span><span class="chip ' + (a.kind === "extra" ? "chip-blue" : "chip-warn") + '">' + esc(t("fbWhy_" + a.kind)) + "</span></div><h4>" + esc(a.title) + "</h4>";
+    if (a.kind === "extra") {
+      const x = a.extra;
+      return '<div class="bcard fx attn">' + head + '<p class="fbreason">' + esc(fillT("fbExtraFailed", { s: x.section_label || t("wholeLesson"), k: kindLabel(x.kind, x.variant) })) + "</p>" + extraText(x) + '<div style="display:flex;gap:6px"><button class="btn btn-ok btn-sm" data-review="' + x.id + ':1">' + esc(t("keep")) + '</button><button class="btn btn-ghost btn-sm" data-review="' + x.id + ':0">' + esc(t("hide")) + "</button></div></div>";
+    }
+    const why = a.kind === "bad" ? fillT("fbBadStep", { s: a.label, b: a.bad, n: a.total }) : a.kind === "help" ? fillT("fbHelpStep", { s: a.label, n: a.help, k: a.helpKinds }) : fillT("fbLowPlan", { b: a.bad, n: a.total });
+    const key = a.plan + "|" + (a.ref || "");
+    const fx = state.fixes[key];
+    let fixBox = "";
+    if (fx?.busy) fixBox = '<div class="fixbox"><span class="spin"></span> ' + esc(t("fbFixing")) + "</div>";
+    else if (fx?.err) fixBox = '<div class="fixbox err">' + esc(fx.err) + "</div>";
+    else if (fx?.after) fixBox = '<div class="fixbox">' + fixDiff(fx.before, fx.after) + '<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-primary btn-sm" data-fbuse="' + i + '">' + esc(t("fbUseFix")) + '</button><button class="btn btn-ghost btn-sm" data-fbdrop="' + i + '">' + esc(t("fbDropFix")) + '</button></div><p class="hint">' + esc(t("fbFixReapprove")) + "</p></div>";
+    return '<div class="bcard fx attn">' + head + '<p class="fbreason">' + esc(why) + "</p>" + ((a.notes || []).length ? a.notes.slice(0, 3).map((n) => "<blockquote>" + esc(n) + "</blockquote>").join("") : "") + (fixBox || '<div style="display:flex;gap:6px;flex-wrap:wrap">' + (a.kind !== "low" ? '<button class="btn btn-primary btn-sm" data-fbfix="' + i + '">\u2726 ' + esc(t("fbDraftFix")) + "</button>" : "") + '<button class="btn btn-ghost btn-sm" data-viewplan="' + a.plan + '">' + esc(t("openPlan")) + " \u2192</button></div>") + "</div>";
+  }
+  function fixDiff(before, after) {
+    const flat = (o, path = "", acc = {}) => {
+      if (o && typeof o === "object") {
+        for (const [k, v] of Object.entries(o)) flat(v, path ? path + "." + k : k, acc);
+      } else if (o != null && String(o).trim()) acc[path] = String(o);
+      return acc;
+    };
+    const a = flat(before), b = flat(after);
+    const keys = [.../* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => a[k] !== b[k]);
+    if (!keys.length) return '<p class="hint">' + esc(t("fbNoChange")) + "</p>";
+    return '<div class="fixdiff">' + keys.slice(0, 14).map((k) => '<div class="fd"><code>' + esc(k) + "</code>" + (a[k] ? "<del>" + esc(a[k]) + "</del>" : "") + (b[k] ? "<ins>" + esc(b[k]) + "</ins>" : "") + "</div>").join("") + (keys.length > 14 ? '<p class="hint">+' + (keys.length - 14) + "</p>" : "") + "</div>";
+  }
   function renderFeedback() {
-    const q = state.queue;
-    $("fbqueue").innerHTML = q.length ? q.map((x) => '<div class="bcard fx"><div class="tags"><span class="chip chip-neutral">' + esc(subjectLabel(x.subject)) + '</span><span class="chip chip-neutral">' + esc(yearLabel(x.year_group)) + '</span><span class="chip chip-blue">' + esc(kindLabel(x.kind, x.variant)) + "</span>" + (x.section_label ? '<span class="chip chip-neutral">' + esc(x.section_label) + "</span>" : "") + (x.model === "canned" ? '<span class="chip chip-warn">' + esc(t("simTag")) + "</span>" : "") + '</div><div class="plan-meta">' + esc(x.title || "") + " \xB7 " + new Date(x.created_at).toLocaleString(LANG === "sv" ? "sv-SE" : "en-GB", { dateStyle: "short", timeStyle: "short" }) + "</div>" + extraText(x) + '<div style="display:flex;gap:6px"><button class="btn btn-ok btn-sm" data-review="' + x.id + ':1">' + esc(t("keep")) + '</button><button class="btn btn-ghost btn-sm" data-review="' + x.id + ':0">' + esc(t("hide")) + "</button></div></div>").join("") : '<p class="note">' + esc(t("queueEmpty")) + "</p>";
+    const sum = maybe$("fbsummary");
+    if (sum) sum.innerHTML = fbSummary();
+    $("fbqueue").innerHTML = state.attn.length ? state.attn.map(attnCard).join("") : '<p class="note fbcalm">\u2713 ' + esc(t("fbAllGood")) + "</p>";
     $("fbplans").innerHTML = state.fb.length ? state.fb.map((p) => '<div class="bcard fx clickable" data-viewplan="' + p.id + '" title="' + esc(t("fbOpenHint")) + '"><h4>' + esc(p.title || p.subject) + '</h4><div class="tags"><span class="chip chip-neutral">' + esc(subjectLabel(p.subject)) + '</span><span class="chip chip-neutral">' + esc(yearLabel(p.year_group)) + "</span></div>" + fbBody(p) + '<div><span class="btn btn-soft btn-sm">' + esc(t("openPlan")) + " \u2192</span></div></div>").join("") : '<p class="note">' + esc(t("fbEmpty")) + "</p>";
+    const auto = state.extras.filter((x) => x.reviewed);
+    const ah = maybe$("fbautoH");
+    if (ah) ah.textContent = fillT("fbAutoH", { n: auto.length });
+    const ab = maybe$("fbauto");
+    if (ab) ab.innerHTML = auto.length ? auto.map((x) => '<div class="bcard fx"><div class="tags"><span class="chip ' + (x.kept ? "chip-ok" : "chip-neutral") + '">' + esc(t(x.kept ? "fbKept" : "fbHidden")) + '</span><span class="chip chip-neutral">' + esc(t("fbReason_" + (x.auto_reason || "person"))) + '</span><span class="chip chip-blue">' + esc(kindLabel(x.kind, x.variant)) + '</span></div><div class="plan-meta">' + esc((x.title || "") + (x.section_label ? " \xB7 " + x.section_label : "")) + "</div>" + extraText(x) + "</div>").join("") : '<p class="note">\u2014</p>';
+  }
+  async function draftFix(i) {
+    const a = state.attn[i];
+    if (!a) return;
+    const key = a.plan + "|" + (a.ref || "");
+    state.fixes[key] = { busy: true };
+    renderFeedback();
+    const { data: pl, error } = await sb.rpc("lk_plan", { p_id: a.plan });
+    if (error || !pl) {
+      state.fixes[key] = { err: error?.message || t("errUnknown") };
+      renderFeedback();
+      return;
+    }
+    const res = await sb.functions.invoke("lk-generate", { body: {
+      request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: pl.language },
+      fix: {
+        plan: pl.body,
+        ref: a.ref,
+        label: a.label,
+        language: pl.language,
+        feedback: { bad: a.bad, total: a.total, help: a.help, helpKinds: a.helpKinds, notes: a.notes }
+      }
+    } });
+    if (res.error || res.data?.error || !res.data?.plan) {
+      state.fixes[key] = { err: res.data?.error === "no_model" ? t("errNoModel") : res.data?.detail || res.data?.error || res.error?.message || t("errUnknown") };
+    } else state.fixes[key] = { before: pl.body, after: res.data.plan };
+    renderFeedback();
+  }
+  async function useFix(i) {
+    const a = state.attn[i];
+    if (!a) return;
+    const key = a.plan + "|" + (a.ref || "");
+    const fx = state.fixes[key];
+    if (!fx?.after) return;
+    const { data, error } = await sb.rpc("lk_update_plan_body", { p_id: a.plan, p_body: fx.after, p_note: fillT("fbFixNote", { s: a.label || "" }) });
+    if (error || !data || data.ok === false) {
+      toast(error?.message || t("errNeedsDb"), 8e3);
+      return;
+    }
+    delete state.fixes[key];
+    delete state.checks[a.plan];
+    toast(t("fbFixed"));
+    const { data: pl } = await sb.rpc("lk_plan", { p_id: a.plan });
+    if (pl) {
+      const other = pl.language === "en" ? "sv" : "en";
+      (async () => {
+        try {
+          const tr = await sb.functions.invoke("lk-generate", { body: { request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: other }, translate: pl.body } });
+          if (!tr.error && tr.data?.plan) await sb.rpc("lk_fill_alt", { p_id: a.plan, p_language: other, p_body: tr.data.plan });
+        } catch {
+        }
+      })();
+    }
+    loadFeedback();
   }
   function showPlansTab(which) {
     state.tab = which;
