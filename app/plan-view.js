@@ -112,5 +112,5 @@
   }
 
   // app-src/plan-view.entry.ts
-  window.LKPlan = { render, help, after, esc, kind };
+  window.LKPlan = { render, help, after, kind };
 })();

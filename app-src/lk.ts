@@ -49,7 +49,6 @@ interface BankRow {
 interface PlanShare { origin: 'ai' | 'teacher'; author: string | null; allowed: boolean; choice: boolean | null; mine: boolean; shared: boolean }
 interface UseRow { plan_id: string; group_name: string; used_on: string; run_token?: string }
 interface Extra { title?: string; minutes?: number; lines?: string[]; board?: string; tasks?: { q?: string; a?: string }[] }
-interface Standing { n?: number; score?: number | null; burnt?: boolean; worst_label?: string; worst_explains?: number; assists?: number }
 interface CheckProblem { level?: string; where?: string; detail?: string }
 interface Heat { section_ref?: string; section_label?: string; kind: string; n: number }
 interface SecFb {
@@ -211,7 +210,7 @@ const state = {
   bodies: null as Partial<Record<Lang, Plan>> | null, planId: null as string | null,
   view: 'coordinator', bank: [] as BankRow[], screen: 'cover', fb: [] as FbPlan[], pending: 0,
   queue: [] as QueueItem[], extras: [] as QueueItem[], attn: [] as Attn[], fixes: {} as Record<string, { busy?: boolean; before?: Plan; after?: Plan; err?: string }>, model: null as string | null, cap: 20, uses: [] as UseRow[],
-  share: {} as Record<string, Standing>, termCoverage: [] as TermCover[], tab: 'bank', checks: {} as Record<string, Verdict | null>,
+  termCoverage: [] as TermCover[], tab: 'bank', checks: {} as Record<string, Verdict | null>,
   // Which shelf of the pool is open, remembered between visits.
   pool: loadPoolPick(),
   // The create-a-plan wizard, while it is open.
@@ -220,7 +219,6 @@ const state = {
   // Set once a plan is opened: who approved it and how.
   shareToken: undefined as string | null | undefined,
   approved: undefined as boolean | undefined,
-  apprKind: undefined as string | null | undefined,
   apprBy: undefined as string | null | undefined, apprName: undefined as string | undefined,
   apprRank: undefined as number | undefined, apprSubject: undefined as string | null | undefined,
   apprStale: undefined as boolean | undefined,
@@ -312,7 +310,7 @@ async function enterApp() {
   }
 
   if (!data || !data.school_id) {
-    document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">Demoskolan saknas i databasen.</p>';
+    document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">' + esc(t('noDemoSchool')) + '</p>';
     return;
   }
 
@@ -324,7 +322,7 @@ async function enterApp() {
   const via = maybe$('userauth'); if (via) via.textContent = authLabel();
   $('pagesub').textContent = new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   renderRows();
-  loadBank();
+  bankReady = loadBank();
 }
 
 /* ── Cover table ───────────────────────────────────── */
@@ -430,10 +428,11 @@ function openPop(ref: string, x: number, y: number) {
 async function checkPlan(id: string) {
   if (state.checks[id] !== undefined) return state.checks[id];
   try {
-    // The structural verdict is now computed and stored when the plan is
-    // saved, so it is already on the row and costs nothing to show. The edge
-    // call below is still worth making: lk-verify adds a subject pass, which
-    // is the one judgement SQL cannot make.
+    // Only reached for a plan with no stored verdict: usePlan seeds
+    // state.checks from the row, which skips this call on purpose. lk-verify
+    // adds a subject pass on the strongest model, and paying for that on every
+    // open of an already-checked plan is not worth it. The subject pass runs
+    // for plans that have never been checked.
     const { data, error } = await sb.functions.invoke('lk-verify', { body: { plan_id: id } });
     state.checks[id] = error ? null : data;
   } catch {
@@ -574,6 +573,9 @@ async function saveLink(ref: string) {
   const note = $<HTMLTextAreaElement>('lb-note').value.trim();
   const label = $<HTMLInputElement>('lb-label').value.trim();
   if (!url && !note) { toast(t('cvPlNeedOne')); return; }
+  // Web addresses only: anything else is not a lesson plan, and some schemes
+  // would run code on the substitute's page.
+  if (url && !/^https?:\/\//i.test(url)) { toast(t('cvPlNeedHttp')); return; }
   const { error } = await sb.rpc('lk_set_cover_plan', {
     p_absence_ref: ref, p_kind: url ? 'linked' : 'note',
     p_url: url || null, p_note: note || null, p_label: label || null,
@@ -606,8 +608,7 @@ function openPlanPanel(ref: string) {
   // "Open lesson plan" has to open the plan. Only a slot with nothing on it
   // yet starts at the request form.
   if (p && p.kind === 'generated' && p.plan_id) {
-    state.row = r;
-    usePlan(p.plan_id);
+    usePlan(p.plan_id, r);
     return;
   }
   openAddin(ref);
@@ -847,7 +848,10 @@ function yearLabel(y: string | undefined) {
 }
 
 /* ── Bank ──────────────────────────────────────────── */
+let bankReady: Promise<void> = Promise.resolve();
+let bankSeq = 0;
 async function loadBank() {
+  const seq = ++bankSeq;
   const scope = $<HTMLSelectElement>('f-scope').value || 'all';
   const approval = $<HTMLSelectElement>('f-approval').value || 'any';
   const origin = $<HTMLSelectElement>('f-origin').value || 'any';
@@ -857,6 +861,7 @@ async function loadBank() {
   const args: Record<string, string | null> = { p_subject: null, p_year: null, p_scope: scope, p_approval: approval };
   if (origin !== 'any') args.p_origin = origin;
   const { data, error } = await sb.rpc('lk_pool', args);
+  if (seq !== bankSeq) return;   // a newer filter change is already on its way
   if (error) { $('bankgrid').innerHTML = '<p class="note">' + esc(t('errBank')) + ' ' + esc(error.message) + '</p>'; return; }
   state.bank = data || [];
   fillFilterOptions();
@@ -1134,41 +1139,16 @@ function openShelf(sub: string | null, yr: string | null) {
 
 function fillT(k: string, o: Record<string, string | number | null | undefined>): string { return t(k).replace(/\{(\w+)\}/g, (_m, x: string) => String(o[x])); }
 
-/** Why a plan is in the pool or out of it, read live so it cannot drift from
- *  the rule. There is no entry test any more: an approved plan is available,
- *  and the only way out is evidence against it. */
-async function shareWhy(id: string, box: HTMLElement) {
-  if (!state.share[id]) {
-    const { data, error } = await sb.rpc('lk_plan_standing', { p_id: id });
-    if (error || !data) { box.innerHTML = '<p class="hint">' + esc((error && error.message) || '—') + '</p>'; return; }
-    state.share[id] = data;
-  }
-  const d = state.share[id]!;
-  const row = (pass: boolean, text: string, detail?: string) =>
-    '<li class="' + (pass ? 'pass' : 'fail') + '"><span>' + (pass ? '✓' : '✕') + '</span><div>' + esc(text) +
-    (detail ? '<br><span class="muted">' + esc(detail) + '</span>' : '') + '</div></li>';
-  const b: Partial<BankRow> = state.bank.find((x) => x.id === id) || {};
-  const n = d.n || 0;
-  const sc = d.score != null ? Math.round(d.score * 100) : null;
-  const scored = n >= 3 && sc != null && sc < 40;
-  box.innerHTML = '<ul class="whylist">' +
-    row(!!b.approved, t('whyApproved'), b.approved ? '' : t('whyApprovedNo')) +
-    row(!scored, t('whyScoreOk'),
-        n === 0 ? t('whyNoRatings')
-        : scored ? fillT('whyScoreBad', { s: sc })
-        : fillT('whyScoreIs', { s: sc, n: n })) +
-    row(!d.burnt, t('whyNotBurnt'),
-        d.burnt ? fillT('whyBurntNo', { s: d.worst_label || t('wholeLesson'), c: d.worst_explains })
-        : d.assists ? fillT('whyAssists', { n: d.assists }) : '') +
-    '</ul><p class="hint">' + esc(t('whyFoot')) + '</p>';
-}
-
 /* ── Which class already had this lesson ─────────────────
    A good plan should be reused — with a different class. Staff and class group
    only; no pupil is named, here or anywhere in Lektionskollen. */
+/** plan id → its uses, built once per load rather than filtered per card. */
+let usesBy = new Map<string, UseRow[]>();
 async function loadUses() {
   const { data } = await sb.rpc('lk_uses');
   state.uses = data || [];
+  usesBy = new Map();
+  for (const u of state.uses) { const l = usesBy.get(u.plan_id); if (l) l.push(u); else usesBy.set(u.plan_id, [u]); }
 }
 
 /** "Last given to 7A on 12 Sept" — the line that stops a class getting a repeat. */
@@ -1181,7 +1161,8 @@ function usedLine(planId: string) {
 }
 
 function usesOf(planId: string, group?: string) {
-  return state.uses.filter((u) => u.plan_id === planId && (!group || u.group_name === group));
+  const l = usesBy.get(planId) || [];
+  return group ? l.filter((u) => u.group_name === group) : l;
 }
 
 function fmtDate(d: string) {
@@ -1193,7 +1174,7 @@ function fmtDate(d: string) {
  *  builder is thenable but not a Promise, so it has no .catch to hang this on. */
 async function logUse(planId: string | null) {
   const r = state.row;
-  if (!planId || !r || !r.group) return;
+  if (!planId || !r || !r.group || r.group === '—') return;
   try {
     await sb.rpc('lk_log_run', {
       p_plan_id: planId, p_group: r.group, p_absence_ref: r.id || null, p_substitute: r.cover || null,
@@ -1259,7 +1240,6 @@ const EMBED = (() => {
       practical: q.get('practical') === '1',
       plannable: true,
     } as Row,
-    lang: q.get('lang') === 'en' ? 'en' : null,
   };
 })();
 
@@ -1278,14 +1258,17 @@ function openEmbed() {
   state.row = EMBED.row;
   state.plan = null; state.planId = null; state.view = 'coordinator';
   $('overlay').hidden = false;
-  loadBank().then(() => { if (!state.planId) showRequest(); }).catch(() => showRequest());
-  showRequest();
+  // enterApp already started the bank; draw the form once it is in, so the
+  // matches are there and nothing the user has started is redrawn under them.
+  const seq = ++panelSeq;
+  bankReady.then(() => { if (seq === panelSeq && !state.planId) showRequest(); });
   toParent('lk:ready', { ref: EMBED.row.id });
 }
 
 function openAddin(id: string) {
+  panelSeq++;
   state.row = ROWS.find((x) => x.id === id) || null;
-  state.plan = null; state.planId = null; state.view = 'coordinator';
+  state.plan = null; state.planId = null; state.view = 'coordinator'; state.pshare = null;
   // The pool then opens on this absence's shelf, which is the one the
   // coordinator is most likely to go looking in next.
   if (state.row) { state.pool.sub = canonSubject(state.row.subject); state.pool.yr = canonYear(state.row.year); savePoolPick(); }
@@ -1295,8 +1278,12 @@ function openAddin(id: string) {
 }
 function closeAddin() {
   stopWait();
+  panelSeq++;
   state.cr = null;
   if (EMBED) { toParent('lk:close', {}); return; }
+  // The absence this panel was about is over; a plan opened next from the
+  // bank must not inherit its class, time or substitute.
+  state.row = null;
   $('overlay').hidden = true;
   document.body.style.overflow = '';
   document.body.classList.remove('panelmode');
@@ -1307,14 +1294,16 @@ function showRequest() {
   const r = state.row;
   if (!r) return;
   $('seam-state').textContent = 'lk:init';
-  const matches = state.bank.filter((b) => b.subject === r.subject && b.year_group === r.year && b.approved);
+  // Same folding the pool uses, so "Idrott" / "åk 7" from FVK still match.
+  const matches = state.bank.filter((b) => canonSubject(b.subject) === canonSubject(r.subject) &&
+    canonYear(b.year_group) === canonYear(r.year) && b.approved);
   $('addin-content').innerHTML =
   '<div class="addin-body">' +
     '<div class="addin-head"><div style="flex:1;min-width:0">' +
       '<h2 id="addin-title">' + esc(t('planFor')) + ' ' + esc(r.group) + '</h2>' +
       '<div class="plan-meta">' + esc(r.teacher) + ' · ' + esc(r.time) + ' · ' + esc(r.room) +
       (r.cover ? ' · ' + esc(r.cover) : ' · ' + esc(t('uncovered').toLowerCase())) + '</div></div>' +
-      '<button class="x" data-close aria-label="Stäng">✕</button></div>' +
+      '<button class="x" data-close aria-label="' + esc(t('close')) + '">✕</button></div>' +
 
     '<div class="derived">' +
       '<div><dt>' + esc(t('subjectLbl')) + '</dt><dd>' + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t('fromCode')) + ' "' + esc(r.raw) + '"</div></div>' +
@@ -1448,11 +1437,20 @@ function startWait() {
     if (tip) tip.textContent = sec > WAIT_EXPECT ? t('waitLong') : t(tips[Math.floor(sec / 8) % tips.length]!);
   }, 1000);
 }
+/** Bumped whenever the panel changes subject (opened, closed, another plan).
+ *  An await that comes back to a different value is answering a question
+ *  nobody is asking any more, and must not touch the screen. */
+let panelSeq = 0;
+
 function stopWait() { if (waitTimer) { clearInterval(waitTimer); waitTimer = undefined; } }
 function waitSay(what: string) { const el = maybe$('wait-what'); if (el) el.textContent = what; }
 
 async function generate() {
   const req = gatherRequest();
+  // Remember which lesson this is for: the answer arrives a minute or two
+  // later, by which time the panel may be closed or on another lesson.
+  const seq = ++panelSeq, row = state.row;
+  const stillHere = () => seq === panelSeq && state.row === row;
   $('seam-state').textContent = t('seamGenerating');
   $('addin-content').innerHTML = waitHtml(t('genCalling'));
   startWait();
@@ -1470,6 +1468,7 @@ async function generate() {
       body: { request: { ...req, language: other }, translate: main.data.source === 'model' ? main.data.plan : undefined },
     });
   }
+  if (!stillHere()) return;
   stopWait();
 
   if (main.error || main.data?.error) {
@@ -1485,7 +1484,7 @@ async function generate() {
     const msg = said || main.data?.detail || main.error?.message || t('errUnknown');
     $('addin-content').innerHTML =
       '<div class="addin-body"><div class="addin-head"><h2>' + esc(t('failed')) + '</h2>' +
-      '<button class="x" data-close aria-label="Stäng">✕</button></div>' +
+      '<button class="x" data-close aria-label="' + esc(t('close')) + '">✕</button></div>' +
       '<div class="alert error">' + esc(msg) + '</div>' +
       '<div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t('cancel')) + '</button>' +
       '<button class="btn btn-primary" data-generate>' + esc(t('retry')) + '</button></div></div>';
@@ -1502,6 +1501,7 @@ async function generate() {
     p_language_alt: altPlan ? other : null,
   });
   if (saveErr) toast(t('saveFailed') + ' ' + saveErr.message);
+  if (!stillHere()) { loadBank(); return; }   // saved; just not shown over another lesson
 
   const bodies: Partial<Record<Lang, Plan>> = { [req.language]: main.data.plan };
   if (altPlan) bodies[other] = altPlan;
@@ -1511,6 +1511,8 @@ async function generate() {
   state.approved = false;
   applyApproval({});
   state.shareToken = null;
+  state.pshare = null;            // a fresh plan: nothing to share yet
+  state.view = 'coordinator';     // and it is reviewed before anyone sees it
   state.model = main.data.model || null;
   showPlan();
   loadBank();
@@ -1530,7 +1532,6 @@ function bodyIsFallback() {
 /** One place that copies a plan's approval onto the open-plan state. */
 function applyApproval(d: Record<string, any>) {
   state.approved = !!d.approved;
-  state.apprKind = d.approved_kind || null;
   state.apprRank = Number(d.approval_rank) || 0;
   state.apprBy = d.approved_name || null;
   state.apprSubject = d.approved_subject || null;
@@ -1585,9 +1586,15 @@ function apprSignedLine() {
     (rank >= APPR_MAX ? ' ' + esc(t('apprLocked')) : '');
 }
 
-async function usePlan(id: string) {
+/** Open a plan. `row` is the lesson it is being opened FOR — an absence —
+ *  or null when it is opened on its own (bank, feedback, a new plan), in which
+ *  case the plan stands alone and no class, time or substitute is implied. */
+async function usePlan(id: string, row: Row | null = null): Promise<boolean> {
+  const seq = ++panelSeq;
   const { data, error } = await sb.rpc('lk_plan', { p_id: id });
-  if (error || !data) { toast(t('errOpen')); return; }
+  if (seq !== panelSeq) return false;
+  if (error || !data) { toast(t('errOpen')); return false; }
+  state.view = 'coordinator';
   const bodies: Partial<Record<Lang, Plan>> = { [data.language || 'sv']: data.body };
   if (data.body_alt && data.language_alt) bodies[data.language_alt as Lang] = data.body_alt;
   state.bodies = bodies;
@@ -1598,7 +1605,7 @@ async function usePlan(id: string) {
     choice: data.share_choice ?? null, mine: !!data.mine, shared: !!data.shared } : null;
   state.shareToken = data.share_token;
   state.model = data.model || null;
-  if (!state.row) state.row = { id: '', raw: '', subject: data.subject, year: data.year_group, group: '—', mins: data.minutes, time: '', start: '', end: '', room: '—', teacher: '—', cover: null };
+  state.row = row || { id: '', raw: '', subject: data.subject, year: data.year_group, group: '', mins: data.minutes, time: '', start: '', end: '', room: '', teacher: '', cover: null };
   $('overlay').hidden = false;
   document.body.style.overflow = 'hidden';
   // The stored verdict paints with the plan. Before this it took an edge
@@ -1612,6 +1619,7 @@ async function usePlan(id: string) {
   // Checked after the first paint: the plan is readable immediately and the
   // verdict arrives a moment later, rather than the coordinator waiting on it.
   checkPlan(data.id).then(() => { if (state.planId === data.id) showPlan(); }).catch(() => {});
+  return true;
 }
 
 function showPlan() {
@@ -1632,9 +1640,9 @@ function showPlan() {
   '<div class="addin-body">' +
     '<div class="addin-head"><div style="flex:1;min-width:0">' +
       '<h2 id="addin-title" class="plan-title">' + esc(p.title) + '</h2>' +
-      '<div class="plan-meta">' + esc(subjectLabel(r.subject)) + ' · ' + esc(yearLabel(r.year)) + ' · ' + esc(r.group) +
-      (r.start ? ' · ' + esc(r.start) + '–' + esc(r.end) : '') + '</div></div>' +
-      '<button class="x" data-close aria-label="Stäng">✕</button></div>' +
+      '<div class="plan-meta">' + esc([subjectLabel(r.subject), yearLabel(r.year), r.group,
+        r.start ? r.start + '–' + r.end : ''].filter(Boolean).join(' · ')) + '</div></div>' +
+      '<button class="x" data-close aria-label="' + esc(t('close')) + '">✕</button></div>' +
     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
       '<div class="viewtog">' +
         '<button class="' + (state.view === 'coordinator' ? 'on' : '') + '" data-view="coordinator">' + esc(t('viewCoord')) + '</button>' +
@@ -1655,7 +1663,7 @@ function showPlan() {
   // decision belongs where they arrive, not where the document ends.
   const check = state.planId ? state.checks[state.planId] : null;
   const checkNote = state.view === 'coordinator' ? checkBanner(check) : '';
-  const approveNote = state.view === 'coordinator' ? approveBar() : '';
+  const approveNote = state.view === 'coordinator' && state.planId ? approveBar() : '';
   // An approval that no longer matches the plan is said out loud, in the place
   // a coordinator decides from. Silence here is how a stale badge gets trusted.
   const staleNote = state.apprStale
@@ -1688,7 +1696,11 @@ function coordView(p: Plan, r: Row) {
       '<li>' + esc(t('phasesSum')) + ' <b>' + sum + ' ' + esc(t('min')) + '</b> — ' + esc(t('lessonIs')) + ' ' + r.mins + ' ' + esc(t('min')) + '. ' +
         (sum === r.mins ? '<span class="chip chip-ok">' + esc(t('matches')) + '</span>'
                         : '<span class="chip chip-warn">' + esc(t('checkIt')) + '</span>') + '</li>' +
-      '<li>' + esc(t('allWritten')) + ' <span class="chip chip-ok">' + esc(t('ok')) + '</span></li>' +
+      // From the check, not assumed: a plan with blockers is not "all written".
+      (() => { const ck = state.planId ? state.checks[state.planId] : null;
+        return '<li>' + esc(t('allWritten')) + ' ' + (!ck ? '<span class="chip chip-neutral">' + esc(t('allWrittenUnknown')) + '</span>'
+          : (ck.blockers || 0) ? '<span class="chip chip-warn">' + esc(t('checkIt')) + '</span>'
+          : '<span class="chip chip-ok">' + esc(t('ok')) + '</span>') + '</li>'; })() +
       '<li>' + esc(t('requires')) + ' ' + esc(p.equipment?.need || '—') + '</li>' +
     '</ul></div>' +
     (state.approved
@@ -1705,7 +1717,7 @@ function coordView(p: Plan, r: Row) {
         : '<span class="hint">' + esc(t('nothingBefore')) + '</span><span class="spacer"></span>' +
           '<button class="btn btn-ghost" data-frompool>' + esc(t('fromPool')) + '</button>' +
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
-          apprButtons(0)) +
+          (state.planId ? apprButtons(0) : '')) +
     '</div></div>';
 }
 
@@ -1830,15 +1842,6 @@ function vikarieView(p: Plan, _r: Row) {
 }
 
 /* ── Events ────────────────────────────────────────── */
-// <details> does not bubble 'toggle', so the checklist is filled on open.
-document.addEventListener('toggle', (e) => {
-  const tg = e.target as Element;
-  const d = tg.closest ? tg.closest<HTMLDetailsElement>('[data-why]') : null;
-  if (!d || !d.open) return;
-  const body = d.querySelector<HTMLElement>('.whybody');
-  if (body) shareWhy(d.getAttribute('data-why') || '', body);
-}, true);
-
 const copyTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
 
 document.addEventListener('click', async (e) => {
@@ -1963,7 +1966,7 @@ document.addEventListener('click', async (e) => {
   }
   if (POP && !tg.closest<HTMLElement>('#cv-pop')) closePop();
 
-  const el = tg.closest<HTMLElement>('[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-frompool],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank');
+  const el = tg.closest<HTMLElement>('[data-close],[data-generate],[data-approve],[data-regen],[data-frompool],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank');
   if (!el) return;
   const t2 = el as HTMLButtonElement;
 
@@ -1991,7 +1994,6 @@ document.addEventListener('click', async (e) => {
     return loadFeedback();
   }
   if (t2.hasAttribute('data-res')) return t2.classList.toggle('on');
-  if (t2.hasAttribute('data-open')) return openAddin(t2.getAttribute('data-open')!);
   if (t2.hasAttribute('data-close')) return closeAddin();
   if (t2.hasAttribute('data-generate')) return generate();
   if (t2.hasAttribute('data-regen')) return showRequest();
@@ -2002,7 +2004,8 @@ document.addEventListener('click', async (e) => {
   if (t2.hasAttribute('data-usebank')) {
     const pid = t2.getAttribute('data-usebank')!;
     // Picked for a real cover, so it counts as given to that class.
-    return usePlan(pid).then(() => logUse(pid)).then(() => { if (state.planId === pid) showPlan(); });
+    const forRow = state.row;
+    return usePlan(pid, forRow).then((ok) => ok ? logUse(pid).then(() => { if (state.planId === pid) showPlan(); }) : undefined);
   }
 
   if (t2.hasAttribute('data-copylink') || t2.hasAttribute('data-copymail')) {
@@ -2084,6 +2087,15 @@ document.addEventListener('input', (e) => {
 // Escape closes the assist sheet first; only if nothing is over the plan
 // does it close the add-in. Listeners on the same target fire in
 // registration order, so this has to be one handler, not two.
+// The cover grid's lesson blocks are buttons to a keyboard too.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const blk = (e.target as HTMLElement).closest?.<HTMLElement>('[data-blk]');
+  if (!blk) return;
+  e.preventDefault();
+  const r = blk.getBoundingClientRect();
+  openPop(blk.getAttribute('data-blk')!, r.right + 6, r.top);
+});
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   const sheet = $('assist-sheet');
@@ -2435,7 +2447,8 @@ function showPlansTab(which: string) {
     b.classList.toggle('on', b.getAttribute('data-tab')! === which));
   $('tabbadge').textContent = state.pending ? String(state.pending) : '';
   $('tabbadge').hidden = !state.pending;
-  if (which === 'bank') { loadUses().then(renderBank).catch(() => {}); loadBank(); }
+  // One render, after both: the uses decide each card's "last given" line.
+  if (which === 'bank') loadUses().catch(() => {}).then(() => loadBank());
   if (which === 'feedback') loadFeedback();
   if (which === 'term') loadTerm();
   setTitles();
@@ -2530,11 +2543,19 @@ const GRID_WEEKS = (() => {
   return w;
 })();
 
+/** The subject and year the week grid on screen belongs to. Saving uses this,
+ *  not the selects: a change of select whose rows have not arrived yet must
+ *  not send the old subject's rows into the new one. */
+let termShown: { subject: string; year: string } | null = null;
+let termSeq = 0;
 async function renderTermStored() {
   const { subject, year } = termWhere();
   const box = $('tp-stored');
-  if (!subject || !year) { box.innerHTML = ''; return; }
+  const seq = ++termSeq;
+  if (!subject || !year) { box.innerHTML = ''; termShown = null; return; }
   const { data, error } = await sb.rpc('lk_term_plan', { p_subject: subject, p_year: year });
+  if (seq !== termSeq) return;   // the selects have moved on
+  termShown = { subject, year };
   if (error) { box.innerHTML = '<p class="note">' + esc(error.message) + '</p>'; return; }
   const have = new Map<number, TermRow>(((data || []) as TermRow[]).map((r) => [Number(r.week), r] as [number, TermRow]));
   // A week outside the usual run (a summer course, week 53) still shows.
@@ -2572,7 +2593,7 @@ function isoWeek(d: Date) {
 /** Saves only the rows that changed, so a stray save cannot touch weeks
  *  someone else filled in from another screen. */
 async function saveGrid() {
-  const { subject, year } = termWhere();
+  const { subject, year } = termShown || { subject: '', year: '' };
   if (!subject || !year) { toast(t('tpNeedWhere')); return; }
   const rows: TermRow[] = [];
   document.querySelectorAll('[data-gridrow]').forEach((tr) => {
@@ -2589,7 +2610,6 @@ async function saveGrid() {
     toast(t('tpSaveFail') + ' ' + ((error && error.message) || data.error)); return;
   }
   toast(fillT('tpGridSaved', { n: data.saved, c: data.cleared || 0 }));
-  renderTermStored();
   loadTerm();
 }
 
@@ -2728,7 +2748,6 @@ async function saveTerm() {
   toast(data.skipped
     ? fillT('tpSavedSome', { n: data.saved, s: data.skipped })
     : fillT('tpSaved', { n: data.saved }));
-  renderTermStored();
   loadTerm();
 }
 
@@ -3025,9 +3044,14 @@ function crSetTimes() {
 
 function crBlank(): Plan {
   const c = state.cr!;
-  const split = c.minutes >= 50 ? [5, 10, 10, c.minutes - 35, 5, 5] : [5, 8, 8, Math.max(5, c.minutes - 26), 5];
+  // The independent-work step takes whatever is left, so the steps always
+  // add up to the lesson (a 30-minute lesson used to start one minute over).
+  const fixed = c.minutes >= 50 ? [5, 10, 10, 5, 5] : [4, 6, 6, 4];
+  const rest = Math.max(1, c.minutes - fixed.reduce((a, x) => a + x, 0));
+  const split = [...fixed.slice(0, 3), rest, ...fixed.slice(3)];
   c.mins = split;
-  const names = LANG === 'en' ? ['Recap', 'Worked example', 'One together', 'Independent work', 'Exit question', 'Round off']
+  // Headings in the plan's language, not the screen's.
+  const names = c.lang === 'en' ? ['Recap', 'Worked example', 'One together', 'Independent work', 'Exit question', 'Round off']
     : ['Repetition', 'Genomgång med exempel', 'Ett tillsammans', 'Eget arbete', 'Exit-fråga', 'Avslutning'];
   return {
     title: c.topic || '', goal: '', summary: '', board: '', first90: [], equipment: { need: '', where: '' },
@@ -3051,6 +3075,7 @@ async function crGo() {
   c.busy = t(c.method === 'ai' ? 'crBusyAi' : 'crBusyUpload'); renderCreate(); startWait();
   const body = c.method === 'ai' ? { request: crRequest() } : { request: crRequest(), convert: { text: c.source } };
   const { data, error } = await sb.functions.invoke('lk-generate', { body });
+  if (state.cr !== c) return;   // closed while it was writing
   stopWait();
   c.busy = '';
   if (error || !data || data.error || !data.plan) {
@@ -3117,7 +3142,8 @@ async function crExtract(file: File): Promise<string> {
   if (name.endsWith('.pdf')) {
     await load('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js');
     w.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-    const pdf = await w.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    // Text only, and eval off: pdf.js 3.x can run font code through eval (CVE-2024-4367).
+    const pdf = await w.pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     let out = '';
     for (let i = 1; i <= Math.min(pdf.numPages, 30); i++) {
       const pg = await pdf.getPage(i); const tc = await pg.getTextContent();
@@ -3144,10 +3170,11 @@ async function crSaveNow() {
     if (c.share) await sb.rpc('lk_set_plan_share', { p_id: pid, p_allow: true });
   }
   crRemember();
+  const stillOpen = state.cr === c;
   state.cr = null;
   toast(t(approve ? 'crSavedApproved' : 'crSavedDraft'));
   loadBank();
-  await usePlan(String(pid));
+  if (stillOpen) await usePlan(String(pid));
 }
 
 /** Clicks inside the wizard. Returns true when it handled one. */

@@ -40,7 +40,7 @@ Install the pre-commit hook once: `ln -s ../../tools/pre-commit .git/hooks/pre-c
 | `term-check` | A pasted year plan becomes the right weeks |
 | `prompt-check` | The generator's prompt fits the year group and subject |
 
-`tools/smoke.mjs` records a behaviour fingerprint of every screen in both languages, to compare before and after a change.
+In a browser, against the live demo (not in CI): `tools/e2e.mjs` (flows that have broken before) and `tools/lang-audit.mjs` (SV/EN on every screen). `tools/smoke.mjs` records a behaviour fingerprint of every screen in both languages, to compare before and after a change.
 
 ## The AI
 
