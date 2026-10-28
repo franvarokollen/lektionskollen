@@ -42,7 +42,11 @@ interface BankRow {
   rating_count?: number; rating?: number | null;
   approval_rank?: number | null; approved_name?: string | null; approved_subject?: string | null; approval_stale?: boolean;
   st?: { score?: number | null; n?: number } | null; n_v?: number; yes_v?: number;
+  // Present once the 20261028a migration is in; absent on an older database.
+  origin?: 'ai' | 'teacher'; author_name?: string | null; share_allowed?: boolean | null;
 }
+/** Where an open plan came from and whether it may leave its school. */
+interface PlanShare { origin: 'ai' | 'teacher'; author: string | null; allowed: boolean; choice: boolean | null; mine: boolean; shared: boolean }
 interface UseRow { plan_id: string; group_name: string; used_on: string; run_token?: string }
 interface Extra { title?: string; minutes?: number; lines?: string[]; board?: string; tasks?: { q?: string; a?: string }[] }
 interface Standing { n?: number; score?: number | null; burnt?: boolean; worst_label?: string; worst_explains?: number; assists?: number }
@@ -194,6 +198,7 @@ const state = {
   share: {} as Record<string, Standing>, termCoverage: [] as TermCover[], tab: 'bank', checks: {} as Record<string, Verdict | null>,
   // Which shelf of the pool is open, remembered between visits.
   pool: loadPoolPick(),
+  pshare: null as PlanShare | null, shareAi: undefined as boolean | undefined, hasOrigin: false,
   // Set once a plan is opened: who approved it and how.
   shareToken: undefined as string | null | undefined,
   approved: undefined as boolean | undefined,
@@ -203,6 +208,63 @@ const state = {
   apprStale: undefined as boolean | undefined,
 };
 
+/* ── Sign-in: mocked (option A) ──────────────────────
+   Lektionskollen is its own product with its own sign-in, and can be linked
+   to Frånvarokollen. The plan (docs/AUTH.md):
+
+     standalone  Supabase Auth on LK's own project — Google, Microsoft
+                 (provider 'azure') or an emailed link
+     linked      FVK's server mints a short-lived LK session for the signed-in
+                 coordinator; the panel opens already signed in
+
+   Nothing here talks to an identity provider yet. Every button lands in the
+   shared demo school, exactly as before; the screen exists so the flow can be
+   judged and the real calls dropped in at the marked lines without touching
+   anything else. */
+type AuthMethod = 'google' | 'microsoft' | 'email' | 'demo' | 'fvk';
+interface MockAuth { method: AuthMethod; email?: string }
+const AUTH_KEY = 'lk.mockAuth';
+
+function mockAuth(): MockAuth | null {
+  if (EMBED) return { method: 'fvk' };   // later: session handed over by FVK (setSession)
+  try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch { return null; }
+}
+
+function showSignIn() {
+  $('signin').hidden = false;
+  applyStatic();
+}
+
+function mockSignIn(method: AuthMethod) {
+  // Real calls, when the time comes:
+  //   google     sb.auth.signInWithOAuth({ provider: 'google' })
+  //   microsoft  sb.auth.signInWithOAuth({ provider: 'azure', options: { scopes: 'email' } })
+  //   email      sb.auth.signInWithOtp({ email })
+  //   then       lk_me() resolves the school from members; no member → "ask your coordinator"
+  let email: string | undefined;
+  if (method === 'email') {
+    email = maybe$<HTMLInputElement>('si-email')?.value.trim() || '';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast(t('siBadEmail')); return; }
+  }
+  try { localStorage.setItem(AUTH_KEY, JSON.stringify({ method, email })); } catch { /* private window */ }
+  $('signin').hidden = true;
+  boot();
+}
+
+function authLabel(): string {
+  const a = mockAuth();
+  if (!a) return '';
+  return t('via_' + a.method) + (a.email ? ' · ' + a.email : '');
+}
+
+/** Settings: where the FVK link will live. Static until the bridge exists. */
+function fvkLinkCard() {
+  return '<h4 style="margin-top:18px">' + esc(t('fvkLinkTitle')) + '</h4>' +
+    '<p class="hint">' + esc(t('fvkLinkNote')) + '</p>' +
+    '<div class="covrow"><span class="chip chip-neutral">' + esc(t(EMBED ? 'fvkLinked' : 'fvkNotLinked')) + '</span>' +
+    (EMBED ? '' : '<button data-fvklink>' + esc(t('fvkLinkBtn')) + '</button>') + '</div>';
+}
+
 /* ── No login in the test env ───────────────────────
    The lk_* functions fall back to the shared demo school for anonymous
    callers. Revoking the anon grants in Postgres restores a real login
@@ -210,6 +272,7 @@ const state = {
 function boot() {
   document.documentElement.lang = LANG;
   applyStatic();
+  if (!mockAuth()) { showSignIn(); return; }
   renderNav();
   enterApp()
     .then(() => Promise.all([loadFeedback(), loadUses()]))
@@ -217,7 +280,11 @@ function boot() {
     .catch(() => {});
 }
 
-$('signout').addEventListener('click', () => location.reload());
+$('signout').addEventListener('click', () => {
+  // later: await sb.auth.signOut()
+  try { localStorage.removeItem(AUTH_KEY); } catch { /* private window */ }
+  location.reload();
+});
 
 async function enterApp() {
   const { data, error } = await sb.rpc('lk_me');
@@ -234,7 +301,9 @@ async function enterApp() {
   state.me = data;
   $('app').hidden = false;
   $('schoolname').textContent = data.school;
-  $('username').textContent = data.role === 'demo' ? 'Delad testmiljö' : data.role;
+  $('username').textContent = (data.role === 'demo' ? t('demoRole') : data.role);
+  $('username').title = authLabel();
+  const via = maybe$('userauth'); if (via) via.textContent = authLabel();
   $('pagesub').textContent = new Date().toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   renderRows();
   loadBank();
@@ -763,11 +832,13 @@ function yearLabel(y: string | undefined) {
 async function loadBank() {
   const scope = $<HTMLSelectElement>('f-scope').value || 'all';
   const approval = $<HTMLSelectElement>('f-approval').value || 'any';
+  const origin = $<HTMLSelectElement>('f-origin').value || 'any';
   // lk_pool rather than lk_bank_ranked: same ranking, plus what kind of
   // approval each plan carries and whether that approval still matches the
   // body it was given to.
-  const { data, error } = await sb.rpc('lk_pool',
-    { p_subject: null, p_year: null, p_scope: scope, p_approval: approval });
+  const args: Record<string, string | null> = { p_subject: null, p_year: null, p_scope: scope, p_approval: approval };
+  if (origin !== 'any') args.p_origin = origin;
+  const { data, error } = await sb.rpc('lk_pool', args);
   if (error) { $('bankgrid').innerHTML = '<p class="note">' + esc(t('errBank')) + ' ' + esc(error.message) + '</p>'; return; }
   state.bank = data || [];
   fillFilterOptions();
@@ -786,6 +857,11 @@ function fillFilterOptions() {
     }
   };
   fixed($<HTMLSelectElement>('f-scope'), [['all', t('allSources')], ['mine', t('ourSchool')], ['shared', t('sharedOnly')]]);
+  // Shown once the database reports origin (20261028a); an older one would
+  // reject the filter.
+  if (state.bank.some((b) => b.origin)) state.hasOrigin = true;
+  $('f-origin').hidden = !state.hasOrigin;
+  fixed($<HTMLSelectElement>('f-origin'), [['any', t('filtAnyOrigin')], ['ai', t('filtAi')], ['teacher', t('filtTeacherMade')]]);
   fixed($<HTMLSelectElement>('f-approval'), [['any', t('filtAnyAppr')], ['approved', t('filtApproved')],
                           ['teacher', t('filtTeacher')], ['qualified', t('filtQualified')]]);
 }
@@ -863,12 +939,24 @@ function bankCard(b: BankRow, withYear?: boolean) {
     '<div class="pc-head"><h4>' + esc(rowTitle(b)) + '</h4>' +
       (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t('copyLink')) + '">' + CHK + '</button>' : '') +
     '</div>' +
+    originLine(b) +
     '<p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + '</span> · ' : '') +
       b.minutes + ' ' + esc(t('min')) +
       (b.mine ? '' : ' · ' + esc(b.school || '')) + '</p>' +
     '<div class="pc-status">' + status + score + '</div>' +
     usedLine(b.id) +
   '</div>';
+}
+
+/** "AI-made" or "Teacher-made · Anna L", plus "School only" on our own
+ *  approved plans that are not allowed to leave the school. Nothing on an
+ *  older database that does not report origin. */
+function originLine(b: BankRow) {
+  if (!b.origin) return '';
+  const tch = b.origin === 'teacher';
+  return '<p class="pc-orig"><span class="orig ' + (tch ? 'tch' : 'ai') + '">' + esc(t(tch ? 'origTeacher' : 'origAi')) + '</span>' +
+    (tch && b.author_name ? '<span class="muted">' + esc(b.author_name) + '</span>' : '') +
+    (b.mine && b.share_allowed === false ? '<span class="orig loc">' + esc(t('localOnly')) + '</span>' : '') + '</p>';
 }
 
 /* ── The pool ────────────────────────────────────────────
@@ -1427,6 +1515,8 @@ async function usePlan(id: string) {
   state.plan = pickBody();
   state.planId = data.id;
   applyApproval(data);
+  state.pshare = data.origin ? { origin: data.origin, author: data.author_name || null, allowed: !!data.share_allowed,
+    choice: data.share_choice ?? null, mine: !!data.mine, shared: !!data.shared } : null;
   state.shareToken = data.share_token;
   state.model = data.model || null;
   if (!state.row) state.row = { id: '', raw: '', subject: data.subject, year: data.year_group, group: '—', mins: data.minutes, time: '', start: '', end: '', room: '—', teacher: '—', cover: null };
@@ -1527,6 +1617,7 @@ function coordView(p: Plan, r: Row) {
         apprSignedLine() + ' ' +
         (link ? esc(t('subLink')) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t('copyLink')) + '">' + CHK + '<span class="cl-label">' + esc(link) + '</span></button>' : '') + '</div></div>'
       : '') +
+    shareTick() +
     '<div class="foot">' +
       (state.approved
         ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t('seeSubView')) + '</button>' +
@@ -1537,6 +1628,20 @@ function coordView(p: Plan, r: Row) {
           '<button class="btn btn-ghost" data-regen>' + esc(t('regen')) + '</button>' +
           apprButtons(0)) +
     '</div></div>';
+}
+
+/** The per-plan choice: may this plan leave the school? Only on our own plans,
+ *  and only once the database reports origin. */
+function shareTick() {
+  const s = state.pshare;
+  if (!s || !s.mine) return '';
+  const hint = s.origin === 'teacher' ? t('shareHintTeacher')
+    : fillT('shareHintAi', { s: t(state.shareAi === false ? 'setOff' : 'setOn') });
+  const now = !s.allowed ? t('shareOff') : s.shared ? t('shareNow') : t('shareWaits');
+  return '<label class="sharetick"><input type="checkbox" data-shareplan' + (s.allowed ? ' checked' : '') + '>' +
+    '<span><b>' + esc(t('shareTitle')) + '</b> <span class="orig ' + (s.origin === 'teacher' ? 'tch' : 'ai') + '">' +
+    esc(t(s.origin === 'teacher' ? 'origTeacher' : 'origAi')) + '</span><br>' +
+    '<span class="hint">' + esc(now) + ' ' + esc(hint) + '</span></span></label>';
 }
 
 /* ── Live assist (coordinator preview) ──────────────────
@@ -1687,6 +1792,27 @@ document.addEventListener('click', async (e) => {
   if (blk) { const r = blk.getBoundingClientRect(); return openPop(blk.getAttribute('data-blk')!, r.right + 6, r.top); }
   const tab = tg.closest<HTMLElement>('[data-tab]');
   if (tab) return showPlansTab(tab.getAttribute('data-tab')!);
+  const shp = tg.closest<HTMLInputElement>('[data-shareplan]');
+  if (shp && state.planId) {
+    const want = shp.checked;
+    const { data, error } = await sb.rpc('lk_set_plan_share', { p_id: state.planId, p_allow: want });
+    if (error || !data || data.error) { shp.checked = !want; toast(error?.message || t('errNeedsDb')); return; }
+    if (state.pshare) { state.pshare.allowed = !!data.share_allowed; state.pshare.choice = want; state.pshare.shared = !!data.shared; }
+    toast(t(want ? 'shareOnToast' : 'shareOffToast'));
+    showPlan(); loadBank();
+    return;
+  }
+  const sai = tg.closest<HTMLElement>('[data-shareai]');
+  if (sai) {
+    const on = sai.getAttribute('data-shareai') === '1';
+    const { error } = await sb.rpc('lk_set_share_ai', { p_on: on });
+    if (error) { toast(error.message); return; }
+    state.shareAi = on; renderSettings(); toast(t('shareSaved')); loadBank();
+    return;
+  }
+  if (tg.closest<HTMLElement>('[data-fvklink]')) { toast(t('authLater')); return; }
+  const signin = tg.closest<HTMLElement>('[data-signin]');
+  if (signin) return mockSignIn(signin.getAttribute('data-signin') as AuthMethod);
   const psub = tg.closest<HTMLElement>('[data-poolsub]');
   if (psub) return openShelf(psub.getAttribute('data-poolsub')!, '');
   const pyr = tg.closest<HTMLElement>('[data-poolyr]');
@@ -1870,7 +1996,7 @@ document.addEventListener('keydown', (e) => {
   if (!$('overlay').hidden) closeAddin();
 });
 $('overlay').addEventListener('mousedown', (e) => { if ((e.target as HTMLElement).id === 'overlay') closeAddin(); });
-['f-scope', 'f-approval']
+['f-scope', 'f-approval', 'f-origin']
   .forEach((id) => $(id).addEventListener('change', loadBank));
 
 /* ── Feedback tab: what substitutes did and said ───── */
@@ -1895,6 +2021,7 @@ function extraText(x: QueueItem) {
 async function loadSettings() {
   const { data } = await sb.rpc('lk_get_settings');
   if (data && data.assist_cap !== undefined) state.cap = data.assist_cap;
+  state.shareAi = data && typeof data.share_ai === 'boolean' ? data.share_ai : undefined;
   renderSettings();
 }
 
@@ -1903,7 +2030,13 @@ function renderSettings() {
   if (!box) return;
   box.innerHTML = '<h4>' + esc(t('capTitle')) + '</h4><p class="hint">' + esc(t('capNote')) + '</p>' +
     '<div class="covrow">' + ([[5, '5'], [20, '20'], [-1, t('capUnlimited')]] as [number, string][]).map(([v, lbl]) =>
-      '<button data-cap="' + v + '"' + (state.cap === v ? ' class="on"' : '') + '>' + esc(lbl) + '</button>').join('') + '</div>';
+      '<button data-cap="' + v + '"' + (state.cap === v ? ' class="on"' : '') + '>' + esc(lbl) + '</button>').join('') + '</div>' +
+    // Only once the database knows the setting; an older one would just error.
+    (state.shareAi === undefined ? '' :
+      '<h4 style="margin-top:18px">' + esc(t('shareAiTitle')) + '</h4><p class="hint">' + esc(t('shareAiNote')) + '</p>' +
+      '<div class="covrow"><button data-shareai="1"' + (state.shareAi ? ' class="on"' : '') + '>' + esc(t('shareAiOn')) + '</button>' +
+      '<button data-shareai="0"' + (!state.shareAi ? ' class="on"' : '') + '>' + esc(t('shareAiOff')) + '</button></div>') +
+    fvkLinkCard();
 }
 
 async function loadFeedback() {

@@ -898,3 +898,40 @@ button.cv:hover{outline:2px solid var(--navy);outline-offset:1px}
 .cvlegend .cv{width:24px;height:20px;font-size:11px;margin-left:8px}
 .cvlegend .cv:first-child{margin-left:0}
 .pc-yr{font-weight:600;color:var(--acc,var(--ink))}
+
+/* ── Where a plan came from, and whether it may leave the school ── */
+.pc-orig{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0;font-size:11px}
+.orig{display:inline-flex;align-items:center;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid}
+.orig.ai{color:#5b21b6;background:#f5f3ff;border-color:#ddd6fe}
+.orig.tch{color:#0f766e;background:#f0fdfa;border-color:#99f6e4}
+.orig.loc{color:var(--ink-soft);background:var(--line-soft);border-color:var(--line)}
+.sharetick{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:10px 12px;margin:12px 0 0;cursor:pointer}
+.sharetick input{margin-top:3px;width:16px;height:16px;accent-color:var(--navy);flex:none}
+.sharetick .hint{font-size:12.5px}
+.userauth{margin:0;font-size:11px;color:rgba(232,237,242,.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Sign-in (mocked) ── */
+.signin{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;background:var(--lk-grad)}
+.signin[hidden]{display:none!important}
+.si-card{background:#fff;border-radius:16px;width:100%;max-width:400px;padding:26px 26px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.si-brand{display:flex;align-items:center;gap:9px;margin:-4px 0 16px;font-weight:650;color:var(--navy)}
+.si-mark{width:30px;height:30px;border-radius:8px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;letter-spacing:.02em}
+.si-card h2{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
+.si-card > .hint{margin:0 0 16px}
+.si-btn{display:flex;align-items:center;gap:10px;width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;
+  padding:10px 12px;font:inherit;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;margin-bottom:8px}
+.si-btn:hover{border-color:var(--navy);background:#f9fbfe}
+.si-ico{width:20px;height:20px;flex:none;display:grid;place-items:center}
+.si-ico.g{font-weight:700;color:#4285f4;font-size:15px}
+.si-ico.ms{grid-template-columns:1fr 1fr;gap:2px;width:16px;height:16px;margin:0 2px}
+.si-ico.ms i{display:block;width:100%;height:100%}
+.si-ico.ms i:nth-child(1){background:#f25022}.si-ico.ms i:nth-child(2){background:#7fba00}
+.si-ico.ms i:nth-child(3){background:#00a4ef}.si-ico.ms i:nth-child(4){background:#ffb900}
+.si-or{display:flex;align-items:center;gap:10px;color:var(--ink-faint);font-size:12px;margin:8px 0}
+.si-or::before,.si-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.si-email{display:flex;gap:6px}
+.si-email input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px}
+.si-fvk{font-size:12.5px;color:var(--ink-soft);margin:14px 0 0;padding:9px 11px;background:var(--line-soft);border-radius:8px}
+.si-demo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.si-demo .hint{flex:1;min-width:180px;font-size:12px}
