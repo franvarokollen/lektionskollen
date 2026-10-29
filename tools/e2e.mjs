@@ -123,6 +123,13 @@ async function page(lang = 'en', file = 'fvk-demo.html') {
   ok('plan a lesson: teacher-made plans come before AI-made', firstAi < 0 || !picks.slice(firstAi).some((c) => c.includes(' ok')), picks.join(','));
   ok('plan a lesson: results or a way to create one', !!(await p.$('.tdres [data-tdcreate]')));
   await p.click('[data-tdcancel]');
+  // Planning ahead: the picker moves the page, and a new lesson takes the day on screen.
+  await p.click('.tdpicker [data-tdday]:nth-of-type(2)'); await p.waitForTimeout(200);
+  const shown = await p.inputValue('#td-day');
+  const tomorrow = new Date(Date.now() + 864e5).toLocaleDateString('sv-SE');
+  await p.click('[data-tdplan]');
+  ok('day picker: Next day moves the page, and Plan a lesson takes that date', shown === tomorrow && (await p.inputValue('#td-date')) === tomorrow, shown);
+  await p.click('[data-tdcancel]');
 
   // The wizard is a page, and closing it goes back to the bank.
   await p.click('[data-nav="create"]'); await p.waitForTimeout(600);

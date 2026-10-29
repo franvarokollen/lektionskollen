@@ -21,10 +21,16 @@ import { openCreate } from './lk-create';
 import { planUrl } from './lk-embed';
 import { loadUses, usesOf } from './lk-pool';
 
-interface Ask { subject: string; year: string; group: string; start: string; end: string; sub: string }
+interface Ask { subject: string; year: string; group: string; date: string; start: string; end: string; sub: string }
 
-/** Today in the school's own time zone, as the database stores it. */
-const today = () => new Date().toLocaleDateString('sv-SE');
+/** A day as the database stores it (YYYY-MM-DD), in the school's own time zone. */
+const iso = (d: Date) => d.toLocaleDateString('sv-SE');
+const today = () => iso(new Date());
+/** The day `n` days after `day`. Noon, so a clock change never skips a day. */
+function addDays(day: string, n: number) { const d = new Date(day + 'T12:00:00'); d.setDate(d.getDate() + n); return iso(d); }
+const fmtDay = (day: string, long = true) => new Date(day + 'T12:00:00').toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB',
+  long ? { weekday: 'long', day: 'numeric', month: 'long' } : { weekday: 'short', day: 'numeric', month: 'short' });
+let day = today();                        // the day on screen
 const LOW = 1;   // this many unused plans left for a class, or fewer, is "running low"
 
 let plans = new Map<string, BankRow>();   // every plan this school can use, by id
@@ -46,7 +52,7 @@ export async function loadToday() {
   renderToday();
 }
 
-const usesToday = () => state.uses.filter((u) => u.used_on === today())
+const usesOn = (d: string) => state.uses.filter((u) => u.used_on === d)
   .sort((a, b) => (a.lesson_time || '99').localeCompare(b.lesson_time || '99'));
 
 /** Approved plans for this subject and year that this class has not had,
@@ -127,9 +133,10 @@ function form(a: Ask) {
       '<label class="f">' + esc(t('tdSubject')) + '<select id="td-subject">' + CATALOG_SUBJECTS.map((s) => opt(s, subjectLabel(s), s === a.subject)).join('') + '</select></label>' +
       '<label class="f">' + esc(t('tdYear')) + '<select id="td-year">' + CATALOG_YEARS.map((y) => opt(y, yearLabel(y), y === a.year)).join('') + '</select></label>' +
       '<label class="f">' + esc(t('tdClass')) + '<input id="td-class" maxlength="40" placeholder="7B" value="' + esc(a.group) + '"></label>' +
-      '<label class="f">' + esc(t('tdSub')) + '<input id="td-sub" maxlength="80" value="' + esc(a.sub) + '"></label>' +
+      '<label class="f">' + esc(t('tdDate')) + '<input id="td-date" type="date" value="' + esc(a.date) + '"></label>' +
       '<label class="f">' + esc(t('tdStart')) + '<input id="td-start" type="time" value="' + esc(a.start) + '"></label>' +
       '<label class="f">' + esc(t('tdEnd')) + '<input id="td-end" type="time" value="' + esc(a.end) + '"></label>' +
+      '<label class="f">' + esc(t('tdSub')) + '<input id="td-sub" maxlength="80" value="' + esc(a.sub) + '"></label>' +
     '</div>' +
     '<div class="foot"><span class="spacer"></span>' +
       '<button class="btn btn-ghost" data-tdcancel>' + esc(t('cancel')) + '</button>' +
@@ -141,13 +148,26 @@ function form(a: Ask) {
 export function renderToday() {
   const host = maybe$('today-page');
   if (!host) return;
-  const list = usesToday();
+  const list = usesOn(day);
+  const isToday = day === today();
   const low = list.filter((u) => { const p = plans.get(u.plan_id); return p && unused(p.subject, p.year_group, u.group_name).length <= LOW; }).length;
-  const day = new Date().toLocaleDateString(LANG === 'sv' ? 'sv-SE' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const d = fmtDay(day);
+  const head = isToday
+    ? (!list.length ? t('tdNoneToday') : list.length === 1 ? t('tdInUse1') : fillT('tdInUse', { n: list.length }))
+    : (!list.length ? fillT('tdNoneOn', { d }) : list.length === 1 ? fillT('tdOn1', { d }) : fillT('tdOn', { n: list.length, d }));
+  const chip = (k: string, v: string) => '<button class="btn btn-ghost btn-sm' + (day === v ? ' on' : '') + '" data-tdday="' + v + '">' + esc(t(k)) + '</button>';
   host.innerHTML =
+    '<div class="tdpicker">' +
+      '<button class="btn btn-ghost btn-sm" data-tdday="' + addDays(day, -1) + '" aria-label="' + esc(t('tdPrev')) + '" title="' + esc(t('tdPrev')) + '">‹</button>' +
+      '<input id="td-day" type="date" value="' + esc(day) + '" aria-label="' + esc(t('tdDate')) + '">' +
+      '<button class="btn btn-ghost btn-sm" data-tdday="' + addDays(day, 1) + '" aria-label="' + esc(t('tdNextDay')) + '" title="' + esc(t('tdNextDay')) + '">›</button>' +
+      chip('tdToday', today()) + chip('tdTomorrow', addDays(today(), 1)) +
+      // Next Monday: the start of next week, never today.
+      chip('tdNextWeek', addDays(today(), ((8 - new Date().getDay()) % 7) || 7)) +
+    '</div>' +
     '<div class="tdhead card-elevated">' +
-      '<div class="tdsum"><p class="tdkicker">' + esc(day) + '</p>' +
-        '<h2>' + esc(!list.length ? t('tdNoneToday') : list.length === 1 ? t('tdInUse1') : fillT('tdInUse', { n: list.length })) + '</h2>' +
+      '<div class="tdsum"><p class="tdkicker">' + esc(d) + (day < today() ? ' · ' + esc(t('tdPast')) : '') + '</p>' +
+        '<h2>' + esc(head) + '</h2>' +
         '<p class="hint" style="margin:0">' + esc(!low ? t('tdLead') : low === 1 ? t('tdLowSum1') : fillT('tdLowSum', { n: low })) + '</p></div>' +
       '<div class="tdactions"><button class="btn btn-primary" data-tdplan>' + esc(t('tdPlan')) + '</button></div>' +
     '</div>' +
@@ -158,7 +178,7 @@ export function renderToday() {
 /** Read the form back into `ask`. */
 function readForm(): Ask | null {
   const v = (id: string) => (maybe$<HTMLInputElement>(id)?.value || '').trim();
-  return { subject: v('td-subject'), year: v('td-year'), group: v('td-class'), start: v('td-start'), end: v('td-end'), sub: v('td-sub') };
+  return { subject: v('td-subject'), year: v('td-year'), group: v('td-class'), date: v('td-date') || day, start: v('td-start'), end: v('td-end'), sub: v('td-sub') };
 }
 
 function valid(a: Ask) {
@@ -174,12 +194,12 @@ async function use(planId: string) {
   busy = true; renderToday();
   try {
     const { data, error } = await sb.rpc('lk_log_run', {
-      p_plan_id: planId, p_group: a.group, p_substitute: a.sub || null, p_on: today(),
+      p_plan_id: planId, p_group: a.group, p_substitute: a.sub || null, p_on: a.date,
       p_time: a.start ? a.start + (a.end ? '–' + a.end : '') : null,
     });
     if (error || !data) { toast(error?.message || t('tdUseFail')); return; }
-    toast(fillT('tdUsed', { g: a.group }));
-    ask = null; found = false;
+    toast(fillT('tdUsed', { g: a.group, d: fmtDay(a.date, false) }));
+    ask = null; found = false; day = a.date;   // show the day it went to
     await loadUses();
   } finally { busy = false; renderToday(); }
 }
@@ -188,10 +208,12 @@ async function use(planId: string) {
 export function todayClick(tg: HTMLElement): boolean {
   if (tg.closest('[data-tdplan]')) {
     const hr = new Date().getHours();
-    ask = ask || { subject: CATALOG_SUBJECTS[0]!, year: 'Åk 7', group: '', start: String(Math.min(hr + 1, 16)).padStart(2, '0') + ':00', end: '', sub: '' };
+    ask = ask || { subject: CATALOG_SUBJECTS[0]!, year: 'Åk 7', group: '', date: day, start: String(Math.min(hr + 1, 16)).padStart(2, '0') + ':00', end: '', sub: '' };
     found = false; renderToday(); maybe$('td-class')?.focus();
     return true;
   }
+  const dd = tg.closest<HTMLElement>('[data-tdday]');
+  if (dd) { setDay(dd.getAttribute('data-tdday')!); return true; }
   if (tg.closest('[data-tdcancel]')) { ask = null; found = false; renderToday(); return true; }
   if (tg.closest('[data-tdfind]')) {
     const a = readForm();
@@ -208,3 +230,17 @@ export function todayClick(tg: HTMLElement): boolean {
   }
   return false;
 }
+
+/** Show another day. The open form follows it, unless its date was changed by hand. */
+function setDay(d: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+  if (ask) { const a = readForm(); if (a) ask = { ...a, date: a.date === day ? d : a.date }; }
+  day = d; found = false;
+  renderToday();
+}
+
+/** The date field: change events do not bubble to the click handler. */
+document.addEventListener('change', (e) => {
+  const el = e.target as HTMLInputElement | null;
+  if (el && el.id === 'td-day' && el.value) setDay(el.value);
+});
