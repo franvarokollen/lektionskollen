@@ -44,6 +44,9 @@ body[data-shell="lk"] .seam{display:none}
 .tdst.ok{background:var(--ok-bg);color:#166534}
 .tdst.neutral{background:var(--line-soft);color:var(--ink-soft)}
 .tdmeta{margin:0;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tdpicker{max-width:880px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tdpicker input{height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:#fff}
+.tdpicker .btn.on{background:var(--navy,#16325c);color:#fff;border-color:transparent}
 .tdtitle{margin:0;font-size:14px;color:var(--ink)}
 .tdstock{color:var(--ink-faint)}
 .tdopen{flex:none;align-self:center}

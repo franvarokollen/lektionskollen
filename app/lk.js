@@ -737,8 +737,8 @@
   }
   function isoWeek(d) {
     const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const day = x.getUTCDay() || 7;
-    x.setUTCDate(x.getUTCDate() + 4 - day);
+    const day2 = x.getUTCDay() || 7;
+    x.setUTCDate(x.getUTCDate() + 4 - day2);
     return Math.ceil(((x.getTime() - Date.UTC(x.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
   }
   async function saveGrid() {
@@ -2378,7 +2378,18 @@
   }
 
   // app-src/lk-today.ts
-  var today = () => (/* @__PURE__ */ new Date()).toLocaleDateString("sv-SE");
+  var iso = (d) => d.toLocaleDateString("sv-SE");
+  var today = () => iso(/* @__PURE__ */ new Date());
+  function addDays(day2, n) {
+    const d = /* @__PURE__ */ new Date(day2 + "T12:00:00");
+    d.setDate(d.getDate() + n);
+    return iso(d);
+  }
+  var fmtDay = (day2, long = true) => (/* @__PURE__ */ new Date(day2 + "T12:00:00")).toLocaleDateString(
+    LANG === "sv" ? "sv-SE" : "en-GB",
+    long ? { weekday: "long", day: "numeric", month: "long" } : { weekday: "short", day: "numeric", month: "short" }
+  );
+  var day = today();
   var LOW = 1;
   var plans = /* @__PURE__ */ new Map();
   var all = [];
@@ -2397,7 +2408,7 @@
     }
     renderToday();
   }
-  var usesToday = () => state.uses.filter((u) => u.used_on === today()).sort((a, b) => (a.lesson_time || "99").localeCompare(b.lesson_time || "99"));
+  var usesOn = (d) => state.uses.filter((u) => u.used_on === d).sort((a, b) => (a.lesson_time || "99").localeCompare(b.lesson_time || "99"));
   function unused(subject, year, group) {
     const g = group.trim();
     const ok = all.filter((p) => p.approved && !p.approval_stale && p.subject === subject && p.year_group === year && !(g && usesOf(p.id, g).length));
@@ -2438,22 +2449,26 @@
     return '<div class="tdres">' + (own.length ? "" : '<p class="hint tdnoteach">' + esc(t("tdNoTeacher")) + "</p>") + list.slice(0, 3).map(pickCard).join("") + '<p class="hint">' + esc(list.length === 1 ? t("tdMore1") : fillT("tdMore", { n: list.length })) + " " + create + "</p></div>";
   }
   function form(a) {
-    return '<div class="bcard fx tdform"><h3>' + esc(t("tdPlanTitle")) + '</h3><p class="hint">' + esc(t("tdPlanLead")) + '</p><div class="tdgrid"><label class="f">' + esc(t("tdSubject")) + '<select id="td-subject">' + CATALOG_SUBJECTS.map((s) => opt(s, subjectLabel(s), s === a.subject)).join("") + '</select></label><label class="f">' + esc(t("tdYear")) + '<select id="td-year">' + CATALOG_YEARS.map((y) => opt(y, yearLabel(y), y === a.year)).join("") + '</select></label><label class="f">' + esc(t("tdClass")) + '<input id="td-class" maxlength="40" placeholder="7B" value="' + esc(a.group) + '"></label><label class="f">' + esc(t("tdSub")) + '<input id="td-sub" maxlength="80" value="' + esc(a.sub) + '"></label><label class="f">' + esc(t("tdStart")) + '<input id="td-start" type="time" value="' + esc(a.start) + '"></label><label class="f">' + esc(t("tdEnd")) + '<input id="td-end" type="time" value="' + esc(a.end) + '"></label></div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-tdcancel>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-tdfind>' + esc(t("tdFind")) + "</button></div>" + (found ? results(a) : "") + "</div>";
+    return '<div class="bcard fx tdform"><h3>' + esc(t("tdPlanTitle")) + '</h3><p class="hint">' + esc(t("tdPlanLead")) + '</p><div class="tdgrid"><label class="f">' + esc(t("tdSubject")) + '<select id="td-subject">' + CATALOG_SUBJECTS.map((s) => opt(s, subjectLabel(s), s === a.subject)).join("") + '</select></label><label class="f">' + esc(t("tdYear")) + '<select id="td-year">' + CATALOG_YEARS.map((y) => opt(y, yearLabel(y), y === a.year)).join("") + '</select></label><label class="f">' + esc(t("tdClass")) + '<input id="td-class" maxlength="40" placeholder="7B" value="' + esc(a.group) + '"></label><label class="f">' + esc(t("tdDate")) + '<input id="td-date" type="date" value="' + esc(a.date) + '"></label><label class="f">' + esc(t("tdStart")) + '<input id="td-start" type="time" value="' + esc(a.start) + '"></label><label class="f">' + esc(t("tdEnd")) + '<input id="td-end" type="time" value="' + esc(a.end) + '"></label><label class="f">' + esc(t("tdSub")) + '<input id="td-sub" maxlength="80" value="' + esc(a.sub) + '"></label></div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-tdcancel>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-tdfind>' + esc(t("tdFind")) + "</button></div>" + (found ? results(a) : "") + "</div>";
   }
   function renderToday() {
     const host = maybe$("today-page");
     if (!host) return;
-    const list = usesToday();
+    const list = usesOn(day);
+    const isToday = day === today();
     const low = list.filter((u) => {
       const p = plans.get(u.plan_id);
       return p && unused(p.subject, p.year_group, u.group_name).length <= LOW;
     }).length;
-    const day = (/* @__PURE__ */ new Date()).toLocaleDateString(LANG === "sv" ? "sv-SE" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
-    host.innerHTML = '<div class="tdhead card-elevated"><div class="tdsum"><p class="tdkicker">' + esc(day) + "</p><h2>" + esc(!list.length ? t("tdNoneToday") : list.length === 1 ? t("tdInUse1") : fillT("tdInUse", { n: list.length })) + '</h2><p class="hint" style="margin:0">' + esc(!low ? t("tdLead") : low === 1 ? t("tdLowSum1") : fillT("tdLowSum", { n: low })) + '</p></div><div class="tdactions"><button class="btn btn-primary" data-tdplan>' + esc(t("tdPlan")) + "</button></div></div>" + (ask ? form(ask) : "") + '<div class="tdlist">' + list.map(useCard).join("") + "</div>";
+    const d = fmtDay(day);
+    const head = isToday ? !list.length ? t("tdNoneToday") : list.length === 1 ? t("tdInUse1") : fillT("tdInUse", { n: list.length }) : !list.length ? fillT("tdNoneOn", { d }) : list.length === 1 ? fillT("tdOn1", { d }) : fillT("tdOn", { n: list.length, d });
+    const chip = (k, v) => '<button class="btn btn-ghost btn-sm' + (day === v ? " on" : "") + '" data-tdday="' + v + '">' + esc(t(k)) + "</button>";
+    host.innerHTML = '<div class="tdpicker"><button class="btn btn-ghost btn-sm" data-tdday="' + addDays(day, -1) + '" aria-label="' + esc(t("tdPrev")) + '" title="' + esc(t("tdPrev")) + '">\u2039</button><input id="td-day" type="date" value="' + esc(day) + '" aria-label="' + esc(t("tdDate")) + '"><button class="btn btn-ghost btn-sm" data-tdday="' + addDays(day, 1) + '" aria-label="' + esc(t("tdNextDay")) + '" title="' + esc(t("tdNextDay")) + '">\u203A</button>' + chip("tdToday", today()) + chip("tdTomorrow", addDays(today(), 1)) + // Next Monday: the start of next week, never today.
+    chip("tdNextWeek", addDays(today(), (8 - (/* @__PURE__ */ new Date()).getDay()) % 7 || 7)) + '</div><div class="tdhead card-elevated"><div class="tdsum"><p class="tdkicker">' + esc(d) + (day < today() ? " \xB7 " + esc(t("tdPast")) : "") + "</p><h2>" + esc(head) + '</h2><p class="hint" style="margin:0">' + esc(!low ? t("tdLead") : low === 1 ? t("tdLowSum1") : fillT("tdLowSum", { n: low })) + '</p></div><div class="tdactions"><button class="btn btn-primary" data-tdplan>' + esc(t("tdPlan")) + "</button></div></div>" + (ask ? form(ask) : "") + '<div class="tdlist">' + list.map(useCard).join("") + "</div>";
   }
   function readForm() {
     const v = (id) => (maybe$(id)?.value || "").trim();
-    return { subject: v("td-subject"), year: v("td-year"), group: v("td-class"), start: v("td-start"), end: v("td-end"), sub: v("td-sub") };
+    return { subject: v("td-subject"), year: v("td-year"), group: v("td-class"), date: v("td-date") || day, start: v("td-start"), end: v("td-end"), sub: v("td-sub") };
   }
   function valid(a) {
     if (!a.group) {
@@ -2481,16 +2496,17 @@
         p_plan_id: planId,
         p_group: a.group,
         p_substitute: a.sub || null,
-        p_on: today(),
+        p_on: a.date,
         p_time: a.start ? a.start + (a.end ? "\u2013" + a.end : "") : null
       });
       if (error || !data) {
         toast(error?.message || t("tdUseFail"));
         return;
       }
-      toast(fillT("tdUsed", { g: a.group }));
+      toast(fillT("tdUsed", { g: a.group, d: fmtDay(a.date, false) }));
       ask = null;
       found = false;
+      day = a.date;
       await loadUses();
     } finally {
       busy = false;
@@ -2500,10 +2516,15 @@
   function todayClick(tg) {
     if (tg.closest("[data-tdplan]")) {
       const hr = (/* @__PURE__ */ new Date()).getHours();
-      ask = ask || { subject: CATALOG_SUBJECTS[0], year: "\xC5k 7", group: "", start: String(Math.min(hr + 1, 16)).padStart(2, "0") + ":00", end: "", sub: "" };
+      ask = ask || { subject: CATALOG_SUBJECTS[0], year: "\xC5k 7", group: "", date: day, start: String(Math.min(hr + 1, 16)).padStart(2, "0") + ":00", end: "", sub: "" };
       found = false;
       renderToday();
       maybe$("td-class")?.focus();
+      return true;
+    }
+    const dd = tg.closest("[data-tdday]");
+    if (dd) {
+      setDay(dd.getAttribute("data-tdday"));
       return true;
     }
     if (tg.closest("[data-tdcancel]")) {
@@ -2534,6 +2555,20 @@
     }
     return false;
   }
+  function setDay(d) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    if (ask) {
+      const a = readForm();
+      if (a) ask = { ...a, date: a.date === day ? d : a.date };
+    }
+    day = d;
+    found = false;
+    renderToday();
+  }
+  document.addEventListener("change", (e) => {
+    const el = e.target;
+    if (el && el.id === "td-day" && el.value) setDay(el.value);
+  });
 
   // app-src/lk.ts
   state.pool = loadPoolPick();
