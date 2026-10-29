@@ -4,8 +4,8 @@
    Schema: `lektionskollen` in the skolkollen-portal project, reached only
    through the public.lk_* security-definer functions. */
 import { CrState } from './lk-create';
+import { Plan } from './types';
 
-import type { Plan } from './types';
 
 const SUPABASE_URL = 'https://pbamabzbfbkxajntsrmc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBiYW1hYnpiZmJreGFqbnRzcm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMzU3MTEsImV4cCI6MjA5NTkxMTcxMX0.9G3-2cFOHwVqVOsIBcHomrEEclISFUaIQlg10nIlWHM';
@@ -131,3 +131,12 @@ export const state = {
 
 /** The copy-link icon: a link that turns into a tick once copied. */
 export const CHK = '<svg class="cl-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path class="cl-link" d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path class="cl-link" d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/><path class="cl-tick" d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
+/** Bumped whenever the panel changes subject (opened, closed, another plan).
+ *  An await that comes back to a different value is answering a question
+ *  nobody is asking any more, and must not touch the screen. */
+let panelSeq = 0;
+/** The panel has a new subject; returns its number, to check against later. */
+export function nextPanel(): number { return ++panelSeq; }
+/** Is the panel still on the subject this number was taken for? */
+export function panelIs(seq: number): boolean { return seq === panelSeq; }
