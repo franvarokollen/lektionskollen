@@ -26,25 +26,8 @@
 // no way to overrule it is a worse product than one that says what it found.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-
-// Temperature is omitted unless AI_TEMPERATURE is set. Anthropic's OpenAI
-// compatibility layer returns 400 for any value below 1 on current models, and
-// every call here used to pin it low — so every call would have failed the
-// moment a Claude key was connected. Providers that do accept it (OpenAI,
-// Gemini, OpenRouter) can have it back by setting the variable.
-const AI_TEMP = Deno.env.get('AI_TEMPERATURE');
-const temperature = () => (AI_TEMP ? { temperature: Number(AI_TEMP) } : {});
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
+import { cors, json } from '../_shared/http.ts'
+import { temperature } from '../_shared/model.ts'
 
 interface Finding {
   level: 'blocker' | 'warn';
@@ -161,7 +144,7 @@ async function checkSubject(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
   let payload: { plan_id?: string };
   try {

@@ -15,7 +15,7 @@ Live: `https://franvarobot.github.io/lektionskollen/` (redirects to `app/`). Eve
 | `app-src/css/` | The stylesheet, one file per screen, built into `app/lk.css`. The number in each name is its place in the cascade. |
 | `supabase/migrations/` | The database: `…_lk_baseline.sql` rebuilds everything LK owns from nothing; later files change it, in order. |
 | `supabase/migrations-archive/` | The migrations that led to the baseline, kept for history. Not run. |
-| `supabase/functions/` | Edge functions: `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
+| `supabase/functions/` | Edge functions (helpers they share are in `_shared/`): `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
 | `fvk-integration/` | Drop-in files for FVK's own codebase (not built here). |
 | `docs/` | `AUTH.md` (sign-in plan), `HANDOVER-FVK-INTEGRATION.md` + `FVK-ISSUES-lektionskollen.md` (the FVK link), `EMBED.md`. |
 | `tools/` | Build and checks (below). |
