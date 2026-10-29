@@ -43,12 +43,35 @@ begin
   if public.lk_fill_alt('20000000-0000-0000-0000-000000000003', 'en', '{}'::jsonb) then raise exception 'wrote to another school'; end if;
 end $$;
 
+-- A lesson planned by mistake can be taken back; one already given cannot.
+do $$ declare r jsonb; ok boolean;
+begin
+  r := public.lk_log_run('20000000-0000-0000-0000-000000000001', '7A', '10:00–11:00', null, null,
+                         ((now() at time zone 'Europe/Stockholm')::date + 1));
+  ok := public.lk_unlog_run(r ->> 'run_token');
+  if not ok then raise exception 'could not take back a planned lesson'; end if;
+  if public.lk_unlog_run(r ->> 'run_token') then raise exception 'took back the same lesson twice'; end if;
+  r := public.lk_log_run('20000000-0000-0000-0000-000000000001', '7A', null, null, null,
+                         ((now() at time zone 'Europe/Stockholm')::date - 3));
+  if public.lk_unlog_run(r ->> 'run_token') then raise exception 'took back a lesson in the past'; end if;
+  -- Problem reports: the browser can add one, a duplicate error is folded in.
+  if not public.lk_report('user', 'The print button does nothing', '/index.html', 'smoke') then raise exception 'report refused'; end if;
+  perform public.lk_report('error', 'TypeError: x is undefined', '/index.html', 'smoke');
+  perform public.lk_report('error', 'TypeError: x is undefined', '/index.html', 'smoke');
+  if public.lk_report('nonsense', 'x') then raise exception 'unknown report kind accepted'; end if;
+end $$;
+
 -- What the browser must not be able to call.
 do $$ begin
   begin perform public.lk_quota_refund('00000000-0000-0000-0000-0000000000a1'); raise exception 'anon can refund quota';
   exception when insufficient_privilege then null; end;
   begin perform public.lk_plan_standing('20000000-0000-0000-0000-000000000001'); raise exception 'anon can read plan standing';
   exception when insufficient_privilege then null; end;
+  begin perform 1 from lektionskollen.problem_reports; raise exception 'anon can read problem reports';
+  exception when insufficient_privilege then null; end;
 end $$;
 reset role;
+do $$ begin
+  if (select count(*) from lektionskollen.problem_reports) <> 2 then raise exception 'expected 2 reports (one user, one folded error)'; end if;
+end $$;
 select 'database smoke test passed' as result;

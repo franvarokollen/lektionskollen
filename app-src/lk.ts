@@ -1,6 +1,7 @@
 /* Lektionskollen — the coordinator app: sign-in, the cover table, the plan
    panel, and the page's event wiring. The rest lives in lk-*.ts. */
 import { loadToday, todayClick } from './lk-today';
+import { openReport, watchErrors } from './report';
 import { APPROVER_KEY, APPR_ERR, apprNameValue } from './lk-approve';
 import { previewAssist } from './lk-assist';
 import { canonSubject, canonYear } from './lk-catalog';
@@ -54,6 +55,7 @@ function setLang(l: Lang) {
    callers. Revoking the anon grants in Postgres restores a real login
    without touching this file. */
 export function boot() {
+  watchErrors(sb, () => SHELL + ':' + state.screen + (EMBED ? ':embed' : ''));
   document.documentElement.lang = LANG;
   applyStatic();
   if (!mockAuth()) { showSignIn(); return; }
@@ -163,6 +165,13 @@ document.addEventListener('click', async (e) => {
     const { error } = await sb.rpc('lk_set_share_ai', { p_on: on });
     if (error) { toast(error.message); return; }
     state.shareAi = on; renderSettings(); toast(t('shareSaved')); loadBank();
+    return;
+  }
+  if (tg.closest<HTMLElement>('[data-report]')) {
+    openReport(sb, () => SHELL + ':' + state.screen, {
+      title: t('reportTitle'), hint: t('reportHint'), placeholder: t('reportPh'), send: t('reportSend'),
+      cancel: t('cancel'), thanks: t('reportThanks'), fail: t('reportFail'),
+    }, toast);
     return;
   }
   if (tg.closest<HTMLElement>('[data-fvklink]')) { toast(t('authLater')); return; }
