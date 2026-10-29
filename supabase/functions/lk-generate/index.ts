@@ -112,9 +112,8 @@ Deno.serve(async (req) => {
   const convertIn = body.convert as { text?: string } | undefined
   const convertText = typeof convertIn?.text === 'string' ? convertIn.text.slice(0, 20_000).trim() : ''
   if (convertIn && !convertText) return json({ error: 'empty_text' }, 400)
-  // Rewrite one part of an existing plan from substitute feedback. Not a new
-  // plan, so it takes no unit from the day's allowance.
-  // Each model call is metered: a rewrite is still a call a school pays for.
+  // Rewrite one part of an existing plan from substitute feedback. Still a
+  // model call the school pays for, so it is metered like a new plan.
   const fixIn = body.fix as { plan?: Record<string, unknown> } & Record<string, unknown> | undefined
   if (fixIn && !fixIn.plan) return json({ error: 'fix needs plan' }, 400)
   // Not metered (it belongs to the plan it came with), so its size is capped
