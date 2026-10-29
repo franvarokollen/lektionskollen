@@ -18,3 +18,28 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:app
+
+  # The database, rebuilt from the repo alone on an empty Postgres: the baseline
+  # (twice — it must be a no-op on a database that already has it), every later
+  # migration, then tools/db/smoke.sql. A migration that only works on the live
+  # database fails here first.
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/db/replay.sh
