@@ -389,11 +389,16 @@
   function sortYears(ys) {
     return ys.slice().sort((a, b) => yearNum(a) - yearNum(b) || byLabelSv(yearLabel)(a, b));
   }
+  var ICON_SHELF = '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>';
+  var ICON_COVER = '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>';
+  function viewBtn(id, on, label, icon) {
+    return '<button class="' + (on === id ? "on" : "") + '" data-poolview="' + id + '" aria-pressed="' + (on === id) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + icon + "</svg>" + esc(label) + "</button>";
+  }
   function poolViewToggle() {
     const v = state.pool.view;
     const box = maybe$("poolview");
     if (!box) return;
-    box.innerHTML = '<button class="' + (v === "shelf" ? "on" : "") + '" data-poolview="shelf">' + esc(t("poolShelf")) + '</button><button class="' + (v === "cover" ? "on" : "") + '" data-poolview="cover">' + esc(t("poolCover")) + "</button>";
+    box.innerHTML = viewBtn("shelf", v, t("poolShelf"), ICON_SHELF) + viewBtn("cover", v, t("poolCover"), ICON_COVER);
   }
   function renderBank() {
     const g = $("bankgrid");
