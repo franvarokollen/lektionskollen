@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const src = readFileSync(new URL('../app/lk.js', import.meta.url), 'utf8');
-const from = src.indexOf('const TERM_WEEK =');
+// esbuild writes top-level consts as var; accept either.
+const from = Math.max(src.indexOf('const TERM_WEEK ='), src.indexOf('var TERM_WEEK ='));
 const to = src.indexOf('async function readTerm()');
 if (from < 0 || to < from) { console.error('term-check: parser not found'); process.exit(2); }
 const dir = mkdtempSync(join(tmpdir(), 'lk-term-'));

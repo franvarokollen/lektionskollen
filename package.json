@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p .",
     "build:app": "node tools/build-app.mjs",
-    "check:app": "tsc -p . && node tools/build-app.mjs --check && node tools/i18n-check.mjs && node tools/deck-check.mjs && node tools/pool-check.mjs"
+    "check:app": "tsc -p . && node tools/build-app.mjs --check && node tools/i18n-check.mjs && node tools/deck-check.mjs && node tools/pool-check.mjs && node tools/term-check.mjs && node tools/prompt-check.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
