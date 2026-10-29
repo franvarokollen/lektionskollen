@@ -13,10 +13,9 @@ Live: `https://franvarobot.github.io/lektionskollen/` (redirects to `app/`). Eve
 | `app-src/lk*.ts` | The coordinator app, bundled into `app/lk.js`. `lk.ts`: start-up, language, events. `lk-core` (database client, strings, state), `lk-shell` (nav, titles), `lk-signin`, `lk-cover` (stand-in feed, popover, plan per slot), `lk-daily` (the cover grid), `lk-link` (checks, plan line, teacher's own link), `lk-embed` (panel and FVK embed), `lk-generate` (request form, generation), `lk-approve` (approval ladder), `lk-panel` (open plan), `lk-assist` (extra-help preview), `lk-catalog`, `lk-pool`, `lk-wait`, `lk-feedback`, `lk-term`, `lk-create`. |
 | `app-src/plan*.ts` | The substitute's page, bundled into `app/plan.js`. `plan.ts`: events and start-up. `plan-core` (types, database client, the page state `P`), `plan-load`, `plan-render`, `plan-assist` (extra help), `plan-depth` (how much is written out, pupil sheet tier), `plan-teacher` (the class teacher's view), `plan-linked` (a school's own linked plan). `plan-view` renders a plan for both apps. |
 | `app-src/css/` | The stylesheet, one file per screen, built into `app/lk.css`. The number in each name is its place in the cascade. |
-| `supabase/functions/` | Edge functions (helpers they share are in `_shared/`): `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
 | `supabase/migrations/` | The database: `…_lk_baseline.sql` rebuilds everything LK owns from nothing; later files change it, in order. |
 | `supabase/migrations-archive/` | The migrations that led to the baseline, kept for history. Not run. |
-| `supabase/functions/` | Edge functions: `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
+| `supabase/functions/` | Edge functions (helpers they share are in `_shared/`): `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
 | `fvk-integration/` | Drop-in files for FVK's own codebase (not built here). |
 | `docs/` | `AUTH.md` (sign-in plan), `HANDOVER-FVK-INTEGRATION.md` + `FVK-ISSUES-lektionskollen.md` (the FVK link), `EMBED.md`. |
 | `tools/` | Build and checks (below). |
