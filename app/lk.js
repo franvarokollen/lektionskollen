@@ -1208,7 +1208,7 @@
     $("addin-content").innerHTML = head + checkNote + staleNote + approveNote + simNote + fallbackNote + fbBox + (state.view === "coordinator" ? coordView(p, r) : vikarieView(p, r)) + "</div>";
   }
   function minDiff(a, b) {
-    const [h1, m1] = a.split(":").map(Number), [h2, m2] = b.split(":").map(Number);
+    const [h1 = 0, m1 = 0] = a.split(":").map(Number), [h2 = 0, m2 = 0] = b.split(":").map(Number);
     return h2 * 60 + m2 - (h1 * 60 + m1);
   }
   var CHK = '<svg class="cl-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path class="cl-link" d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path class="cl-link" d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/><path class="cl-tick" d="M5 12.5l4.5 4.5L19 7"/></svg>';

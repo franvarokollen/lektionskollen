@@ -104,7 +104,7 @@ export function deckOf(p: Plan, l: DeckLabels): Slide[] {
   phases.forEach(function (ph, i) {
     if (!S.some((sl) => sl.ph === i)) {
       let at = S.length;
-      for (let k = 0; k < S.length; k++) { if (S[k].ph > i) { at = k; break; } }
+      for (let k = 0; k < S.length; k++) { if (S[k]!.ph > i) { at = k; break; } }
       S.splice(at, 0, { step: ph.n, h: ph.n, ph: i, pn: phases.length });
     }
   });

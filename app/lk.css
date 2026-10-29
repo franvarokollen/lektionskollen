@@ -94,7 +94,6 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 /* ── Table ───────────────────────────────────────── */
 .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.tablewrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;min-width:720px}
 th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);
   font-weight:600;padding:10px 14px;border-bottom:1px solid var(--line);background:#fcfbf9}
@@ -108,7 +107,6 @@ tr.muted .who{color:var(--ink-faint)}
 .chip-warn{background:var(--warn-bg);color:var(--warn)}
 .chip-neutral{background:var(--line-soft);color:var(--ink-soft)}
 .chip-blue{background:#e8f1fe;color:var(--blue)}
-.nolesson{color:var(--ink-faint);font-size:12.5px;font-style:italic}
 
 /* ── Add-in overlay ──────────────────────────────── */
 .overlay{position:fixed;inset:0;background:rgba(13,35,64,.45);display:flex;align-items:flex-start;
@@ -181,9 +179,7 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .board{background:var(--lk-grad);color:#eef3f9;border-radius:var(--r);padding:13px 15px;white-space:pre-wrap;
   font-family:var(--mono);font-size:13px;line-height:1.65}
 .phase{border:1px solid var(--line);border-radius:var(--r);padding:11px 13px;margin-bottom:9px}
-.phase-h{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;flex-wrap:wrap}
 .clock{font-family:var(--mono);font-size:12.5px;font-weight:500;background:var(--navy);color:#fff;border-radius:5px;padding:2px 7px}
-.phase-h strong{font-size:14px}
 .say{background:#f0f5fb;border-left:3px solid var(--blue);border-radius:0 7px 7px 0;padding:8px 11px;margin:6px 0}
 .say em{font-style:normal;color:var(--ink-soft);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:2px}
 .ans{color:var(--ok);font-size:13px}
@@ -196,9 +192,6 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 
 /* ── Email ───────────────────────────────────────── */
 .mail{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.mail-h{background:#fcfbf9;border-bottom:1px solid var(--line);padding:11px 14px;font-size:12.5px;color:var(--ink-soft)}
-.mail-h b{color:var(--ink)}
-.mail-b{padding:14px;white-space:pre-wrap;font-size:13px;line-height:1.6;max-height:300px;overflow-y:auto}
 
 /* ── Bank page ───────────────────────────────────── */
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
@@ -235,13 +228,6 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .arch{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:18px}
 .arch h3{font-size:15px;margin-bottom:4px}
 .arch > p{color:var(--ink-soft);margin:0 0 14px}
-.archgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.archbox{border:1px solid var(--line);border-radius:var(--r);padding:12px 13px}
-.archbox h5{margin:0 0 7px;font-size:12.5px;display:flex;align-items:center;gap:7px}
-.archbox h5 span{width:9px;height:9px;border-radius:2px;flex:none}
-.archbox ul{margin:0;padding-left:17px;font-size:12.5px;color:var(--ink-soft)}
-.archbox li{margin-bottom:3px}
-.archbox code{font-family:var(--mono);font-size:11.5px;color:var(--navy);background:var(--line-soft);padding:1px 4px;border-radius:4px}
 .wire{margin-top:12px;border-top:1px solid var(--line-soft);padding-top:12px}
 .wire h5{margin:0 0 7px;font-size:12.5px}
 .wire table{min-width:0;width:100%}
@@ -266,14 +252,12 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
   .nav .lbl{display:none}
   .sb-lang{padding:0;flex:none;margin-left:auto}
   .langbtn{height:34px;padding:0 10px}
-  .steer,.twocol,.archgrid{grid-template-columns:1fr}
+  .steer,.twocol{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 
 /* ── Login ───────────────────────────────────────── */
-.loginwrap{min-height:100%;display:grid;place-items:center;padding:24px}
-.logincard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px;max-width:380px;width:100%;box-shadow:0 8px 28px rgba(13,35,64,.07)}
 .tabs button:disabled{opacity:.4;cursor:not-allowed}
 .rate{display:flex;gap:4px}
 .rate button{border:1px solid var(--line);background:#fff;border-radius:7px;width:34px;height:32px;font-size:15px;color:var(--warn)}
@@ -365,14 +349,8 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 /* Sharing progress and the "why" checklist */
 .shline{margin:6px 0 0;font-size:12.5px;line-height:1.4}
 .shline.ok{color:var(--ok);font-weight:600}
-.shline.near{color:#9a4d00;font-weight:600}
 .shline.muted{color:var(--ink-soft)}
 .shline.used{color:var(--ink-soft);font-style:italic}
-.whybox{margin-top:8px;font-size:12.5px}
-.whybox>summary{cursor:pointer;color:var(--blue);font-weight:600;list-style:none}
-.whybox>summary::-webkit-details-marker{display:none}
-.whybox>summary::before{content:'▸ '}
-.whybox[open]>summary::before{content:'▾ '}
 .whybody{padding:8px 0 0}
 .whylist{list-style:none;margin:0;padding:0;display:grid;gap:7px}
 .whylist li{display:flex;gap:8px;align-items:flex-start;line-height:1.4}
@@ -517,12 +495,9 @@ body.panelmode .seam{flex:0 0 auto}
   margin-left:7px;border-radius:999px;background:var(--warn);color:#fff;font-size:10.5px;font-weight:700}
 
 /* The grade: one number, then the answers it is made of */
-.scorerow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}
 .score{font-size:26px;font-weight:700;line-height:1;letter-spacing:-.02em}
 .score small{font-size:11px;font-weight:600;color:var(--ink-faint);margin-left:1px}
 .score.hi{color:#15803d}.score.mid{color:#1b4776}.score.lo{color:#9a4d00}.score.bad{color:#b91c1c}
-.scorenew{font-size:13px;font-weight:700;color:var(--blue)}
-.scoremeta{font-size:12px;color:var(--ink-soft)}
 .aspects{display:grid;gap:5px;margin:8px 0 2px}
 .asp{display:grid;grid-template-columns:78px 1fr 92px;gap:8px;align-items:center;font-size:11.5px}
 .asp .al{color:var(--ink-soft)}
@@ -723,9 +698,6 @@ body.panelmode .seam{flex:0 0 auto}
 .tptable td.wk input{text-align:center;font-variant-numeric:tabular-nums}
 .tpunclear{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--warn-bg)}
 .tpunclear ul{margin:6px 0 0;padding-left:18px;font-size:13px}
-.tpweeks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.tpweek{font-size:12.5px;padding:4px 8px;border-radius:6px;background:var(--line-soft);border:1px solid var(--line)}
-.tpweek b{font-variant-numeric:tabular-nums;color:var(--ink-soft);margin-right:5px}
 
 /* ── The pool, grouped ─────────────────────────────────
    A flat grid sorted by rank answers "which plan is best", which is not the
