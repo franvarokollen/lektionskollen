@@ -11,7 +11,8 @@ Live: `https://franvarobot.github.io/lektionskollen/` (redirects to `app/`). Eve
 | `app/` | **What Pages serves.** `index.html` (coordinator app), `plan.html` (the substitute's page), `lk.css`, and the built `*.js`. |
 | `app-src/` | The TypeScript the `app/*.js` files are built from. **Edit here, never `app/*.js`.** |
 | `app-src/lk*.ts` | The coordinator app, bundled into `app/lk.js`: `lk.ts` (sign-in, cover table, plan panel, events), `lk-core.ts` (database client, strings, state), `lk-catalog.ts` (subjects and years), `lk-pool.ts` (bank and pool), `lk-wait.ts`, `lk-feedback.ts`, `lk-term.ts` (year planning), `lk-create.ts` (the create wizard). |
-| `supabase/migrations/` | Database schema and every `lk_*` function, in order. |
+| `supabase/migrations/` | The database: `…_lk_baseline.sql` rebuilds everything LK owns from nothing; later files change it, in order. |
+| `supabase/migrations-archive/` | The migrations that led to the baseline, kept for history. Not run. |
 | `supabase/functions/` | Edge functions: `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
 | `fvk-integration/` | Drop-in files for FVK's own codebase (not built here). |
 | `docs/` | `AUTH.md` (sign-in plan), `HANDOVER-FVK-INTEGRATION.md` + `FVK-ISSUES-lektionskollen.md` (the FVK link), `EMBED.md`. |
@@ -40,6 +41,11 @@ Install the pre-commit hook once: `ln -s ../../tools/pre-commit .git/hooks/pre-c
 | `pool-check` | The bank keeps every plan, in rank, on the right shelf |
 | `term-check` | A pasted year plan becomes the right weeks |
 | `prompt-check` | The generator's prompt fits the year group and subject |
+| `tools/db/replay.sh` (CI job `database`) | The database rebuilds from the repo alone on an empty Postgres, and `tools/db/smoke.sql` passes on it |
+
+### Changing the database
+
+Add a new file to `supabase/migrations/` (name it `YYYYMMDDHHMMSS_what.sql`) and run `tools/db/replay.sh` against a local Postgres before applying it live. To start a fresh baseline: run `tools/db/dump.sql` on the live project, then `node tools/db/baseline.mjs dump.json`, and move the old files to `supabase/migrations-archive/`.
 
 In a browser, against the live demo (not in CI): `tools/e2e.mjs` (flows that have broken before) and `tools/lang-audit.mjs` (SV/EN on every screen). `tools/smoke.mjs` records a behaviour fingerprint of every screen in both languages, to compare before and after a change.
 
