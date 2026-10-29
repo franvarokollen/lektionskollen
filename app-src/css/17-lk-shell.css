@@ -23,13 +23,12 @@ body[data-shell="lk"] .seam{display:none}
   background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
 .tdsum{flex:1;min-width:240px}
 .tdkicker{margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-faint)}
-.tdhead h2{font-size:19px;margin:0 0 10px;letter-spacing:-.01em}
-.tdbar{height:6px;border-radius:6px;background:var(--line-soft);overflow:hidden;max-width:420px}
-.tdbar i{display:block;height:100%;background:var(--blue);border-radius:6px;transition:width .3s}
+.tdhead h2{font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
 .tdactions{display:flex;gap:8px;flex-wrap:wrap}
 .tdform{margin-bottom:16px;max-width:880px}
 .tdform h3{font-size:15px;margin:0 0 4px}
-.tdgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tdform > .hint{margin:0 0 14px}
+.tdgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 @media (max-width:760px){.tdgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .tdlist{display:flex;flex-direction:column;gap:10px;max-width:880px}
 .tdcard{position:relative;display:flex;gap:16px;align-items:flex-start;padding:14px 16px;
@@ -45,8 +44,15 @@ body[data-shell="lk"] .seam{display:none}
 .tdst.ok{background:var(--ok-bg);color:#166534}
 .tdst.neutral{background:var(--line-soft);color:var(--ink-soft)}
 .tdmeta{margin:0;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.tdnosub{color:#b45309}
-.tdown{font-style:italic;color:var(--ink-faint)}
-.tdplan{max-width:520px}
-.tdremove{position:absolute;top:10px;right:10px}
-@media (max-width:640px){.tdcard{flex-direction:column;gap:8px}.tdtime{flex-direction:row;gap:6px;width:auto}}
+.tdtitle{margin:0;font-size:14px;color:var(--ink)}
+.tdstock{color:var(--ink-faint)}
+.tdopen{flex:none;align-self:center}
+.tdopen,.tdpick a{text-decoration:none}
+/* Plan a lesson: the picks under the form */
+.tdres{margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:8px}
+.tdpick{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.tdpick .tdmain{gap:2px}
+.tdempty{margin:0;font-size:14px}
+.tdnoteach{margin:0 0 2px;color:#92400e}
+.tdres .hint{margin:4px 0 0}
+@media (max-width:640px){.tdcard{flex-direction:column;gap:8px}.tdtime{flex-direction:row;gap:6px;width:auto}.tdpick{flex-wrap:wrap}}

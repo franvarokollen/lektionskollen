@@ -50,7 +50,7 @@ export interface BankRow {
 }
 /** Where an open plan came from and whether it may leave its school. */
 interface PlanShare { origin: 'ai' | 'teacher'; author: string | null; allowed: boolean; choice: boolean | null; mine: boolean; shared: boolean }
-export interface UseRow { plan_id: string; group_name: string; used_on: string; run_token?: string }
+export interface UseRow { plan_id: string; group_name: string; used_on: string; run_token?: string; lesson_time?: string | null; substitute?: string | null }
 export interface Extra { title?: string; minutes?: number; lines?: string[]; board?: string; tasks?: { q?: string; a?: string }[] }
 export interface CheckProblem { level?: string; where?: string; detail?: string }
 export interface Heat { section_ref?: string; section_label?: string; kind: string; n: number }
@@ -102,6 +102,15 @@ export const t = (k: string): string => (TT[LANG] && TT[LANG][k]) || TT.sv[k] ||
  *  integration can still be judged. Same code, same features; only the shell
  *  around them differs. */
 export const SHELL: 'lk' | 'fvk' = document.body.dataset.shell === 'fvk' ? 'fvk' : 'lk';
+/** Whether this school has the Lektionskollen add-on in Frånvarokollen. Only
+ *  FVK asks: a school without it sees no trace of LK there. Lektionskollen on
+ *  its own is always on. On the FVK test page the switch is kept in this
+ *  browser; in FVK it is a per-school setting (handover §4.2). */
+export const ADDON: boolean = SHELL === 'lk' || (() => { try { return localStorage.getItem('fvk.addon') !== 'off'; } catch { return true; } })();
+export function setAddon(on: boolean) {
+  try { localStorage.setItem('fvk.addon', on ? 'on' : 'off'); } catch { /* private window */ }
+  location.reload();
+}
 
 /** Only setLang (lk.ts) changes the language; it also redraws the page. */
 export function setLangValue(l: Lang) { LANG = l; }
@@ -121,7 +130,7 @@ export const state = {
   me: null as Me | null, row: null as Row | null, plan: null as Plan | null,
   bodies: null as Partial<Record<Lang, Plan>> | null, planId: null as string | null,
   view: 'coordinator', bank: [] as BankRow[], screen: (SHELL === 'fvk' ? 'cover' : 'plans') as string, fb: [] as FbPlan[], pending: 0,
-  queue: [] as QueueItem[], extras: [] as QueueItem[], attn: [] as Attn[], fixes: {} as Record<string, { busy?: boolean; before?: Plan; after?: Plan; err?: string }>, model: null as string | null, cap: 20, uses: [] as UseRow[],
+  queue: [] as QueueItem[], extras: [] as QueueItem[], attn: [] as Attn[], fixes: {} as Record<string, { busy?: boolean; before?: Plan; after?: Plan; err?: string }>, model: null as string | null, cap: 20, uses: [] as UseRow[], back: 'bank',
   termCoverage: [] as TermCover[], tab: 'bank', checks: {} as Record<string, Verdict | null>,
   // Which shelf of the pool is open, remembered between visits.
   pool: { view: 'shelf', sub: '', yr: '' } as PoolPick,   // lk.ts restores the last pick at start

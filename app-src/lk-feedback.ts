@@ -1,6 +1,6 @@
 /* ── Feedback tab: what substitutes did and said ───── */
 import { subjectLabel, yearLabel } from './lk-catalog';
-import { $, Attn, Extra, FbPlan, Heat, LANG, QueueItem, RunFb, SecFb, StrMap, esc, fillT, maybe$, sb, state, t, toast } from './lk-core';
+import { $, Attn, Extra, FbPlan, Heat, LANG, QueueItem, RunFb, SHELL, SecFb, StrMap, esc, fillT, maybe$, sb, state, t, toast } from './lk-core';
 import { genErrText, invokeGen } from './lk-generate';
 import { fmtDate, loadBank, loadUses } from './lk-pool';
 import { renderNav, setTitles } from './lk-shell';
@@ -43,7 +43,8 @@ export function renderSettings() {
       '<h4 style="margin-top:18px">' + esc(t('shareAiTitle')) + '</h4><p class="hint">' + esc(t('shareAiNote')) + '</p>' +
       '<div class="covrow"><button data-shareai="1"' + (state.shareAi ? ' class="on"' : '') + '>' + esc(t('shareAiOn')) + '</button>' +
       '<button data-shareai="0"' + (!state.shareAi ? ' class="on"' : '') + '>' + esc(t('shareAiOff')) + '</button></div>') +
-    fvkLinkCard();
+    // Lektionskollen on its own never mentions Frånvarokollen.
+    (SHELL === 'fvk' ? fvkLinkCard() : '');
 }
 
 export async function loadFeedback() {

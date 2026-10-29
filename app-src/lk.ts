@@ -1,10 +1,10 @@
 /* Lektionskollen — the coordinator app: sign-in, the cover table, the plan
    panel, and the page's event wiring. The rest lives in lk-*.ts. */
-import { loadTodayRows, todayClick } from './lk-today';
+import { loadToday, todayClick } from './lk-today';
 import { APPROVER_KEY, APPR_ERR, apprNameValue } from './lk-approve';
 import { previewAssist } from './lk-assist';
 import { canonSubject, canonYear } from './lk-catalog';
-import { $, LANG, Lang, Row, SHELL, esc, maybe$, sb, setLangValue, state, t, toast } from './lk-core';
+import { $, LANG, Lang, Row, SHELL, esc, maybe$, sb, setAddon, setLangValue, state, t, toast } from './lk-core';
 import { POP, ROWS, closePop, loadCoverPlans, openPop, planFor, setLoud } from './lk-cover';
 import { crClick, openCreate, renderCreate, wireCreate } from './lk-create';
 import { renderRows } from './lk-daily';
@@ -57,7 +57,6 @@ export function boot() {
   document.documentElement.lang = LANG;
   applyStatic();
   if (!mockAuth()) { showSignIn(); return; }
-  loadTodayRows();
   renderNav();
   enterApp()
     .then(() => Promise.all([loadFeedback(), loadUses()]))
@@ -185,6 +184,8 @@ document.addEventListener('click', async (e) => {
     state.tab = 'bank';
     return showScreen('plans');
   }
+  const addon = tg.closest<HTMLElement>('[data-addon]');
+  if (addon) return setAddon(addon.getAttribute('data-addon') === 'on');
   const loud = tg.closest<HTMLElement>('[data-loud]');
   if (loud) return setLoud(loud.getAttribute('data-loud')!);
   const po = tg.closest<HTMLElement>('[data-planopen]');
@@ -382,7 +383,8 @@ export function showScreen(id: string) {
   if (which === 'create') renderCreate();
   if (which === 'settings') renderSettings();
   renderNav();
-  if (which === 'cover' || which === 'today') loadCoverPlans().then(renderRows).catch(() => {});
+  if (which === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
+  if (which === 'today') loadToday();
   setTitles();
   window.scrollTo(0, 0);
 }

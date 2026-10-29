@@ -88,24 +88,41 @@ async function page(lang = 'en', file = 'fvk-demo.html') {
   await p.close();
 }
 
+// ── The add-on switch on the FVK test page ──────────────
+{
+  const p = await page('en', 'fvk-demo.html');
+  ok('FVK with the add-on: two LK entries in the sidebar', !!(await p.$('[data-nav="plans"]')) && !!(await p.$('[data-nav="create"]')));
+  await p.click('[data-addon="off"]'); await p.waitForTimeout(2500);
+  await p.click('[data-nav="cover"]').catch(() => {}); await p.waitForTimeout(1200);
+  const blk = await p.$('.blk.covered, .blk');
+  if (blk) { await blk.click(); await p.waitForTimeout(300); }
+  ok('FVK without the add-on: no trace of LK', !(await p.$('[data-nav="plans"]')) && !(await p.$('[data-nav="create"]')) && !(await p.$('#cv-pop [data-planopen]')));
+  await p.click('[data-addon="on"]'); await p.waitForTimeout(2000);
+  ok('FVK add-on back on', !!(await p.$('[data-nav="plans"]')));
+  await p.close();
+}
+
 // ── Lektionskollen on its own (index.html) ──────────────
 {
   const p = await page('en', 'index.html');
   const vis = (sel) => p.isVisible(sel).catch(() => false);
   ok('LK opens on the lesson plans, with no FVK screens', (await vis('#tab-bank')) && !(await p.$('#screen-cover')));
 
-  // Cover today: a lesson added by hand gets the same actions as one from FVK.
-  await p.click('[data-nav="today"]'); await p.waitForTimeout(2000);
-  const before = (await p.$$('.tdcard')).length;
-  await p.click('[data-tdadd]'); await p.fill('#td-class', 'E2E'); await p.fill('#td-start', '15:00'); await p.fill('#td-end', '15:40');
-  await p.click('[data-tdsave]'); await p.waitForTimeout(400);
-  const added = await p.$('.tdcard:has(.tdown)');
-  ok('cover today: an added lesson appears with its plan actions', (await p.$$('.tdcard')).length === before + 1 && !!(added && await added.$('[data-planopen]')));
-  await p.click('[data-tdadd]'); await p.fill('#td-start', '10:00'); await p.fill('#td-end', '09:00'); await p.click('[data-tdsave]');
-  ok('cover today: an end before the start is refused', (await p.$$('.tdcard')).length === before + 1);
+  // Today: which plans are in use. Finding a plan never offers one this class
+  // has already had, and the page never mentions Frånvarokollen.
+  await p.click('[data-nav="today"]'); await p.waitForTimeout(2500);
+  ok('today: shows the plans-in-use page with Plan a lesson', await vis('[data-tdplan]'));
+  ok('LK on its own never mentions Frånvarokollen', !/Frånvarokollen|FVK/.test(await p.innerText('body')));
+  await p.click('[data-tdplan]'); await p.click('[data-tdfind]'); await p.waitForTimeout(200);
+  ok('plan a lesson: a class is required', !(await p.$('.tdres')));
+  await p.fill('#td-class', 'E2E-' + Date.now().toString(36));
+  await p.selectOption('#td-subject', 'Matematik').catch(() => {});
+  await p.click('[data-tdfind]'); await p.waitForTimeout(300);
+  const picks = await p.$$eval('.tdpick .tdtop .tdst', (els) => els.map((e) => e.className));
+  const firstAi = picks.findIndex((c) => c.includes('draft'));
+  ok('plan a lesson: teacher-made plans come before AI-made', firstAi < 0 || !picks.slice(firstAi).some((c) => c.includes(' ok')), picks.join(','));
+  ok('plan a lesson: results or a way to create one', !!(await p.$('.tdres [data-tdcreate]')));
   await p.click('[data-tdcancel]');
-  if (added) { await p.click('.tdcard:has(.tdown) [data-tdremove]'); await p.waitForTimeout(300); }
-  ok('cover today: an added lesson can be removed', (await p.$$('.tdcard')).length === before);
 
   // The wizard is a page, and closing it goes back to the bank.
   await p.click('[data-nav="create"]'); await p.waitForTimeout(600);

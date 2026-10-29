@@ -2,7 +2,7 @@
    The coordinator sees exactly what the substitute gets, and can judge the
    quality of it, but nothing here is saved: the heat map that tells us which
    sections are weak must be substitute presses only, not curiosity. */
-import { $, Extra, LANG, Row, StrMap, esc, sb, state, t } from './lk-core';
+import { $, Extra, LANG, Row, SHELL, StrMap, esc, sb, state, t } from './lk-core';
 import { fbFlag, fbHeatMap } from './lk-feedback';
 import { Plan } from './types';
 function assistRow(ref: string, label: string | undefined) {
@@ -93,7 +93,7 @@ export function vikarieView(p: Plan, _r: Row) {
     '<section class="reg reg-plain"><div class="reg-h"><span class="n">&#9742;</span>' +
     esc(t('whoToCall')) + '</div>' +
     '<p style="font-size:13px"><b>' + esc(t('coordinator')) + '</b> · ' + esc(state.me?.school || '') +
-    '<br><span style="color:var(--ink-soft)">' + esc(t('phoneNote')) + '</span></p></section>';
+    (SHELL === 'fvk' ? '<br><span style="color:var(--ink-soft)">' + esc(t('phoneNote')) + '</span>' : '') + '</p></section>';
 
   h += '<section class="reg reg-plain"><div class="reg-h"><span class="n">+</span>' +
        esc(t('assistTitle')) + '</div>' +
