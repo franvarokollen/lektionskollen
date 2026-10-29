@@ -1,10 +1,12 @@
 /* ── Feedback tab: what substitutes did and said ───── */
-import { Plan } from './types';
-import { fvkLinkCard, genErrText, invokeGen, renderNav, setTitles } from './lk';
 import { subjectLabel, yearLabel } from './lk-catalog';
 import { $, Attn, Extra, FbPlan, Heat, LANG, QueueItem, RunFb, SecFb, StrMap, esc, fillT, maybe$, sb, state, t, toast } from './lk-core';
+import { genErrText, invokeGen } from './lk-generate';
 import { fmtDate, loadBank, loadUses } from './lk-pool';
+import { renderNav, setTitles } from './lk-shell';
+import { fvkLinkCard } from './lk-signin';
 import { loadTerm } from './lk-term';
+import { Plan } from './types';
 const KIND_KEY: StrMap = { explain: 'aExplain', exercise: 'aExercise', filler: 'aFill' };
 function kindLabel(kind: string, variant: string | undefined) {
   if (kind === 'level') return t(variant === 'easier' ? 'aEasier' : 'aHarder');

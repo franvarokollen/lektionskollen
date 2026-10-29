@@ -1,6 +1,6 @@
 /* ── Bank ──────────────────────────────────────────── */
 import { CATALOG_SUBJECTS, CATALOG_YEARS, canonSubject, canonYear, subjectLabel, yearLabel } from './lk-catalog';
-import { CHK, $, BankRow, LANG, PoolPick, UseRow, esc, fillT, maybe$, sb, state, t } from './lk-core';
+import { $, BankRow, CHK, LANG, PoolPick, UseRow, esc, fillT, maybe$, sb, state, t } from './lk-core';
 export let bankReady: Promise<void> = Promise.resolve();
 let bankSeq = 0;
 /** The bank's first load; openEmbed waits on it. */

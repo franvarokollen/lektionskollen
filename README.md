@@ -10,7 +10,7 @@ Live: `https://franvarobot.github.io/lektionskollen/` (redirects to `app/`). Eve
 |------|------------|
 | `app/` | **What Pages serves.** `index.html` (coordinator app), `plan.html` (the substitute's page), `lk.css`, and the built `*.js`. |
 | `app-src/` | The TypeScript the `app/*.js` files are built from. **Edit here, never `app/*.js`.** |
-| `app-src/lk*.ts` | The coordinator app, bundled into `app/lk.js`: `lk.ts` (sign-in, cover table, plan panel, events), `lk-core.ts` (database client, strings, state), `lk-catalog.ts` (subjects and years), `lk-pool.ts` (bank and pool), `lk-wait.ts`, `lk-feedback.ts`, `lk-term.ts` (year planning), `lk-create.ts` (the create wizard). |
+| `app-src/lk*.ts` | The coordinator app, bundled into `app/lk.js`. `lk.ts`: start-up, language, events. `lk-core` (database client, strings, state), `lk-shell` (nav, titles), `lk-signin`, `lk-cover` (stand-in feed, popover, plan per slot), `lk-daily` (the cover grid), `lk-link` (checks, plan line, teacher's own link), `lk-embed` (panel and FVK embed), `lk-generate` (request form, generation), `lk-approve` (approval ladder), `lk-panel` (open plan), `lk-assist` (extra-help preview), `lk-catalog`, `lk-pool`, `lk-wait`, `lk-feedback`, `lk-term`, `lk-create`. |
 | `supabase/migrations/` | The database: `…_lk_baseline.sql` rebuilds everything LK owns from nothing; later files change it, in order. |
 | `supabase/migrations-archive/` | The migrations that led to the baseline, kept for history. Not run. |
 | `supabase/functions/` | Edge functions: `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |

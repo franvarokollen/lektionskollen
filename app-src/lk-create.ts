@@ -16,13 +16,15 @@
    or AI-made, the name, and the rung.
 
    One screen per step, nothing on a screen that is not needed for that step. */
-import { Plan } from './types';
-import { APPROVER_KEY, APPR_ERR, genErrText, invokeGen, usePlan } from './lk';
+import { APPROVER_KEY, APPR_ERR } from './lk-approve';
 import { CATALOG_SUBJECTS, CATALOG_YEARS, subjectLabel, yearLabel } from './lk-catalog';
 import { $, Lang, TermRow, Verdict, esc, fillT, maybe$, sb, state, t, toast } from './lk-core';
+import { genErrText, invokeGen } from './lk-generate';
+import { usePlan } from './lk-panel';
 import { apprLevelName, apprStars, loadBank } from './lk-pool';
 import { isoWeek } from './lk-term';
 import { startWait, stopWait, waitHtml } from './lk-wait';
+import { Plan } from './types';
 type CrRole = 'coordinator' | 'teacher' | 'qualified';
 type CrMethod = 'ai' | 'upload' | 'scratch';
 export interface CrState {
