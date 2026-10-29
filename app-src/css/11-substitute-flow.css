@@ -1,0 +1,94 @@
+/* ── Substitute flow: get ready, first 90 seconds, numbered steps, feedback ── */
+.reg-before .rd{background:#fff;border:1px solid #cddff2;border-radius:10px;padding:10px 12px;margin-top:10px}
+.reg-before .rd-t{display:flex;align-items:center;gap:9px;font-size:14px}
+.reg-before .rd-tick{width:20px;height:20px;border-radius:50%;background:#1d7a5f;color:#fff;display:inline-flex;
+  align-items:center;justify-content:center;font-size:12px;flex:none}
+.reg-before .rd-tick.rd-empty{background:#fff;border:2px solid #8fb0d6}
+.reg-before .rd-btn{margin-left:auto;border:1px solid #b9cde4;background:#fff;color:#14407a;border-radius:8px;
+  padding:5px 11px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.reg-before .rd-ok{background:#14407a;color:#fff;border-color:#14407a}
+.reg-before .rd-done{background:#f1f8f4;border-color:#c7e3d3;padding:7px 12px}
+.reg-before .rd-goal{font-size:14px;margin:0 0 2px}
+.reg-before .rd-hint,.rd-hint{font-size:13px;color:var(--ink-soft);margin:8px 0 0}
+.reg-before .rd-kit{font-size:13.5px;margin:8px 0 0}
+.reg-before .rd-all{margin:12px 0 0;font-weight:600;color:#1d7a5f}
+.reg-before .rd .board{margin-top:8px}
+.reg-before .rd .mat{margin-top:8px}
+.reg-first{background:#fff8e8;border:1px solid #f0dca8}
+.reg-first .reg-h{color:#7a5410}
+.reg-first .reg-h .n{background:#b07515;color:#fff}
+.f90{margin:0;padding-left:22px;font-size:14.5px;line-height:1.5}
+.f90 li{margin:4px 0}
+.lesson-h h2 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;
+  background:#14407a;color:#fff;font-size:12px;margin-right:8px;vertical-align:2px}
+.lesson-h{align-items:center;justify-content:space-between}
+.shortnote{background:#fff8e8;border:1px solid #f0dca8;border-radius:10px;padding:9px 12px;font-size:13px;margin:0 0 12px}
+.ph-step{font:500 11px/1 'Geist Mono',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-soft);margin-bottom:6px}
+.ph-step b{color:#14407a}
+.ph-step b.canskip{color:#b07515}
+.ph-cur{box-shadow:0 0 0 2px #14407a33,0 6px 18px rgba(20,64,122,.12)}
+.ph-skip{opacity:.62}
+.ph-done{padding:8px 14px!important;margin-bottom:8px;opacity:.75}
+.ph-done .ph-h{margin:0;align-items:center}
+.ph-done .ph-n{background:#1d7a5f!important;color:#fff!important}
+.ph-re{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;font:inherit;
+  font-size:12px;cursor:pointer}
+.ph-foot{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);flex-wrap:wrap}
+.ph-foot .nextup{font-size:13px;color:var(--ink-soft);flex:1;min-width:160px}
+.ph-foot .nextup b{color:var(--ink)}
+
+/* Feedback: quiet, closed until asked for, and plainly not part of the lesson. */
+.fbpanel{background:#f3f1f6;border:1px solid #d8d2e3;border-radius:14px;margin-top:30px;position:relative}
+.fbpanel .fb-open{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:transparent;
+  padding:14px 18px;cursor:pointer;font:inherit;text-align:left;color:#3f3a4d}
+.fbpanel .fb-open b{display:block;font-size:15px}
+.fbpanel .fb-open small{display:block;font-size:12px;color:#7a7488;margin-top:2px}
+.fbpanel .fb-caret{font-style:normal;transition:transform .15s}
+.fbpanel .fb-open[aria-expanded=true] .fb-caret{transform:rotate(180deg)}
+.fbpanel .fb-body{padding:2px 18px 18px;border-top:1px solid #e3deec}
+.fbpanel .fb-body[hidden]{display:none}
+.fbpanel .fb-intro{font-size:13px;color:#6a6479;margin:12px 0 0}
+.fbpanel h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:#6a6479;margin:18px 0 8px}
+.fbpanel .fb-row{border-bottom:1px solid #e3deec;padding:8px 0}
+.fbpanel .fb-row:last-of-type{border-bottom:0}
+.fbpanel .fb-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fbpanel .fb-lbl{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;flex:1;min-width:150px}
+.fbpanel .fb-n{width:20px;height:20px;border-radius:50%;background:#e4dff0;color:#3f3a4d;display:inline-flex;
+  align-items:center;justify-content:center;font-size:11.5px;flex:none}
+.fbpanel .fb-pick{display:flex;gap:5px}
+.fbpanel .fb-pick button{border:1px solid #d3cde0;background:#fff;border-radius:8px;padding:6px 12px;font:inherit;
+  font-size:12.5px;cursor:pointer;min-width:54px}
+.fbpanel .fb-pick button.fb-skipped{border-style:dashed;color:#7a7488;min-width:0}
+.fbpanel .fb-pick button.on.fb-good{background:#e5f4ea;border-color:#1d7a5f;color:#13573f;font-weight:600}
+.fbpanel .fb-pick button.on.fb-ok{background:#fff1d6;border-color:#b07515;color:#7a5410;font-weight:600}
+.fbpanel .fb-pick button.on.fb-bad{background:#fbe6e6;border-color:#b3392f;color:#8a251d;font-weight:600}
+.fbpanel .fb-pick button.on.fb-skipped{background:#eceff3;border-color:#6b7787;color:#38424f;font-weight:600}
+.fbpanel .fb-note{display:flex;gap:6px;margin-top:8px}
+.fbpanel .fb-note[hidden]{display:none}
+.fbpanel .fb-note input{flex:1;min-width:0}
+.fbpanel input[type=text]{border:1px solid #d3cde0;border-radius:8px;padding:8px 10px;font:inherit;font-size:13.5px;background:#fff}
+.fbpanel .noterow button,.fbpanel .fb-note button{border:0;background:#5b4f7a;color:#fff;border-radius:8px;padding:0 14px;
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.fbpanel .fb-stars{display:flex;align-items:center;gap:4px}
+.fbpanel .fb-stars button{border:0;background:transparent;font-size:30px;line-height:1;color:#cfc8dd;cursor:pointer;padding:2px 3px}
+.fbpanel .fb-stars button.on{color:#e0a21a}
+.fbpanel .fb-sl{font-size:12px;color:#7a7488;margin:0 6px}
+.fbpanel .ql{font-size:13.5px;font-weight:600;margin:14px 0 6px}
+.assistbar .fbjump{margin-left:auto;background:#5b4f7a;color:#fff;border-color:#5b4f7a}
+
+/* Wide layout: the margins live in the lesson row only, so they cannot run on
+   under the sections that come after it. */
+@media (min-width:1180px){
+  .subwrap .rail-l,.subwrap .rail-r,.subwrap .col{grid-row:2}
+  .subwrap .col{grid-column:2}
+}
+.heat .secbar{display:flex;overflow:hidden;background:#eceff3}
+.heat .secbar i{display:block;height:100%;border-radius:0}
+.secbar .sb-w{background:#1d7a5f}.secbar .sb-c{background:#d9921c}.secbar .sb-b{background:#b3392f}.secbar .sb-s{background:#9aa4b1}
+.secn{font-size:12.5px;white-space:nowrap}.sb-wt{color:#1d7a5f}.sb-ct{color:#b07515}.sb-bt{color:#b3392f}
+
+/* Per-class results on a plan: one row per delivery. */
+.runrow{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line,#e5e1da);font-size:13px}
+.runrow .rr{white-space:nowrap}
+

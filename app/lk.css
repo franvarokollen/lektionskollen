@@ -1,3 +1,4 @@
+/* GENERATED from app-src/css/*.css by tools/build-app.mjs. Edit those files, not this one. */
 /* Frånvarokollen design tokens — src/app/globals.css. Light only, as FVK ships. */
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -190,9 +191,6 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .callout{background:var(--line-soft);border-radius:var(--r);padding:11px 13px}
 .callout strong{display:block;margin-bottom:3px}
 
-/* ── Email ───────────────────────────────────────── */
-.mail{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-
 /* ── Bank page ───────────────────────────────────── */
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .filters select{border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit;font-size:13px;background:#fff}
@@ -200,8 +198,6 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .bcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:7px}
 .bcard h4{font-size:14.5px}
 .bcard .tags{display:flex;gap:5px;flex-wrap:wrap}
-.bcard .stat{display:flex;gap:14px;font-size:12px;color:var(--ink-soft);margin-top:auto;padding-top:7px;border-top:1px solid var(--line-soft)}
-.bcard .stat b{color:var(--ink);font-weight:600}
 
 /* The pool card: small on purpose. It answers "which plan, is it ready,
    click it" — the full score breakdown and the why-shared checklist are one
@@ -225,15 +221,6 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .pcard.clickable:hover{border-left-color:var(--acc,var(--ink))}
 
 /* ── Architecture drawer ─────────────────────────── */
-.arch{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:18px}
-.arch h3{font-size:15px;margin-bottom:4px}
-.arch > p{color:var(--ink-soft);margin:0 0 14px}
-.wire{margin-top:12px;border-top:1px solid var(--line-soft);padding-top:12px}
-.wire h5{margin:0 0 7px;font-size:12.5px}
-.wire table{min-width:0;width:100%}
-.wire td{padding:4px 0;border:0;font-size:12.5px;vertical-align:top}
-.wire td:first-child{width:160px;padding-right:12px}
-.wire code{font-family:var(--mono);font-size:11.5px;color:var(--navy)}
 
 .note{font-size:12px;color:var(--ink-faint);margin-top:14px}
 .demo-tip{background:#e8f1fe;border:1px solid #cfe2fb;border-radius:var(--r);padding:10px 13px;font-size:12.5px;
@@ -256,12 +243,9 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-
 /* ── Login ───────────────────────────────────────── */
 .tabs button:disabled{opacity:.4;cursor:not-allowed}
-.rate{display:flex;gap:4px}
-.rate button{border:1px solid var(--line);background:#fff;border-radius:7px;width:34px;height:32px;font-size:15px;color:var(--warn)}
-.rate button.on{background:var(--warn-bg);border-color:var(--warn)}
+
 .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--navy);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;z-index:80;max-width:calc(100vw - 32px);box-shadow:0 6px 20px rgba(13,35,64,.2)}
@@ -351,12 +335,7 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 .shline.ok{color:var(--ok);font-weight:600}
 .shline.muted{color:var(--ink-soft)}
 .shline.used{color:var(--ink-soft);font-style:italic}
-.whybody{padding:8px 0 0}
-.whylist{list-style:none;margin:0;padding:0;display:grid;gap:7px}
-.whylist li{display:flex;gap:8px;align-items:flex-start;line-height:1.4}
-.whylist li>span{flex:0 0 auto;font-weight:700}
-.whylist li.pass>span{color:var(--ok)}
-.whylist li.fail>span{color:var(--warn)}
+
 .bankcard.hadit{border-color:var(--warn)}
 .hadwarn{margin-top:3px;font-size:11.5px;font-weight:600;color:#9a4d00}
 
@@ -498,9 +477,9 @@ body.panelmode .seam{flex:0 0 auto}
 .score{font-size:26px;font-weight:700;line-height:1;letter-spacing:-.02em}
 .score small{font-size:11px;font-weight:600;color:var(--ink-faint);margin-left:1px}
 .score.hi{color:#15803d}.score.mid{color:#1b4776}.score.lo{color:#9a4d00}.score.bad{color:#b91c1c}
-.aspects{display:grid;gap:5px;margin:8px 0 2px}
+
 .asp{display:grid;grid-template-columns:78px 1fr 92px;gap:8px;align-items:center;font-size:11.5px}
-.asp .al{color:var(--ink-soft)}
+
 .asp .ab{display:flex;height:7px;border-radius:999px;overflow:hidden;background:var(--line-soft)}
 .asp .ab i{display:block;height:7px}
 .asp .ab i.ok{background:#22c55e}.asp .ab i.mid{background:#f59e0b}.asp .ab i.bad{background:#ef4444}
@@ -546,7 +525,6 @@ body.panelmode .seam{flex:0 0 auto}
 .chklist{margin:7px 0 0;padding-left:18px;font-size:12.5px;display:grid;gap:3px}
 .chklist li.bad{font-weight:600}
 .chklist li.warn{opacity:.85}
-
 
 /* ── The plan, as a substitute reads it ───────────────────
    Shared by plan.html and the preview inside the coordinator app, which is
@@ -648,7 +626,6 @@ body.panelmode .seam{flex:0 0 auto}
   .misc .s{padding:8px 12px;font-size:13px;background:#f7f9fb;border-top:1px solid var(--line-soft)}
   .misc .s b{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);
     display:block;margin-bottom:2px}
-
 
 /* Registers that are just a bounded block on the page (misconceptions, handouts). */
 .reg-plain{background:var(--card);border:1px solid var(--line)}
@@ -763,7 +740,6 @@ body.panelmode .seam{flex:0 0 auto}
 .ph-foot{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);flex-wrap:wrap}
 .ph-foot .nextup{font-size:13px;color:var(--ink-soft);flex:1;min-width:160px}
 .ph-foot .nextup b{color:var(--ink)}
-
 
 /* Feedback: quiet, closed until asked for, and plainly not part of the lesson. */
 .fbpanel{background:#f3f1f6;border:1px solid #d8d2e3;border-radius:14px;margin-top:30px;position:relative}
