@@ -228,7 +228,6 @@
     model: null,
     cap: 20,
     uses: [],
-    share: {},
     termCoverage: [],
     tab: "bank",
     checks: {},
@@ -242,7 +241,6 @@
     // Set once a plan is opened: who approved it and how.
     shareToken: void 0,
     approved: void 0,
-    apprKind: void 0,
     apprBy: void 0,
     apprName: void 0,
     apprRank: void 0,
@@ -311,7 +309,7 @@
       return;
     }
     if (!data || !data.school_id) {
-      document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">Demoskolan saknas i databasen.</p>';
+      document.body.innerHTML = '<p style="padding:40px;font:14px Geist,sans-serif">' + esc(t("noDemoSchool")) + "</p>";
       return;
     }
     state.me = data;
@@ -323,7 +321,7 @@
     if (via) via.textContent = authLabel();
     $("pagesub").textContent = (/* @__PURE__ */ new Date()).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     renderRows();
-    loadBank();
+    bankReady = loadBank();
   }
   var LOUD = (() => {
     try {
@@ -469,6 +467,10 @@
       toast(t("cvPlNeedOne"));
       return;
     }
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast(t("cvPlNeedHttp"));
+      return;
+    }
     const { error } = await sb.rpc("lk_set_cover_plan", {
       p_absence_ref: ref,
       p_kind: url ? "linked" : "note",
@@ -497,8 +499,7 @@
     closePop();
     document.body.classList.add("panelmode");
     if (p && p.kind === "generated" && p.plan_id) {
-      state.row = r;
-      usePlan(p.plan_id);
+      usePlan(p.plan_id, r);
       return;
     }
     openAddin(ref);
@@ -676,13 +677,17 @@
     const m = /^\s*Åk\s*(\d+)/.exec(y);
     return m ? "Year " + m[1] : y;
   }
+  var bankReady = Promise.resolve();
+  var bankSeq = 0;
   async function loadBank() {
+    const seq = ++bankSeq;
     const scope = $("f-scope").value || "all";
     const approval = $("f-approval").value || "any";
     const origin = $("f-origin").value || "any";
     const args = { p_subject: null, p_year: null, p_scope: scope, p_approval: approval };
     if (origin !== "any") args.p_origin = origin;
     const { data, error } = await sb.rpc("lk_pool", args);
+    if (seq !== bankSeq) return;
     if (error) {
       $("bankgrid").innerHTML = '<p class="note">' + esc(t("errBank")) + " " + esc(error.message) + "</p>";
       return;
@@ -860,34 +865,16 @@
   function fillT(k, o) {
     return t(k).replace(/\{(\w+)\}/g, (_m, x) => String(o[x]));
   }
-  async function shareWhy(id, box) {
-    if (!state.share[id]) {
-      const { data, error } = await sb.rpc("lk_plan_standing", { p_id: id });
-      if (error || !data) {
-        box.innerHTML = '<p class="hint">' + esc(error && error.message || "\u2014") + "</p>";
-        return;
-      }
-      state.share[id] = data;
-    }
-    const d = state.share[id];
-    const row = (pass, text, detail) => '<li class="' + (pass ? "pass" : "fail") + '"><span>' + (pass ? "\u2713" : "\u2715") + "</span><div>" + esc(text) + (detail ? '<br><span class="muted">' + esc(detail) + "</span>" : "") + "</div></li>";
-    const b = state.bank.find((x) => x.id === id) || {};
-    const n = d.n || 0;
-    const sc = d.score != null ? Math.round(d.score * 100) : null;
-    const scored = n >= 3 && sc != null && sc < 40;
-    box.innerHTML = '<ul class="whylist">' + row(!!b.approved, t("whyApproved"), b.approved ? "" : t("whyApprovedNo")) + row(
-      !scored,
-      t("whyScoreOk"),
-      n === 0 ? t("whyNoRatings") : scored ? fillT("whyScoreBad", { s: sc }) : fillT("whyScoreIs", { s: sc, n })
-    ) + row(
-      !d.burnt,
-      t("whyNotBurnt"),
-      d.burnt ? fillT("whyBurntNo", { s: d.worst_label || t("wholeLesson"), c: d.worst_explains }) : d.assists ? fillT("whyAssists", { n: d.assists }) : ""
-    ) + '</ul><p class="hint">' + esc(t("whyFoot")) + "</p>";
-  }
+  var usesBy = /* @__PURE__ */ new Map();
   async function loadUses() {
     const { data } = await sb.rpc("lk_uses");
     state.uses = data || [];
+    usesBy = /* @__PURE__ */ new Map();
+    for (const u of state.uses) {
+      const l = usesBy.get(u.plan_id);
+      if (l) l.push(u);
+      else usesBy.set(u.plan_id, [u]);
+    }
   }
   function usedLine(planId) {
     const u = usesOf(planId);
@@ -896,14 +883,15 @@
     return '<p class="shline used">' + esc(fillT("usedLast", { g: last.group_name, d: fmtDate(last.used_on) })) + (u.length > 1 ? " " + esc(fillT("usedTimes", { n: u.length })) : "") + "</p>";
   }
   function usesOf(planId, group) {
-    return state.uses.filter((u) => u.plan_id === planId && (!group || u.group_name === group));
+    const l = usesBy.get(planId) || [];
+    return group ? l.filter((u) => u.group_name === group) : l;
   }
   function fmtDate(d) {
     return new Date(d).toLocaleDateString(LANG === "sv" ? "sv-SE" : "en-GB", { day: "numeric", month: "short" });
   }
   async function logUse(planId) {
     const r = state.row;
-    if (!planId || !r || !r.group) return;
+    if (!planId || !r || !r.group || r.group === "\u2014") return;
     try {
       await sb.rpc("lk_log_run", {
         p_plan_id: planId,
@@ -948,8 +936,7 @@
         cover: q.get("cover") || null,
         practical: q.get("practical") === "1",
         plannable: true
-      },
-      lang: q.get("lang") === "en" ? "en" : null
+      }
     };
   })();
   function toParent(type, payload) {
@@ -967,17 +954,19 @@
     state.planId = null;
     state.view = "coordinator";
     $("overlay").hidden = false;
-    loadBank().then(() => {
-      if (!state.planId) showRequest();
-    }).catch(() => showRequest());
-    showRequest();
+    const seq = ++panelSeq;
+    bankReady.then(() => {
+      if (seq === panelSeq && !state.planId) showRequest();
+    });
     toParent("lk:ready", { ref: EMBED.row.id });
   }
   function openAddin(id) {
+    panelSeq++;
     state.row = ROWS.find((x) => x.id === id) || null;
     state.plan = null;
     state.planId = null;
     state.view = "coordinator";
+    state.pshare = null;
     if (state.row) {
       state.pool.sub = canonSubject(state.row.subject);
       state.pool.yr = canonYear(state.row.year);
@@ -989,11 +978,13 @@
   }
   function closeAddin() {
     stopWait();
+    panelSeq++;
     state.cr = null;
     if (EMBED) {
       toParent("lk:close", {});
       return;
     }
+    state.row = null;
     $("overlay").hidden = true;
     document.body.style.overflow = "";
     document.body.classList.remove("panelmode");
@@ -1004,8 +995,8 @@
     const r = state.row;
     if (!r) return;
     $("seam-state").textContent = "lk:init";
-    const matches = state.bank.filter((b) => b.subject === r.subject && b.year_group === r.year && b.approved);
-    $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("planFor")) + " " + esc(r.group) + '</h2><div class="plan-meta">' + esc(r.teacher) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.room) + (r.cover ? " \xB7 " + esc(r.cover) : " \xB7 " + esc(t("uncovered").toLowerCase())) + '</div></div><button class="x" data-close aria-label="St\xE4ng">\u2715</button></div><div class="derived"><div><dt>' + esc(t("subjectLbl")) + "</dt><dd>" + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t("fromCode")) + ' "' + esc(r.raw) + '"</div></div><div><dt>' + esc(t("yearLbl")) + "</dt><dd>" + esc(yearLabel(r.year)) + '</dd><div class="from">' + esc(t("derivedFrom")) + ' "' + esc(r.group) + '"</div></div><div><dt>' + esc(t("lengthLbl")) + "</dt><dd>" + r.mins + " " + esc(t("min")) + '</dd><div class="from">' + esc(r.start) + "\u2013" + esc(r.end) + "</div></div></div>" + (r.practical ? '<div class="flag"><span>\u26A0</span><div><b>' + esc(t("practicalWarn")) + "</b> " + esc(t("practicalBody")) + "</div></div>" : "") + (matches.length ? '<div><div class="sect-h">' + esc(t("fromBank")) + " \u2014 " + matches.length + " " + esc(matches.length === 1 ? t("bankApproved") : t("bankApprovedPl")) + '</div><div class="bankrow">' + matches.map((b) => {
+    const matches = state.bank.filter((b) => canonSubject(b.subject) === canonSubject(r.subject) && canonYear(b.year_group) === canonYear(r.year) && b.approved);
+    $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("planFor")) + " " + esc(r.group) + '</h2><div class="plan-meta">' + esc(r.teacher) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.room) + (r.cover ? " \xB7 " + esc(r.cover) : " \xB7 " + esc(t("uncovered").toLowerCase())) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="derived"><div><dt>' + esc(t("subjectLbl")) + "</dt><dd>" + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t("fromCode")) + ' "' + esc(r.raw) + '"</div></div><div><dt>' + esc(t("yearLbl")) + "</dt><dd>" + esc(yearLabel(r.year)) + '</dd><div class="from">' + esc(t("derivedFrom")) + ' "' + esc(r.group) + '"</div></div><div><dt>' + esc(t("lengthLbl")) + "</dt><dd>" + r.mins + " " + esc(t("min")) + '</dd><div class="from">' + esc(r.start) + "\u2013" + esc(r.end) + "</div></div></div>" + (r.practical ? '<div class="flag"><span>\u26A0</span><div><b>' + esc(t("practicalWarn")) + "</b> " + esc(t("practicalBody")) + "</div></div>" : "") + (matches.length ? '<div><div class="sect-h">' + esc(t("fromBank")) + " \u2014 " + matches.length + " " + esc(matches.length === 1 ? t("bankApproved") : t("bankApprovedPl")) + '</div><div class="bankrow">' + matches.map((b) => {
       const had = usesOf(b.id, r.group);
       return '<button class="bankcard' + (had.length ? " hadit" : "") + '" data-usebank="' + b.id + '"><div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div><div class="m">' + b.minutes + " " + esc(t("min")) + " \xB7 " + b.rating_count + " " + esc(t("ratings")) + (b.shared ? " \xB7 " + esc(t("sharedTag")) : "") + "</div>" + (had.length ? '<div class="hadwarn">\u26A0 ' + esc(fillT("hadIt", { g: r.group, d: fmtDate(had[0].used_on) })) + "</div>" : "") + '</div><span class="stars">' + stars(b.rating) + '</span><span class="btn btn-soft btn-sm">' + esc(t("use")) + "</span></button>";
     }).join("") + "</div></div>" : '<div><div class="sect-h">' + esc(t("fromBank")) + '</div><p class="hint">' + esc(t("bankNone")) + " " + esc(subjectLabel(r.subject)) + " " + esc(yearLabel(r.year)) + " " + esc(t("bankNoneTail")) + (EMBED ? "" : ' <button class="btn btn-ghost btn-sm" data-poolgo>' + esc(t("poolBrowse")) + " \u2192</button>") + "</p></div>") + (matches.length ? '<details class="steerbox"><summary>' + esc(t("noFit")) + "</summary>" : "") + '<div><div class="sect-h">' + esc(t("steer")) + '</div><div class="steer"><label class="f full">' + esc(t("fTopic")) + '<input id="s-topic" placeholder="' + esc(t("fTopicPh")) + '"></label><label class="f full">' + esc(t("fNotes")) + '<textarea id="s-notes" rows="2" placeholder="' + esc(t("fNotesPh")) + '"></textarea></label><label class="f">' + esc(t("fType")) + '<select id="s-type">' + (r.practical ? ["typeTheory", "typeContinue", "typePractical"] : ["typeRevision", "typeDeep", "typeQuiet"]).map((k) => "<option>" + esc(t(k)) + "</option>").join("") + '</select></label><p class="hint full" style="margin:2px 0 0">' + esc(t("fTypeHint")) + '</p><div class="full"><div class="sect-h" style="margin-bottom:6px">' + esc(t("fRes")) + '</div><div class="chips">' + ["resWhiteboard", "resProjector", "resComputers", "resBooks", "resMini"].map((k, i) => '<button class="tog' + (i === 0 ? " on" : "") + '" data-res>' + esc(t(k)) + "</button>").join("") + "</div></div></div></div>" + (matches.length ? "</details>" : "") + '<div class="foot"><span class="hint">' + esc(t("privacyNote")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn ' + (matches.length ? "btn-ghost" : "btn-primary") + '" data-generate>' + esc(t("create")) + "</button></div></div>";
@@ -1056,6 +1047,7 @@
       if (tip) tip.textContent = sec > WAIT_EXPECT ? t("waitLong") : t(tips[Math.floor(sec / 8) % tips.length]);
     }, 1e3);
   }
+  var panelSeq = 0;
   function stopWait() {
     if (waitTimer) {
       clearInterval(waitTimer);
@@ -1068,6 +1060,8 @@
   }
   async function generate() {
     const req = gatherRequest();
+    const seq = ++panelSeq, row = state.row;
+    const stillHere = () => seq === panelSeq && state.row === row;
     $("seam-state").textContent = t("seamGenerating");
     $("addin-content").innerHTML = waitHtml(t("genCalling"));
     startWait();
@@ -1080,6 +1074,7 @@
         body: { request: { ...req, language: other }, translate: main.data.source === "model" ? main.data.plan : void 0 }
       });
     }
+    if (!stillHere()) return;
     stopWait();
     if (main.error || main.data?.error) {
       const code = main.data?.error || "";
@@ -1089,7 +1084,7 @@
       };
       const said = saidMap[code];
       const msg = said || main.data?.detail || main.error?.message || t("errUnknown");
-      $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><h2>' + esc(t("failed")) + '</h2><button class="x" data-close aria-label="St\xE4ng">\u2715</button></div><div class="alert error">' + esc(msg) + '</div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-generate>' + esc(t("retry")) + "</button></div></div>";
+      $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><h2>' + esc(t("failed")) + '</h2><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="alert error">' + esc(msg) + '</div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-generate>' + esc(t("retry")) + "</button></div></div>";
       return;
     }
     const altPlan = !alt.error && !alt.data?.error ? alt.data.plan : null;
@@ -1101,6 +1096,10 @@
       p_language_alt: altPlan ? other : null
     });
     if (saveErr) toast(t("saveFailed") + " " + saveErr.message);
+    if (!stillHere()) {
+      loadBank();
+      return;
+    }
     const bodies = { [req.language]: main.data.plan };
     if (altPlan) bodies[other] = altPlan;
     state.bodies = bodies;
@@ -1109,6 +1108,8 @@
     state.approved = false;
     applyApproval({});
     state.shareToken = null;
+    state.pshare = null;
+    state.view = "coordinator";
     state.model = main.data.model || null;
     showPlan();
     loadBank();
@@ -1122,7 +1123,6 @@
   }
   function applyApproval(d) {
     state.approved = !!d.approved;
-    state.apprKind = d.approved_kind || null;
     state.apprRank = Number(d.approval_rank) || 0;
     state.apprBy = d.approved_name || null;
     state.apprSubject = d.approved_subject || null;
@@ -1157,12 +1157,15 @@
     if (!rank) return "";
     return apprStars(rank) + " " + esc(apprLevelName(rank) + (rank >= 2 && state.apprSubject ? " \xB7 " + subjectLabel(state.apprSubject) : "")) + (state.apprBy ? " \u2014 " + esc(fillT("apprSignedBy", { n: state.apprBy })) : "") + (rank >= APPR_MAX ? " " + esc(t("apprLocked")) : "");
   }
-  async function usePlan(id) {
+  async function usePlan(id, row = null) {
+    const seq = ++panelSeq;
     const { data, error } = await sb.rpc("lk_plan", { p_id: id });
+    if (seq !== panelSeq) return false;
     if (error || !data) {
       toast(t("errOpen"));
-      return;
+      return false;
     }
+    state.view = "coordinator";
     const bodies = { [data.language || "sv"]: data.body };
     if (data.body_alt && data.language_alt) bodies[data.language_alt] = data.body_alt;
     state.bodies = bodies;
@@ -1179,7 +1182,7 @@
     } : null;
     state.shareToken = data.share_token;
     state.model = data.model || null;
-    if (!state.row) state.row = { id: "", raw: "", subject: data.subject, year: data.year_group, group: "\u2014", mins: data.minutes, time: "", start: "", end: "", room: "\u2014", teacher: "\u2014", cover: null };
+    state.row = row || { id: "", raw: "", subject: data.subject, year: data.year_group, group: "", mins: data.minutes, time: "", start: "", end: "", room: "", teacher: "", cover: null };
     $("overlay").hidden = false;
     document.body.style.overflow = "hidden";
     if (data.check_result && state.checks[data.id] === void 0) {
@@ -1190,6 +1193,7 @@
       if (state.planId === data.id) showPlan();
     }).catch(() => {
     });
+    return true;
   }
   function showPlan() {
     const r = state.row, p = state.plan;
@@ -1199,11 +1203,16 @@
     const simNote = state.model === "canned" ? '<div class="flag sim"><span>\u26A0</span><div><b>' + esc(t("simTitle")) + "</b> " + esc(t("simBody")) + "</div></div>" : "";
     const fbRow = state.view === "coordinator" ? fbRowForOpenPlan() : null;
     const fbBox = fbRow ? '<div class="fx fbbox"><h4>' + esc(t("fbThisPlan")) + "</h4>" + fbBody(fbRow) + "</div>" : "";
-    const head = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title" class="plan-title">' + esc(p.title) + '</h2><div class="plan-meta">' + esc(subjectLabel(r.subject)) + " \xB7 " + esc(yearLabel(r.year)) + " \xB7 " + esc(r.group) + (r.start ? " \xB7 " + esc(r.start) + "\u2013" + esc(r.end) : "") + '</div></div><button class="x" data-close aria-label="St\xE4ng">\u2715</button></div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="viewtog"><button class="' + (state.view === "coordinator" ? "on" : "") + '" data-view="coordinator">' + esc(t("viewCoord")) + '</button><button class="' + (state.view === "vikarie" ? "on" : "") + '" data-view="vikarie">' + esc(t("viewSub")) + "</button></div>" + // The sidebar toggle sits behind this overlay, so the plan carries its own.
+    const head = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title" class="plan-title">' + esc(p.title) + '</h2><div class="plan-meta">' + esc([
+      subjectLabel(r.subject),
+      yearLabel(r.year),
+      r.group,
+      r.start ? r.start + "\u2013" + r.end : ""
+    ].filter(Boolean).join(" \xB7 ")) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="viewtog"><button class="' + (state.view === "coordinator" ? "on" : "") + '" data-view="coordinator">' + esc(t("viewCoord")) + '</button><button class="' + (state.view === "vikarie" ? "on" : "") + '" data-view="vikarie">' + esc(t("viewSub")) + "</button></div>" + // The sidebar toggle sits behind this overlay, so the plan carries its own.
     (state.bodies && Object.keys(state.bodies).length > 1 ? '<div class="viewtog">' + ["sv", "en"].filter((c) => state.bodies?.[c]).map((c) => '<button class="' + (c === LANG ? "on" : "") + '" data-planlang="' + c + '">' + (c === "sv" ? "SV" : "EN") + "</button>").join("") + "</div>" : "") + '<span class="hint">' + (state.view === "coordinator" ? esc(t("coordHint")) : esc(t("subHint")) + " " + esc(p.readTime || "")) + "</span></div>";
     const check = state.planId ? state.checks[state.planId] : null;
     const checkNote = state.view === "coordinator" ? checkBanner(check) : "";
-    const approveNote = state.view === "coordinator" ? approveBar() : "";
+    const approveNote = state.view === "coordinator" && state.planId ? approveBar() : "";
     const staleNote = state.apprStale ? '<div class="flag" style="background:var(--warn-bg)"><span>!</span><div>' + esc(t("apprStaleWarn")) + "</div></div>" : "";
     $("addin-content").innerHTML = head + checkNote + staleNote + approveNote + simNote + fallbackNote + fbBox + (state.view === "coordinator" ? coordView(p, r) : vikarieView(p, r)) + "</div>";
   }
@@ -1220,7 +1229,11 @@
     }, 0);
     const lt = subLinkToken();
     const link = lt ? planUrl(lt) : null;
-    return '<div class="plan"><div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t("whatItIs")) + "</h4><p>" + esc(p.summary) + '</p></div><div class="twocol"><div class="callout"><strong>' + esc(t("goal")) + "</strong>" + esc(p.goal) + '</div><div class="callout"><strong>' + esc(t("curriculum")) + '</strong><span style="font-size:12.5px">' + esc(p.curriculum) + '</span></div></div><div class="ps"><h4>' + esc(t("toCheck")) + "</h4><ul><li>" + esc(t("phasesSum")) + " <b>" + sum + " " + esc(t("min")) + "</b> \u2014 " + esc(t("lessonIs")) + " " + r.mins + " " + esc(t("min")) + ". " + (sum === r.mins ? '<span class="chip chip-ok">' + esc(t("matches")) + "</span>" : '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>") + "</li><li>" + esc(t("allWritten")) + ' <span class="chip chip-ok">' + esc(t("ok")) + "</span></li><li>" + esc(t("requires")) + " " + esc(p.equipment?.need || "\u2014") + "</li></ul></div>" + (state.approved ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>\u2713</span><div><b>' + esc(t("approvedTitle")) + "</b> " + apprSignedLine() + " " + (link ? esc(t("subLink")) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t("copyLink")) + '">' + CHK + '<span class="cl-label">' + esc(link) + "</span></button>" : "") + "</div></div>" : "") + shareTick() + '<div class="foot">' + (state.approved ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t("seeSubView")) + "</button>" + (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyMail")) + "</span></button>" : "") + (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyLink")) + "</span></button>" : "") : '<span class="hint">' + esc(t("nothingBefore")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-frompool>' + esc(t("fromPool")) + '</button><button class="btn btn-ghost" data-regen>' + esc(t("regen")) + "</button>" + apprButtons(0)) + "</div></div>";
+    return '<div class="plan"><div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t("whatItIs")) + "</h4><p>" + esc(p.summary) + '</p></div><div class="twocol"><div class="callout"><strong>' + esc(t("goal")) + "</strong>" + esc(p.goal) + '</div><div class="callout"><strong>' + esc(t("curriculum")) + '</strong><span style="font-size:12.5px">' + esc(p.curriculum) + '</span></div></div><div class="ps"><h4>' + esc(t("toCheck")) + "</h4><ul><li>" + esc(t("phasesSum")) + " <b>" + sum + " " + esc(t("min")) + "</b> \u2014 " + esc(t("lessonIs")) + " " + r.mins + " " + esc(t("min")) + ". " + (sum === r.mins ? '<span class="chip chip-ok">' + esc(t("matches")) + "</span>" : '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>") + "</li>" + // From the check, not assumed: a plan with blockers is not "all written".
+    (() => {
+      const ck = state.planId ? state.checks[state.planId] : null;
+      return "<li>" + esc(t("allWritten")) + " " + (!ck ? '<span class="chip chip-neutral">' + esc(t("allWrittenUnknown")) + "</span>" : ck.blockers || 0 ? '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>" : '<span class="chip chip-ok">' + esc(t("ok")) + "</span>") + "</li>";
+    })() + "<li>" + esc(t("requires")) + " " + esc(p.equipment?.need || "\u2014") + "</li></ul></div>" + (state.approved ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>\u2713</span><div><b>' + esc(t("approvedTitle")) + "</b> " + apprSignedLine() + " " + (link ? esc(t("subLink")) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t("copyLink")) + '">' + CHK + '<span class="cl-label">' + esc(link) + "</span></button>" : "") + "</div></div>" : "") + shareTick() + '<div class="foot">' + (state.approved ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t("seeSubView")) + "</button>" + (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyMail")) + "</span></button>" : "") + (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyLink")) + "</span></button>" : "") : '<span class="hint">' + esc(t("nothingBefore")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-frompool>' + esc(t("fromPool")) + '</button><button class="btn btn-ghost" data-regen>' + esc(t("regen")) + "</button>" + (state.planId ? apprButtons(0) : "")) + "</div></div>";
   }
   function shareTick() {
     const s = state.pshare;
@@ -1299,13 +1312,6 @@
     h += '<div class="foot"><span class="hint">' + esc(t("subSeesThis")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-view="coordinator">' + esc(t("back")) + "</button></div></div>";
     return h;
   }
-  document.addEventListener("toggle", (e) => {
-    const tg = e.target;
-    const d = tg.closest ? tg.closest("[data-why]") : null;
-    if (!d || !d.open) return;
-    const body = d.querySelector(".whybody");
-    if (body) shareWhy(d.getAttribute("data-why") || "", body);
-  }, true);
   var copyTimers = /* @__PURE__ */ new WeakMap();
   document.addEventListener("click", async (e) => {
     const tg = e.target;
@@ -1466,7 +1472,7 @@
       if (first) return openPlanPanel(first.id);
     }
     if (POP && !tg.closest("#cv-pop")) closePop();
-    const el = tg.closest("[data-open],[data-close],[data-generate],[data-approve],[data-regen],[data-frompool],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank");
+    const el = tg.closest("[data-close],[data-generate],[data-approve],[data-regen],[data-frompool],[data-view],[data-planlang],[data-usebank],[data-res],[data-viewplan],[data-copylink],[data-copymail],[data-review],[data-cap],[data-nav],[data-lang],#refreshbank");
     if (!el) return;
     const t2 = el;
     if (t2.hasAttribute("data-lang")) return setLang(t2.getAttribute("data-lang") === "en" ? "en" : "sv");
@@ -1505,7 +1511,6 @@
       return loadFeedback();
     }
     if (t2.hasAttribute("data-res")) return t2.classList.toggle("on");
-    if (t2.hasAttribute("data-open")) return openAddin(t2.getAttribute("data-open"));
     if (t2.hasAttribute("data-close")) return closeAddin();
     if (t2.hasAttribute("data-generate")) return generate();
     if (t2.hasAttribute("data-regen")) return showRequest();
@@ -1523,9 +1528,10 @@
     if (t2.hasAttribute("data-viewplan")) return usePlan(t2.getAttribute("data-viewplan"));
     if (t2.hasAttribute("data-usebank")) {
       const pid = t2.getAttribute("data-usebank");
-      return usePlan(pid).then(() => logUse(pid)).then(() => {
+      const forRow = state.row;
+      return usePlan(pid, forRow).then((ok) => ok ? logUse(pid).then(() => {
         if (state.planId === pid) showPlan();
-      });
+      }) : void 0);
     }
     if (t2.hasAttribute("data-copylink") || t2.hasAttribute("data-copymail")) {
       const tok = t2.getAttribute("data-copylink") || t2.getAttribute("data-copymail");
@@ -1625,6 +1631,14 @@
   document.addEventListener("input", (e) => {
     const tg = e.target;
     if (tg && tg.id === "apr-name") state.apprName = tg.value;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const blk = e.target.closest?.("[data-blk]");
+    if (!blk) return;
+    e.preventDefault();
+    const r = blk.getBoundingClientRect();
+    openPop(blk.getAttribute("data-blk"), r.right + 6, r.top);
   });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
@@ -1892,11 +1906,8 @@
     document.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-tab") === which));
     $("tabbadge").textContent = state.pending ? String(state.pending) : "";
     $("tabbadge").hidden = !state.pending;
-    if (which === "bank") {
-      loadUses().then(renderBank).catch(() => {
-      });
-      loadBank();
-    }
+    if (which === "bank") loadUses().catch(() => {
+    }).then(() => loadBank());
     if (which === "feedback") loadFeedback();
     if (which === "term") loadTerm();
     setTitles();
@@ -1953,14 +1964,20 @@
     for (let i = 1; i <= 26; i++) w.push(i);
     return w;
   })();
+  var termShown = null;
+  var termSeq = 0;
   async function renderTermStored() {
     const { subject, year } = termWhere();
     const box = $("tp-stored");
+    const seq = ++termSeq;
     if (!subject || !year) {
       box.innerHTML = "";
+      termShown = null;
       return;
     }
     const { data, error } = await sb.rpc("lk_term_plan", { p_subject: subject, p_year: year });
+    if (seq !== termSeq) return;
+    termShown = { subject, year };
     if (error) {
       box.innerHTML = '<p class="note">' + esc(error.message) + "</p>";
       return;
@@ -1985,7 +2002,7 @@
     return Math.ceil(((x.getTime() - Date.UTC(x.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
   }
   async function saveGrid() {
-    const { subject, year } = termWhere();
+    const { subject, year } = termShown || { subject: "", year: "" };
     if (!subject || !year) {
       toast(t("tpNeedWhere"));
       return;
@@ -2011,7 +2028,6 @@
       return;
     }
     toast(fillT("tpGridSaved", { n: data.saved, c: data.cleared || 0 }));
-    renderTermStored();
     loadTerm();
   }
   function renderTermPreview(rows, unclear) {
@@ -2135,7 +2151,6 @@
     $("tp-preview").innerHTML = "";
     $("tp-raw").value = "";
     toast(data.skipped ? fillT("tpSavedSome", { n: data.saved, s: data.skipped }) : fillT("tpSaved", { n: data.saved }));
-    renderTermStored();
     loadTerm();
   }
   ["tp-subject", "tp-year"].forEach((id) => $(id).addEventListener("change", () => {
@@ -2329,9 +2344,11 @@
   }
   function crBlank() {
     const c = state.cr;
-    const split = c.minutes >= 50 ? [5, 10, 10, c.minutes - 35, 5, 5] : [5, 8, 8, Math.max(5, c.minutes - 26), 5];
+    const fixed = c.minutes >= 50 ? [5, 10, 10, 5, 5] : [4, 6, 6, 4];
+    const rest = Math.max(1, c.minutes - fixed.reduce((a, x) => a + x, 0));
+    const split = [...fixed.slice(0, 3), rest, ...fixed.slice(3)];
     c.mins = split;
-    const names = LANG === "en" ? ["Recap", "Worked example", "One together", "Independent work", "Exit question", "Round off"] : ["Repetition", "Genomg\xE5ng med exempel", "Ett tillsammans", "Eget arbete", "Exit-fr\xE5ga", "Avslutning"];
+    const names = c.lang === "en" ? ["Recap", "Worked example", "One together", "Independent work", "Exit question", "Round off"] : ["Repetition", "Genomg\xE5ng med exempel", "Ett tillsammans", "Eget arbete", "Exit-fr\xE5ga", "Avslutning"];
     return {
       title: c.topic || "",
       goal: "",
@@ -2380,6 +2397,7 @@
     startWait();
     const body = c.method === "ai" ? { request: crRequest() } : { request: crRequest(), convert: { text: c.source } };
     const { data, error } = await sb.functions.invoke("lk-generate", { body });
+    if (state.cr !== c) return;
     stopWait();
     c.busy = "";
     if (error || !data || data.error || !data.plan) {
@@ -2454,7 +2472,7 @@
     if (name.endsWith(".pdf")) {
       await load("https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js");
       w.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
-      const pdf = await w.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+      const pdf = await w.pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
       let out = "";
       for (let i = 1; i <= Math.min(pdf.numPages, 30); i++) {
         const pg = await pdf.getPage(i);
@@ -2491,10 +2509,11 @@
       if (c.share) await sb.rpc("lk_set_plan_share", { p_id: pid, p_allow: true });
     }
     crRemember();
+    const stillOpen = state.cr === c;
     state.cr = null;
     toast(t(approve ? "crSavedApproved" : "crSavedDraft"));
     loadBank();
-    await usePlan(String(pid));
+    if (stillOpen) await usePlan(String(pid));
   }
   async function crClick(tg) {
     const c = state.cr;

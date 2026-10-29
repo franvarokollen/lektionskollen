@@ -176,6 +176,7 @@
     whatHappened: "Vad h\xE4nde? (frivilligt, en rad)",
     whatHappenedPh: "t.ex. de fastnade p\xE5 n\xE4mnaren",
     noteSaved: "Tack \u2014 sparat med planen.",
+    pickCovFirst: "V\xE4lj f\xF6rst hur l\xE5ngt ni kom.",
     xvQ: "Hj\xE4lpte det h\xE4r?",
     xvUp: "\u{1F44D} Ja",
     xvDown: "\u{1F44E} Nej",
@@ -363,6 +364,7 @@
     whatHappened: "What happened? (optional, one line)",
     whatHappenedPh: "e.g. they got stuck on the denominator",
     noteSaved: "Thank you \u2014 saved with the plan.",
+    pickCovFirst: "Pick how far you got first.",
     xvQ: "Did this help?",
     xvUp: "\u{1F44D} Yes",
     xvDown: "\u{1F44E} No",
@@ -533,26 +535,28 @@
     // concatenation above as its condition and throws the card away.
     ((p.tasks || []).length ? '<h4 style="margin-top:14px">' + esc(l.tasks) + '</h4><ol style="font-size:13.5px">' + (p.tasks || []).map((x) => "<li>" + esc(x.q) + '<br><span class="ans">' + esc(x.a) + "</span></li>").join("") + "</ol>" : "") + "</div>";
   }
-  function embedUrl(u) {
+  function safeUrl(u) {
     try {
-      const url = new URL(u);
-      const g = /^(docs|drive)\.google\.com$/.test(url.hostname);
-      if (g) {
-        const m = url.pathname.match(/^\/(document|presentation|spreadsheets|file)\/d\/([^/]+)/);
-        if (m) {
-          const base = "https://" + url.hostname + "/" + m[1] + "/d/" + m[2];
-          return m[1] === "file" ? base + "/preview" : base + (m[1] === "spreadsheets" ? "/preview" : "/preview");
-        }
-      }
-      if (/^(.+\.)?onedrive\.live\.com$|sharepoint\.com$/.test(url.hostname)) return u;
-      return u;
+      const url = new URL(String(u || ""));
+      return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
     } catch {
       return null;
     }
   }
+  function embedUrl(u) {
+    const safe = safeUrl(u);
+    if (!safe) return null;
+    const url = new URL(safe);
+    if (/^(docs|drive)\.google\.com$/.test(url.hostname)) {
+      const m = url.pathname.match(/^\/(document|presentation|spreadsheets|file)\/d\/([^/]+)/);
+      if (m) return "https://" + url.hostname + "/" + m[1] + "/d/" + m[2] + "/preview";
+    }
+    return safe;
+  }
   function renderLinked(d) {
     const l = L();
-    const emb = d.url ? embedUrl(d.url) : null;
+    const link = safeUrl(d.url);
+    const emb = link ? embedUrl(link) : null;
     const what = d.label || (d.url ? l.linkedFrom : l.linkedNote);
     const until = d.expires_at ? new Date(d.expires_at) : null;
     const untilLine = until && !d.expired ? '<p class="hint">' + esc(l.linkedUntil) + " " + esc(runDate(new Date(until.getTime() - 1e3).toISOString().slice(0, 10))) + "</p>" : "";
@@ -562,7 +566,7 @@
     // than the original. The reader can still choose to translate it with the
     // browser (translate="yes" below), which is their call and shows them the
     // original underneath on hover; we never do it for them.
-    (d.expired ? "" : '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + "</p>") + (d.note ? '<div class="ps"><h3>' + esc(l.linkedNoteH) + '</h3><p translate="yes" style="white-space:pre-wrap">' + esc(d.note) + "</p></div>" : "") + (d.url ? '<p class="noprint"><a class="openbtn" href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(l.linkedOpen) + " \u2197</a></p>" + (emb ? '<details class="peek noprint"><summary>' + esc(l.linkedPeek) + '</summary><div class="embed"><iframe src="' + esc(emb) + '" title="' + esc(what) + '" loading="lazy"></iframe></div><p class="hint">' + esc(l.linkedFallback) + "</p></details>" : "") : "") + '</div><div class="card ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-lcov="' + k + '">' + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '"><button data-lleft>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><p id="lratemsg" class="hint" style="margin-top:10px"></p><p class="hint" style="margin:10px 0 0">' + esc(l.linkedNoRate) + "</p></div>";
+    (d.expired ? "" : '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + "</p>") + (d.note ? '<div class="ps"><h3>' + esc(l.linkedNoteH) + '</h3><p translate="yes" style="white-space:pre-wrap">' + esc(d.note) + "</p></div>" : "") + (link ? '<p class="noprint"><a class="openbtn" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(l.linkedOpen) + " \u2197</a></p>" + (emb ? '<details class="peek noprint"><summary>' + esc(l.linkedPeek) + '</summary><div class="embed"><iframe src="' + esc(emb) + '" title="' + esc(what) + '" loading="lazy"></iframe></div><p class="hint">' + esc(l.linkedFallback) + "</p></details>" : "") : "") + '</div><div class="card ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-lcov="' + k + '">' + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '"><button data-lleft>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><p id="lratemsg" class="hint" style="margin-top:10px"></p><p class="hint" style="margin:10px 0 0">' + esc(l.linkedNoRate) + "</p></div>";
   }
   function runDate(d) {
     return (/* @__PURE__ */ new Date(d + "T12:00:00")).toLocaleDateString(
@@ -661,9 +665,6 @@
     if (x.language === LANG) return { body: x.body, exact: true };
     if (x.language_alt === LANG && x.body_alt) return { body: x.body_alt, exact: true };
     return { body: x.body, exact: false, lang: x.language };
-  }
-  function extrasFor() {
-    return "";
   }
   var extraHasContent = (b) => b && (b.title || (b.lines || []).length || b.board || (b.tasks || []).length);
   function storedFor(opts) {
@@ -781,7 +782,6 @@
       lbl: (k) => l[k] ?? "",
       depth: DEPTH,
       assistRow: (ref, name) => assistRow(ref, name),
-      extras: (_ref) => extrasFor(),
       projector: true,
       shiftMin: clockShift(p),
       help: false,
@@ -810,7 +810,7 @@
     h += '<aside class="rail rail-l noprint"><div class="rail-in"><div class="nav"><h4>' + esc(l.railWhere) + "</h4>" + phases.map((ph, i) => '<a href="#ph' + i + '" class="' + window.LKPlan.kind(i) + '">' + esc(ph.n) + '<span class="t">' + esc(shiftT(ph.t, clockShift(p))) + "</span></a>").join("") + "</div></aside>";
     h += '<main class="col">' + window.LKPlan.render(p, hooks) + "</main>";
     h += '<aside class="rail rail-r"><div class="rail-in">' + window.LKPlan.help(p, hooks.lbl) + "</div></aside>";
-    h += '<hr class="after-rule noprint"><div class="full">' + window.LKPlan.after(p, hooks.lbl, hooks.extras) + "</div>";
+    h += '<hr class="after-rule noprint"><div class="full">' + window.LKPlan.after(p, hooks.lbl) + "</div>";
     h += '<div class="full"><div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts("lesson").html + "</div></div>";
     const SECV = [["good", l.fbGood], ["ok", l.fbOk], ["bad", l.fbBad]];
     const STARS = Number(PROG.stars || 0);
@@ -821,7 +821,7 @@
       return '<div class="qrow"><p class="ql">' + esc(q[1]) + '</p><div class="qpick" id="q-' + q[0] + '">' + q[2].map(function(o) {
         return '<button data-asp="' + q[0] + ":" + o[0] + '"' + (ASPECTS[q[0]] === o[0] ? ' class="on"' : "") + ">" + esc(o[1]) + "</button>";
       }).join("") + "</div></div>";
-    }).join("") + "<h4>" + esc(l.covTitle) + '</h4><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-cov="' + k + '"' + (COV === k ? ' class="on"' : "") + ">" + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(LEFT) + '"><button data-leftoff>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><div id="why" hidden><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p><div class="reasons">' + Object.keys(l.reasons).map((k) => '<button data-reason="' + k + '">' + esc(l.reasons[k]) + "</button>").join("") + '</div></div><div id="saybox" hidden class="note" style="margin-top:14px"><label for="say">' + esc(l.commentTitle) + '</label><div class="noterow"><input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '"><button data-comment>' + esc(l.send) + '</button></div></div><p id="ratemsg" class="hint" style="margin-top:10px"></p></div></section>';
+    }).join("") + "<h4>" + esc(l.covTitle) + '</h4><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-cov="' + k + '"' + (COV === k ? ' class="on"' : "") + ">" + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(LEFT) + '"><button data-leftoff>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><div id="why"' + (ASPECTS.reuse && ASPECTS.reuse !== "yes" ? "" : " hidden") + '><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p><div class="reasons">' + Object.keys(l.reasons).map((k) => '<button data-reason="' + k + '"' + (REASONS.has(k) ? ' class="on"' : "") + ">" + esc(l.reasons[k]) + "</button>").join("") + '</div></div><div id="saybox"' + (ASPECTS.reuse ? "" : " hidden") + ' class="note" style="margin-top:14px"><label for="say">' + esc(l.commentTitle) + '</label><div class="noterow"><input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '" value="' + esc(SAY) + '"><button data-comment>' + esc(l.send) + '</button></div></div><p id="ratemsg" class="hint" style="margin-top:10px"></p></div></section>';
     $("out").innerHTML = h;
     $("barlbl").textContent = l.barLbl;
     $("fbjump").textContent = l.fbJump;
@@ -833,6 +833,7 @@
   var OFFLINE = false;
   var COV = "";
   var LEFT = "";
+  var SAY = "";
   var TEACH = false;
   var TPHASE = 0;
   var DEPTH = (() => {
@@ -895,10 +896,17 @@
     document.body.classList.remove("pst");
   }
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeStudent();
-  });
-  document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      const sheet = maybe$("sheet");
+      if (sheet && !sheet.hidden) {
+        sheet.hidden = true;
+        return;
+      }
+      const st = document.getElementById("student");
+      if (st && !st.hidden) {
+        closeStudent();
+        return;
+      }
       const b = document.querySelector(".proj");
       if (b) {
         b.remove();
@@ -906,8 +914,12 @@
         return;
       }
       if (TEACH && DATA) {
-        TEACH = false;
-        render(DATA);
+        const out = document.querySelector('[data-teach="0"]');
+        if (out) out.click();
+        else {
+          TEACH = false;
+          render(DATA);
+        }
         return;
       }
     }
@@ -928,9 +940,12 @@
     }
     if (!TEACH || !DATA) return;
     if (e.key === "ArrowRight" || e.key === "PageDown") {
-      TPHASE++;
-      render(DATA);
-      window.scrollTo(0, 0);
+      const last = Math.max(0, ((bodies(DATA)[LANG] || {}).phases || []).length - 1);
+      if (TPHASE < last) {
+        TPHASE++;
+        render(DATA);
+        window.scrollTo(0, 0);
+      }
     }
     if (e.key === "ArrowLeft" || e.key === "PageUp") {
       TPHASE = Math.max(0, TPHASE - 1);
@@ -1241,7 +1256,10 @@
         document.querySelectorAll("#covrow button").forEach((b) => b.classList.toggle("on", b === cov));
       }
       LEFT = maybe$("leftoff")?.value || "";
-      if (!COV) return;
+      if (!COV) {
+        $("ratemsg").textContent = l.pickCovFirst;
+        return;
+      }
       const { error } = await sb.rpc("lk_rate_coverage_by_token", { p_token: token, p_coverage: COV, p_left_off: LEFT });
       $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
       return;
@@ -1312,6 +1330,7 @@
     if (sayBtn) {
       const val = maybe$("say")?.value || "";
       if (!val.trim()) return;
+      SAY = val;
       sayBtn.disabled = true;
       const { error } = await sb.rpc("lk_rate_comment_by_token", { p_token: token, p_comment: val });
       $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
@@ -1334,24 +1353,6 @@
       $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
       return;
     }
-    const v = tg.closest("[data-reuse]");
-    if (v) {
-      const reuse = v.getAttribute("data-reuse") === "1";
-      [...document.querySelectorAll("#verdict button")].forEach((b) => b.classList.remove("on"));
-      v.classList.add("on");
-      $("why").hidden = reuse;
-      $("saybox").hidden = false;
-      REASONS = /* @__PURE__ */ new Set();
-      const { error } = await sb.rpc("lk_rate_by_token_v2", {
-        p_token: token,
-        p_reuse: reuse,
-        p_reasons: []
-      });
-      $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
-    }
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") $("sheet").hidden = true;
   });
   load();
 })();

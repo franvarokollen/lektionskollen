@@ -160,25 +160,29 @@ function renderTeacher(d: TeacherView) {
    so those are rewritten. Everything else is offered as an embed with the
    plain link kept in front of it, because a site that refuses framing gives
    the page no way to find out. */
+/** Only http(s) is ever a link here. A stored "javascript:" or "data:" URL
+ *  would otherwise run in this page's origin — the same origin as the
+ *  coordinator app — from a link a coordinator saved. */
+function safeUrl(u: string | null | undefined): string | null {
+  try { const url = new URL(String(u || '')); return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null; }
+  catch { return null; }
+}
+
 function embedUrl(u: string): string | null {
-  try {
-    const url = new URL(u);
-    const g = /^(docs|drive)\.google\.com$/.test(url.hostname);
-    if (g) {
-      const m = url.pathname.match(/^\/(document|presentation|spreadsheets|file)\/d\/([^/]+)/);
-      if (m) {
-        const base = 'https://' + url.hostname + '/' + m[1] + '/d/' + m[2];
-        return m[1] === 'file' ? base + '/preview' : base + (m[1] === 'spreadsheets' ? '/preview' : '/preview');
-      }
-    }
-    if (/^(.+\.)?onedrive\.live\.com$|sharepoint\.com$/.test(url.hostname)) return u;
-    return u;
-  } catch { return null; }
+  const safe = safeUrl(u);
+  if (!safe) return null;
+  const url = new URL(safe);
+  if (/^(docs|drive)\.google\.com$/.test(url.hostname)) {
+    const m = url.pathname.match(/^\/(document|presentation|spreadsheets|file)\/d\/([^/]+)/);
+    if (m) return 'https://' + url.hostname + '/' + m[1] + '/d/' + m[2] + '/preview';
+  }
+  return safe;
 }
 
 function renderLinked(d: LinkedInfo) {
   const l = L();
-  const emb = d.url ? embedUrl(d.url) : null;
+  const link = safeUrl(d.url);
+  const emb = link ? embedUrl(link) : null;
   const what = d.label || (d.url ? l.linkedFrom : l.linkedNote);
   const until = d.expires_at ? new Date(d.expires_at) : null;
   const untilLine = until && !d.expired
@@ -198,13 +202,13 @@ function renderLinked(d: LinkedInfo) {
       // original underneath on hover; we never do it for them.
       (d.expired ? '' : '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + '</p>') +
       (d.note ? '<div class="ps"><h3>' + esc(l.linkedNoteH) + '</h3><p translate="yes" style="white-space:pre-wrap">' + esc(d.note) + '</p></div>' : '') +
-      (d.url
+      (link
         // The button always works. The preview often does not — a document
         // shared only with the teacher, a site that refuses to be framed, and
         // nothing on this page can tell the difference from the outside. So it
         // is folded away: a substitute five minutes before the bell meets a
         // confident button, not somebody else's error page.
-        ? '<p class="noprint"><a class="openbtn" href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(l.linkedOpen) + ' ↗</a></p>' +
+        ? '<p class="noprint"><a class="openbtn" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(l.linkedOpen) + ' ↗</a></p>' +
           (emb ? '<details class="peek noprint"><summary>' + esc(l.linkedPeek) + '</summary>' +
                  '<div class="embed"><iframe src="' + esc(emb) + '" title="' + esc(what) + '" loading="lazy"></iframe></div>' +
                  '<p class="hint">' + esc(l.linkedFallback) + '</p></details>' : '')
@@ -339,11 +343,10 @@ function extraBody(x: Partial<ExtraRow>): { body: Extra | null | undefined; exac
   return { body: x.body, exact: false, lang: x.language };
 }
 
-// Generated extras no longer sit open under their section. They wait out of
+// Generated extras do not sit open under their section. They wait out of
 // sight and come back, labelled as additional content, when the same help is
 // asked for again (see storedFor). A page that fills up with everything every
 // substitute ever pressed is a page nobody can read mid-lesson.
-function extrasFor() { return ''; }
 
 // Content to show, not an empty box: old seed rows use a {h, steps} shape.
 const extraHasContent = (b: Extra | null | undefined) => b && (b.title || (b.lines || []).length || b.board || (b.tasks || []).length);
@@ -509,7 +512,6 @@ function render(d: PlanRow, keepScroll?: boolean) {
     lbl: (k: string) => (l as unknown as Record<string, string>)[k] ?? '',
     depth: DEPTH as 'full' | 'guided' | 'brief',
     assistRow: (ref: string, name?: string) => assistRow(ref, name),
-    extras: (_ref: string) => extrasFor(),
     projector: true,
     shiftMin: clockShift(p),
     help: false,                       // lifted into the margin rail below
@@ -579,7 +581,7 @@ function render(d: PlanRow, keepScroll?: boolean) {
   h += '<aside class="rail rail-r"><div class="rail-in">' + window.LKPlan.help(p, hooks.lbl!) + '</div></aside>';
 
   h += '<hr class="after-rule noprint">' +
-    '<div class="full">' + window.LKPlan.after(p, hooks.lbl!, hooks.extras) + '</div>';
+    '<div class="full">' + window.LKPlan.after(p, hooks.lbl!) + '</div>';
 
   h += '<div class="full"><div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts('lesson').html + '</div></div>';
 
@@ -626,13 +628,15 @@ function render(d: PlanRow, keepScroll?: boolean) {
        '<div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(LEFT) + '">' +
        '<button data-leftoff>' + esc(l.send) + '</button></div>' +
        '<p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p>' +
-       '<div id="why" hidden><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p>' +
+       // Drawn from what was already chosen: the page re-renders on every
+       // step ticked, and a re-render must not undo the answers.
+       '<div id="why"' + (ASPECTS.reuse && ASPECTS.reuse !== 'yes' ? '' : ' hidden') + '><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p>' +
          '<div class="reasons">' + Object.keys(l.reasons).map((k) =>
-           '<button data-reason="' + k + '">' + esc(l.reasons[k as keyof Labels['reasons']]) + '</button>').join('') + '</div></div>' +
-       '<div id="saybox" hidden class="note" style="margin-top:14px">' +
+           '<button data-reason="' + k + '"' + (REASONS.has(k) ? ' class="on"' : '') + '>' + esc(l.reasons[k as keyof Labels['reasons']]) + '</button>').join('') + '</div></div>' +
+       '<div id="saybox"' + (ASPECTS.reuse ? '' : ' hidden') + ' class="note" style="margin-top:14px">' +
          '<label for="say">' + esc(l.commentTitle) + '</label>' +
          '<div class="noterow">' +
-           '<input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '">' +
+           '<input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '" value="' + esc(SAY) + '">' +
            '<button data-comment>' + esc(l.send) + '</button>' +
          '</div></div>' +
        '<p id="ratemsg" class="hint" style="margin-top:10px"></p></div></section>';
@@ -646,7 +650,7 @@ function render(d: PlanRow, keepScroll?: boolean) {
 
 /* ── Student sheet: what the pupils see, never the answers ─── */
 let STUDENT_TXT = '';
-let QUICK = false, OFFLINE = false, COV = '', LEFT = '';
+let QUICK = false, OFFLINE = false, COV = '', LEFT = '', SAY = '';
 // Teach mode is deliberately NOT remembered across visits: it is a thing you
 // start when the class walks in, not a setting you live in.
 let TEACH = false, TPHASE = 0;
@@ -720,14 +724,24 @@ function closeStudent() {
   if (el) el.hidden = true;
   document.body.classList.remove('pst');
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStudent(); });
 
 /* ── Events ──────────────────────────────────────────── */
+// One Escape closes one layer, the top one: help sheet, pupil sheet,
+// projector, then teach mode (through its own button, so it lands on the
+// section that was showing).
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    const sheet = maybe$('sheet');
+    if (sheet && !sheet.hidden) { sheet.hidden = true; return; }
+    const st = document.getElementById('student');
+    if (st && !st.hidden) { closeStudent(); return; }
     const b = document.querySelector('.proj');
     if (b) { b.remove(); DECK = null; return; }
-    if (TEACH && DATA) { TEACH = false; render(DATA); return; }
+    if (TEACH && DATA) {
+      const out = document.querySelector<HTMLElement>('[data-teach="0"]');
+      if (out) out.click(); else { TEACH = false; render(DATA); }
+      return;
+    }
   }
   // While the deck is up it owns the arrow keys: someone stepping through a
   // worked example in front of a class should not have to find a button.
@@ -741,7 +755,10 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (!TEACH || !DATA) return;
-  if (e.key === 'ArrowRight' || e.key === 'PageDown') { TPHASE++; render(DATA); window.scrollTo(0, 0); }
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+    const last = Math.max(0, ((bodies(DATA)[LANG] || {}).phases || []).length - 1);
+    if (TPHASE < last) { TPHASE++; render(DATA); window.scrollTo(0, 0); }
+  }
   if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   { TPHASE = Math.max(0, TPHASE - 1); render(DATA); window.scrollTo(0, 0); }
 });
 
@@ -1003,7 +1020,7 @@ document.addEventListener('click', async (e) => {
       document.querySelectorAll('#covrow button').forEach((b) => b.classList.toggle('on', b === cov));
     }
     LEFT = maybe$<HTMLInputElement>('leftoff')?.value || '';
-    if (!COV) return;
+    if (!COV) { $('ratemsg').textContent = l.pickCovFirst; return; }
     const { error } = await sb.rpc('lk_rate_coverage_by_token', { p_token: token, p_coverage: COV, p_left_off: LEFT });
     $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
     return;
@@ -1070,6 +1087,7 @@ document.addEventListener('click', async (e) => {
   if (sayBtn) {
     const val = maybe$<HTMLInputElement>('say')?.value || '';
     if (!val.trim()) return;
+    SAY = val;
     sayBtn.disabled = true;
     const { error } = await sb.rpc('lk_rate_comment_by_token', { p_token: token, p_comment: val });
     $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
@@ -1088,23 +1106,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  const v = tg.closest<HTMLElement>('[data-reuse]');
-  if (v) {
-    const reuse = v.getAttribute('data-reuse') === '1';
-    [...document.querySelectorAll('#verdict button')].forEach((b) => b.classList.remove('on'));
-    v.classList.add('on');
-    $('why').hidden = reuse;              // only ask why when something was off
-    $('saybox').hidden = false;           // but always offer the sentence
-    REASONS = new Set();
-    const { error } = await sb.rpc('lk_rate_by_token_v2', {
-      p_token: token, p_reuse: reuse, p_reasons: [],
-    });
-    $('ratemsg').textContent = error ? l.saveFail + error.message : l.thanks;
-  }
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') $('sheet').hidden = true;
 });
 
 load();
