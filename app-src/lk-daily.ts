@@ -10,7 +10,7 @@
    and has no room for a button, so the plan lives one click deep, in the
    popover the coordinator already opens to assign cover. */
 import { renderToday } from './lk-today';
-import { $, CoverPlan, LANG, Row, SHELL, esc, fillT, t } from './lk-core';
+import { $, ADDON, CoverPlan, LANG, Row, SHELL, esc, fillT, t } from './lk-core';
 import { LOUD, ROWS, planFor, planSettled, renderLoudPicker } from './lk-cover';
 
 const GRID = { gutter: 54, colMin: 150, pxPerHour: 76 };
@@ -100,7 +100,7 @@ export function renderRows() {
   // The nudge: covered lessons whose substitute has nothing to teach from.
   // Only slots nobody has decided on. A coordinator who can never clear the
   // list stops reading it.
-  const gap = ROWS.filter((r) => r.plannable && r.cover && !planSettled(r.id)).length;
+  const gap = ADDON ? ROWS.filter((r) => r.plannable && r.cover && !planSettled(r.id)).length : 0;
   $('cv-nudge').hidden = !(LOUD === 'nudge' && gap > 0);
   if (LOUD === 'nudge' && gap > 0) {
     $('cv-nudge').innerHTML = '<span>📄</span><div>' +
@@ -167,6 +167,6 @@ function blockHtml(b: Row, g: Grid, gridH: number) {
     '<p class="bt">' + esc(blockTitle(b)) + '</p>' +
     (px >= 34 ? '<p class="bm">' + esc(b.time) + '</p>' : '') +
     (px >= 48 && b.cover ? '<p class="bc">✓ ' + esc(b.cover) + '</p>' : '') +
-    (plan && LOUD !== 'quiet' && px >= 30 ? planMark(plan) : '') +
+    (ADDON && plan && LOUD !== 'quiet' && px >= 30 ? planMark(plan) : '') +
     '</div>';
 }

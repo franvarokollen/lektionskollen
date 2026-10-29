@@ -109,7 +109,8 @@ export function closeAddin() {
   $('overlay').hidden = true;
   document.body.style.overflow = '';
   document.body.classList.remove('panelmode');
-  if (state.screen === 'cover' || state.screen === 'today') loadCoverPlans().then(renderRows).catch(() => {});
-  // Leaving the wizard page (cancelled, or the saved plan closed): back to the bank.
-  if (state.screen === 'create') showScreen('bank');
+  if (state.screen === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
+  // Leaving the wizard page (cancelled, or the saved plan closed): back to
+  // where it was opened from — the bank, or Today when no plan was left.
+  if (state.screen === 'create') { const back = state.back; state.back = 'bank'; showScreen(back); }
 }

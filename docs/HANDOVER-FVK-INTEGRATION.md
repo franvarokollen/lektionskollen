@@ -123,8 +123,8 @@ of them.** Your session should map each and decide, entry by entry, with Baz. De
 - **Needed from you:** how people sign in to FVK today (email + password, Google, Microsoft — decides whether a
   linked school's staff can also use the same provider on LK directly); signing method (shared secret or public key), role names, which origin(s) to trust, and a test school plus test user. LK builds the verify side against whatever you choose.
 
-### 4.2 Per-school switch
-`FEATURES.lektionskollen` is a global build-time boolean. A paid add-on needs a per-school switch (tier or column). Out of scope for the first patch; decide with Baz. [verify]
+### 4.2 Per-school switch — decided (Baz, 2026-10-29)
+LK is a **paid add-on** to FVK and also sold on its own. A school without the add-on sees **no trace of LK in FVK**: no sidebar entries, no plan line in the lesson popover, no plan marks on the grid. `FEATURES.lektionskollen` stays as the global kill switch; on top of it FVK needs a **per-school entitlement** (a column or tier on FVK's school record) that gates every LK entry point. FVK owns the switch; LK does not need to know. `fvk-demo.html` shows both states (*Lektionskollen add-on: Bought / Not bought* above the grid). [verify: where FVK keeps tiers]
 
 ### 4.3 Data and cost
 LK has its own model spend and its own quotas. No FVK data is stored in LK except the cover key (`lessonKey`) and the lesson facts listed in §2d. [carried-forward]
@@ -138,6 +138,10 @@ LK has its own model spend and its own quotas. No FVK data is stored in LK excep
 - ~~**Trust FVK's login; no second login** (Baz, 2026-10-24).~~ Superseded.
 - **LK is standalone, FVK link is optional** (Baz, 2026-10-28). LK has its own sign-in; FVK bridges its signed-in
   user so linked schools still sign in once. A school can buy either product alone. LK issue #159; plan in `docs/AUTH.md`.
+- **Two editions, one product** (Baz, 2026-10-29). Standalone LK never shows FVK or FVK data. Inside FVK, LK appears only
+  for schools with the paid add-on, as **two sidebar entries** (*Lesson plans* — bank, year planning and feedback as tabs —
+  and *Create a plan*) plus the plan line in the lesson popover. Only lesson facts cross (§2d), only for those schools.
+  Both editions feed one shared plan pool. LK #203.
 - **Plan sharing is local by default** (Baz, 2026-10-28). Plans stay at their school; the cross-school pool takes only
   approved plans that are allowed to be shared, labelled AI-made or Teacher-made. No FVK impact. LK issue #158.
 - **Footprint is deliberately small:** one button in the lesson popover, one line in the cover email, one optional sidebar entry.
@@ -219,6 +223,7 @@ Kept current by the LK sessions as decisions land. Newest first. Each entry says
 
 | Date | Change | FVK impact |
 |---|---|---|
+| 2026-10-29 | **Edition model decided** (§4.2, §5): LK paid add-on in FVK, or standalone. Standalone *Today* page is no longer a cover list: it shows which plans are in use today, never offers a class a plan it has had, flags subjects running low, and picks teacher-made plans before AI-made (uses stored in `plan_uses`). Standalone never mentions FVK. Test page: add-on on/off switch and a second sidebar entry, *Create a plan* (LK #203) | **Two sidebar entries** instead of one, both behind a **per-school entitlement** FVK must add (§4.2). Embed contract unchanged |
 | 2026-10-29 | The LK demo is now **standalone**: `index.html` is LK with its own sidebar (Cover today, Lesson plans, Create, Year planning, Feedback, Settings). The copy of FVK moved to `fvk-demo.html`, a test page for the integration (LK #199) | **None to the contract**: the panel URL is still `index.html?embed=1&…` and the messages are unchanged. Embed mode now shows only the panel (the page behind it used to render above it inside the iframe) |
 | 2026-10-28 | LK's scope stated: **create lesson plans + keep a bank of them**, tied into FVK only if a school wants it. New *Create a lesson plan* wizard (AI / upload / write yourself, self-approval by role) — LK #165 | None: it lives in LK's own Lesson plans screen, not in the FVK popover |
 | 2026-10-28 | LK becomes a **standalone product** with its own sign-in; FVK link is an optional bridge (LK #159, `docs/AUTH.md`) | Auth work is still only the bridge (§4.1); FVK no longer acts as gatekeeper for LK users. New question: which sign-in provider FVK uses |

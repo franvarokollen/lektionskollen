@@ -25,6 +25,20 @@
   var TT = window.LK_T;
   var t = (k) => TT[LANG] && TT[LANG][k] || TT.sv[k] || k;
   var SHELL = document.body.dataset.shell === "fvk" ? "fvk" : "lk";
+  var ADDON = SHELL === "lk" || (() => {
+    try {
+      return localStorage.getItem("fvk.addon") !== "off";
+    } catch {
+      return true;
+    }
+  })();
+  function setAddon(on) {
+    try {
+      localStorage.setItem("fvk.addon", on ? "on" : "off");
+    } catch {
+    }
+    location.reload();
+  }
   function setLangValue(l) {
     LANG = l;
   }
@@ -59,6 +73,7 @@
     model: null,
     cap: 20,
     uses: [],
+    back: "bank",
     termCoverage: [],
     tab: "bank",
     checks: {},
@@ -169,103 +184,6 @@
     return m ? "Year " + m[1] : y;
   }
 
-  // app-src/lk-daily.ts
-  var GRID = { gutter: 54, colMin: 150, pxPerHour: 76 };
-  function hhmmToMins(t2) {
-    const [h, m] = String(t2 || "0:0").split(":").map(Number);
-    return (h || 0) * 60 + (m || 0);
-  }
-  function gridModel() {
-    const cols = [];
-    ROWS.forEach((r) => {
-      let c = cols.find((x) => x.teacher === r.teacher);
-      if (!c) {
-        c = { teacher: r.teacher, blocks: [] };
-        cols.push(c);
-      }
-      c.blocks.push(r);
-    });
-    const all = ROWS.map((r) => [hhmmToMins(r.start), hhmmToMins(r.end)]);
-    const from = Math.floor(Math.min(...all.map((x) => x[0])) / 60) * 60;
-    const to = Math.ceil(Math.max(...all.map((x) => x[1])) / 60) * 60;
-    const marks = [];
-    for (let m = from; m <= to; m += 60) marks.push(m);
-    return { cols, from, to, span: Math.max(1, to - from), marks };
-  }
-  function coverageStats() {
-    const plannable = ROWS.filter((r) => r.plannable);
-    const covered = plannable.filter((r) => r.cover).length;
-    const teachers = new Set(ROWS.map((r) => r.teacher)).size;
-    return {
-      total: plannable.length,
-      covered,
-      uncovered: plannable.length - covered,
-      absent: teachers,
-      pct: plannable.length ? Math.round(covered / plannable.length * 100) : 0
-    };
-  }
-  function donut(pct) {
-    const size = 72, sw = 7, r = (size - sw) / 2, c = 2 * Math.PI * r;
-    return '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="' + (pct === 0 ? "#e5e7eb" : "#fecaca") + '" stroke-width="' + sw + '"/>' + (pct > 0 ? '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="#16a34a" stroke-width="' + sw + '" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - pct / 100) + '" stroke-linecap="round" transform="rotate(-90 36 36)"/>' : "") + '<text x="36" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="var(--ink)">' + pct + '%</text><text x="36" y="48" text-anchor="middle" font-size="8" font-weight="600" fill="' + (pct >= 100 ? "#16a34a" : "var(--ink-soft)") + '" letter-spacing="0.5">' + esc(t("cvCovered").toUpperCase()) + "</text>";
-  }
-  function renderRows() {
-    if (SHELL === "lk") return renderToday();
-    const st = coverageStats();
-    const d = /* @__PURE__ */ new Date("2026-10-21T12:00:00");
-    const loc = LANG === "sv" ? "sv-SE" : "en-GB";
-    $("cv-kicker").textContent = t("cvToday") + " \xB7 " + t("cvWeek") + " 43";
-    $("cv-day").innerHTML = esc(d.toLocaleDateString(loc, { weekday: "long" })) + " <b>" + d.getDate() + "</b> " + esc(d.toLocaleDateString(loc, { month: "long" }));
-    $("cv-donut").innerHTML = donut(st.pct);
-    $("cv-need").textContent = st.uncovered ? st.uncovered + " " + t(st.uncovered === 1 ? "cvLesson" : "cvLessons") + " " + t("cvNeedCover") : t("cvAllCovered");
-    $("cv-counts").textContent = st.absent + " " + t("cvAbsent") + " \xB7 " + st.total + " " + t("cvLessons") + " \xB7 " + st.covered + " " + t("cvCovered");
-    const g = gridModel();
-    $("cv-chips").innerHTML = g.cols.map((c) => {
-      const mine = c.blocks.filter((b) => b.plannable);
-      const cov = mine.filter((b) => b.cover).length;
-      const all = mine.length > 0 && cov === mine.length;
-      return '<div class="schip' + (all ? " done" : "") + '"><span class="sname">' + esc(c.teacher) + "</span>" + (mine.length ? '<span class="sstat' + (all ? " ok" : "") + '">' + (all ? "\u2713 " + esc(t("cvChipCovered")) : cov + "/" + mine.length + " " + esc(t("cvChipCoveredN"))) + '</span><span class="sbar"><i class="' + (all ? "ok" : "") + '" style="width:' + Math.round(cov / mine.length * 100) + '%"></i></span>' : '<span class="sstat">' + esc(t("cvChipAbsent")) + "</span>") + (all ? '<span class="stick">\u2713</span>' : "") + "</div>";
-    }).join("");
-    const gap = ROWS.filter((r) => r.plannable && r.cover && !planSettled(r.id)).length;
-    $("cv-nudge").hidden = !(LOUD === "nudge" && gap > 0);
-    if (LOUD === "nudge" && gap > 0) {
-      $("cv-nudge").innerHTML = "<span>\u{1F4C4}</span><div>" + esc(fillT("cvGapLine", { n: gap === 1 ? t("cvGap1") : fillT("cvGapN", { n: gap }) })) + '</div><button class="btn btn-soft btn-sm" data-planfirst>' + esc(t("cvGapBtn")) + "</button>";
-    }
-    renderLoudPicker();
-    const h = Math.round(g.span / 60 * GRID.pxPerHour);
-    const top = (m) => (m - g.from) / g.span * 100;
-    const lines = g.marks.map((m) => '<div class="hline" style="top:' + top(m) + '%"></div>').join("");
-    $("cv-grid").style.minWidth = GRID.gutter + g.cols.length * GRID.colMin + "px";
-    $("cv-grid").innerHTML = '<div class="gutter" style="width:' + GRID.gutter + 'px"><div class="colhead"></div><div class="canvas" style="height:' + h + 'px">' + g.marks.map((m) => '<span class="hmark" style="top:calc(' + top(m) + '% - 6px)">' + minsToHHMM(m) + "</span>").join("") + '</div></div><div class="cols">' + g.cols.map((c) => '<div class="col" style="min-width:' + GRID.colMin + 'px"><div class="colhead"><span>' + esc(c.teacher) + '</span></div><div class="canvas" style="height:' + h + 'px">' + lines + c.blocks.map((b) => blockHtml(b, g, h)).join("") + "</div></div>").join("") + "</div>";
-  }
-  function blockTitle(b) {
-    const parts = [b.group, b.subject].filter((x) => x && x !== "\u2014");
-    return parts.length ? parts.join(" ") : b.raw;
-  }
-  function planMark(p) {
-    const marks = {
-      generated: p.approved ? ["\u2713", "ok", "cvHasPlan"] : ["\u25CB", "", "cvPlanDraft"],
-      linked: ["\u{1F517}", "ok", "cvHasLinked"],
-      note: ["\u{1F517}", "ok", "cvHasNote"],
-      authored: ["\u2713", "ok", "cvHasLinked"],
-      not_needed: null
-    };
-    const m = marks[p.kind];
-    if (!m) return "";
-    return '<span class="bplan ' + m[1] + '" title="' + esc(t(m[2])) + '">' + m[0] + "</span>";
-  }
-  function minsToHHMM(m) {
-    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
-  }
-  function blockHtml(b, g, gridH) {
-    const s = hhmmToMins(b.start), e = hhmmToMins(b.end);
-    const topPct = (s - g.from) / g.span * 100;
-    const hPct = (e - s) / g.span * 100;
-    const px = hPct / 100 * gridH;
-    const status2 = !b.plannable ? "nonteach" : b.cover ? "covered" : "uncovered";
-    const plan = planFor(b.id);
-    return '<div class="blk ' + status2 + '" role="button" tabindex="0" data-blk="' + esc(b.id) + '" style="top:calc(' + topPct + "% + 1px);height:calc(" + hPct + '% - 3px);min-height:22px" title="' + esc([b.group, b.subject].filter(Boolean).join(" ") + " \xB7 " + b.time + (b.cover ? " \xB7 \u2713 " + b.cover : "")) + '"><p class="bt">' + esc(blockTitle(b)) + "</p>" + (px >= 34 ? '<p class="bm">' + esc(b.time) + "</p>" : "") + (px >= 48 && b.cover ? '<p class="bc">\u2713 ' + esc(b.cover) + "</p>" : "") + (plan && LOUD !== "quiet" && px >= 30 ? planMark(plan) : "") + "</div>";
-  }
-
   // app-src/lk-pool.ts
   var bankReady = Promise.resolve();
   var bankSeq = 0;
@@ -350,9 +268,9 @@
     const n = st.n || 0;
     const rank = b.approved ? Number(b.approval_rank) || 0 : 0;
     const who = [b.approved_name, rank >= 2 && b.approved_subject ? subjectLabel(b.approved_subject) : ""].filter(Boolean).join(", ");
-    const status2 = apprStars(rank, who) + (!b.approved ? '<span class="chip chip-warn">' + esc(t("notApproved")) + "</span>" : b.approval_stale ? '<span class="chip chip-warn">' + esc(t("chipStale")) + "</span>" : '<span class="aplvl">' + esc(apprLevelName(rank)) + "</span>");
+    const status = apprStars(rank, who) + (!b.approved ? '<span class="chip chip-warn">' + esc(t("notApproved")) + "</span>" : b.approval_stale ? '<span class="chip chip-warn">' + esc(t("chipStale")) + "</span>" : '<span class="aplvl">' + esc(apprLevelName(rank)) + "</span>");
     const score = !b.approved ? "" : n ? '<span class="pc-score ' + (sc >= 75 ? "hi" : sc >= 55 ? "mid" : sc >= 40 ? "lo" : "bad") + '">' + sc + '</span><span class="pc-n">' + esc(fillT(n === 1 ? "scOne" : "scMany", { n })) + "</span>" : '<span class="pc-new">' + esc(t("scNew")) + "</span>";
-    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + "</div>" + originLine(b) + '<p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + "</span> \xB7 " : "") + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status2 + score + "</div>" + usedLine(b.id) + "</div>";
+    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + "</div>" + originLine(b) + '<p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + "</span> \xB7 " : "") + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status + score + "</div>" + usedLine(b.id) + "</div>";
   }
   function originLine(b) {
     if (!b.origin) return "";
@@ -531,6 +449,103 @@
     return apprStars(rank) + " " + esc(apprLevelName(rank) + (rank >= 2 && state.apprSubject ? " \xB7 " + subjectLabel(state.apprSubject) : "")) + (state.apprBy ? " \u2014 " + esc(fillT("apprSignedBy", { n: state.apprBy })) : "") + (rank >= APPR_MAX ? " " + esc(t("apprLocked")) : "");
   }
 
+  // app-src/lk-daily.ts
+  var GRID = { gutter: 54, colMin: 150, pxPerHour: 76 };
+  function hhmmToMins(t2) {
+    const [h, m] = String(t2 || "0:0").split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+  function gridModel() {
+    const cols = [];
+    ROWS.forEach((r) => {
+      let c = cols.find((x) => x.teacher === r.teacher);
+      if (!c) {
+        c = { teacher: r.teacher, blocks: [] };
+        cols.push(c);
+      }
+      c.blocks.push(r);
+    });
+    const all2 = ROWS.map((r) => [hhmmToMins(r.start), hhmmToMins(r.end)]);
+    const from = Math.floor(Math.min(...all2.map((x) => x[0])) / 60) * 60;
+    const to = Math.ceil(Math.max(...all2.map((x) => x[1])) / 60) * 60;
+    const marks = [];
+    for (let m = from; m <= to; m += 60) marks.push(m);
+    return { cols, from, to, span: Math.max(1, to - from), marks };
+  }
+  function coverageStats() {
+    const plannable = ROWS.filter((r) => r.plannable);
+    const covered = plannable.filter((r) => r.cover).length;
+    const teachers = new Set(ROWS.map((r) => r.teacher)).size;
+    return {
+      total: plannable.length,
+      covered,
+      uncovered: plannable.length - covered,
+      absent: teachers,
+      pct: plannable.length ? Math.round(covered / plannable.length * 100) : 0
+    };
+  }
+  function donut(pct) {
+    const size = 72, sw = 7, r = (size - sw) / 2, c = 2 * Math.PI * r;
+    return '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="' + (pct === 0 ? "#e5e7eb" : "#fecaca") + '" stroke-width="' + sw + '"/>' + (pct > 0 ? '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="#16a34a" stroke-width="' + sw + '" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - pct / 100) + '" stroke-linecap="round" transform="rotate(-90 36 36)"/>' : "") + '<text x="36" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="var(--ink)">' + pct + '%</text><text x="36" y="48" text-anchor="middle" font-size="8" font-weight="600" fill="' + (pct >= 100 ? "#16a34a" : "var(--ink-soft)") + '" letter-spacing="0.5">' + esc(t("cvCovered").toUpperCase()) + "</text>";
+  }
+  function renderRows() {
+    if (SHELL === "lk") return renderToday();
+    const st = coverageStats();
+    const d = /* @__PURE__ */ new Date("2026-10-21T12:00:00");
+    const loc = LANG === "sv" ? "sv-SE" : "en-GB";
+    $("cv-kicker").textContent = t("cvToday") + " \xB7 " + t("cvWeek") + " 43";
+    $("cv-day").innerHTML = esc(d.toLocaleDateString(loc, { weekday: "long" })) + " <b>" + d.getDate() + "</b> " + esc(d.toLocaleDateString(loc, { month: "long" }));
+    $("cv-donut").innerHTML = donut(st.pct);
+    $("cv-need").textContent = st.uncovered ? st.uncovered + " " + t(st.uncovered === 1 ? "cvLesson" : "cvLessons") + " " + t("cvNeedCover") : t("cvAllCovered");
+    $("cv-counts").textContent = st.absent + " " + t("cvAbsent") + " \xB7 " + st.total + " " + t("cvLessons") + " \xB7 " + st.covered + " " + t("cvCovered");
+    const g = gridModel();
+    $("cv-chips").innerHTML = g.cols.map((c) => {
+      const mine = c.blocks.filter((b) => b.plannable);
+      const cov = mine.filter((b) => b.cover).length;
+      const all2 = mine.length > 0 && cov === mine.length;
+      return '<div class="schip' + (all2 ? " done" : "") + '"><span class="sname">' + esc(c.teacher) + "</span>" + (mine.length ? '<span class="sstat' + (all2 ? " ok" : "") + '">' + (all2 ? "\u2713 " + esc(t("cvChipCovered")) : cov + "/" + mine.length + " " + esc(t("cvChipCoveredN"))) + '</span><span class="sbar"><i class="' + (all2 ? "ok" : "") + '" style="width:' + Math.round(cov / mine.length * 100) + '%"></i></span>' : '<span class="sstat">' + esc(t("cvChipAbsent")) + "</span>") + (all2 ? '<span class="stick">\u2713</span>' : "") + "</div>";
+    }).join("");
+    const gap = ADDON ? ROWS.filter((r) => r.plannable && r.cover && !planSettled(r.id)).length : 0;
+    $("cv-nudge").hidden = !(LOUD === "nudge" && gap > 0);
+    if (LOUD === "nudge" && gap > 0) {
+      $("cv-nudge").innerHTML = "<span>\u{1F4C4}</span><div>" + esc(fillT("cvGapLine", { n: gap === 1 ? t("cvGap1") : fillT("cvGapN", { n: gap }) })) + '</div><button class="btn btn-soft btn-sm" data-planfirst>' + esc(t("cvGapBtn")) + "</button>";
+    }
+    renderLoudPicker();
+    const h = Math.round(g.span / 60 * GRID.pxPerHour);
+    const top = (m) => (m - g.from) / g.span * 100;
+    const lines = g.marks.map((m) => '<div class="hline" style="top:' + top(m) + '%"></div>').join("");
+    $("cv-grid").style.minWidth = GRID.gutter + g.cols.length * GRID.colMin + "px";
+    $("cv-grid").innerHTML = '<div class="gutter" style="width:' + GRID.gutter + 'px"><div class="colhead"></div><div class="canvas" style="height:' + h + 'px">' + g.marks.map((m) => '<span class="hmark" style="top:calc(' + top(m) + '% - 6px)">' + minsToHHMM(m) + "</span>").join("") + '</div></div><div class="cols">' + g.cols.map((c) => '<div class="col" style="min-width:' + GRID.colMin + 'px"><div class="colhead"><span>' + esc(c.teacher) + '</span></div><div class="canvas" style="height:' + h + 'px">' + lines + c.blocks.map((b) => blockHtml(b, g, h)).join("") + "</div></div>").join("") + "</div>";
+  }
+  function blockTitle(b) {
+    const parts = [b.group, b.subject].filter((x) => x && x !== "\u2014");
+    return parts.length ? parts.join(" ") : b.raw;
+  }
+  function planMark(p) {
+    const marks = {
+      generated: p.approved ? ["\u2713", "ok", "cvHasPlan"] : ["\u25CB", "", "cvPlanDraft"],
+      linked: ["\u{1F517}", "ok", "cvHasLinked"],
+      note: ["\u{1F517}", "ok", "cvHasNote"],
+      authored: ["\u2713", "ok", "cvHasLinked"],
+      not_needed: null
+    };
+    const m = marks[p.kind];
+    if (!m) return "";
+    return '<span class="bplan ' + m[1] + '" title="' + esc(t(m[2])) + '">' + m[0] + "</span>";
+  }
+  function minsToHHMM(m) {
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  }
+  function blockHtml(b, g, gridH) {
+    const s = hhmmToMins(b.start), e = hhmmToMins(b.end);
+    const topPct = (s - g.from) / g.span * 100;
+    const hPct = (e - s) / g.span * 100;
+    const px = hPct / 100 * gridH;
+    const status = !b.plannable ? "nonteach" : b.cover ? "covered" : "uncovered";
+    const plan = planFor(b.id);
+    return '<div class="blk ' + status + '" role="button" tabindex="0" data-blk="' + esc(b.id) + '" style="top:calc(' + topPct + "% + 1px);height:calc(" + hPct + '% - 3px);min-height:22px" title="' + esc([b.group, b.subject].filter(Boolean).join(" ") + " \xB7 " + b.time + (b.cover ? " \xB7 \u2713 " + b.cover : "")) + '"><p class="bt">' + esc(blockTitle(b)) + "</p>" + (px >= 34 ? '<p class="bm">' + esc(b.time) + "</p>" : "") + (px >= 48 && b.cover ? '<p class="bc">\u2713 ' + esc(b.cover) + "</p>" : "") + (ADDON && plan && LOUD !== "quiet" && px >= 30 ? planMark(plan) : "") + "</div>";
+  }
+
   // app-src/lk-shell.ts
   function applyStatic() {
     document.querySelectorAll("[data-t]").forEach((el) => {
@@ -539,16 +554,16 @@
     document.querySelectorAll("[data-lang]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-lang") === LANG));
   }
   function setTitles() {
-    const today = (/* @__PURE__ */ new Date()).toLocaleDateString(
+    const today2 = (/* @__PURE__ */ new Date()).toLocaleDateString(
       LANG === "sv" ? "sv-SE" : "en-GB",
       { weekday: "long", day: "numeric", month: "long", year: "numeric" }
     );
     const onPlans = state.screen === "plans";
     const tab = onPlans ? state.tab : "";
-    const [title, sub] = state.screen === "today" ? [t("navToday"), today] : state.screen === "create" ? [t("crTitle"), t("crLead")] : state.screen === "settings" ? [t("navSettings"), state.me?.school || ""] : tab === "feedback" ? [
+    const [title, sub] = state.screen === "today" ? [t("navToday"), today2] : state.screen === "create" ? [t("crTitle"), t("crLead")] : state.screen === "settings" ? [t("navSettings"), state.me?.school || ""] : tab === "feedback" ? [
       SHELL === "lk" ? t("tabFeedback") : t("titlePlans"),
       state.pending + " " + t("toReview") + " \xB7 " + state.fb.length + " " + t("plansCount")
-    ] : tab === "term" && SHELL === "lk" ? [t("tabTerm"), t("tpLead")] : onPlans ? [t("titlePlans"), state.bank.length + " " + t("plansCount") + " \xB7 " + state.bank.filter((b) => b.shared).length + " " + t("sharedBetween")] : [t("titleCover"), today];
+    ] : tab === "term" && SHELL === "lk" ? [t("tabTerm"), t("tpLead")] : onPlans ? [t("titlePlans"), state.bank.length + " " + t("plansCount") + " \xB7 " + state.bank.filter((b) => b.shared).length + " " + t("sharedBetween")] : [t("titleCover"), today2];
     $("pagetitle").textContent = title;
     $("pagesub").textContent = sub;
   }
@@ -574,15 +589,18 @@
   ];
   var NAV_FVK = [
     { id: "cover", icon: "users", key: "navCover", real: true },
-    // One door for the add-on. The bank and the feedback queue are two views of
-    // the same thing, and a second sidebar entry made it look like two features.
-    { id: "plans", icon: "clipboard", key: "navPlans", real: true, addon: true, badge: true },
+    // Two doors for the add-on, and only for a school that has it: the plans
+    // (bank, year planning and feedback as tabs) and Create a plan.
+    { id: "plans", icon: "book", key: "navPlans", real: true, addon: true, badge: true },
+    // The second door: making a plan is the other half of the product, and a
+    // coordinator should not have to find it inside the bank.
+    { id: "create", icon: "plus", key: "navCreate", real: true, addon: true },
     { id: "hub", icon: "clipboard", key: "navHub" },
     { id: "radar", icon: "radar", key: "navRadar" },
     { id: "dash", icon: "grid", key: "navDashboard" },
     { id: "set", icon: "settings", key: "navSettings" }
   ];
-  var NAV = SHELL === "lk" ? NAV_LK : NAV_FVK;
+  var NAV = SHELL === "lk" ? NAV_LK : NAV_FVK.filter((n) => ADDON || !n.addon);
   function currentNav() {
     return SHELL === "lk" && state.screen === "plans" ? state.tab : state.screen;
   }
@@ -929,7 +947,8 @@
     const box = maybe$("settings-page") || maybe$("fbsettings");
     if (!box) return;
     box.innerHTML = "<h4>" + esc(t("capTitle")) + '</h4><p class="hint">' + esc(t("capNote")) + '</p><div class="covrow">' + [[5, "5"], [20, "20"], [-1, t("capUnlimited")]].map(([v, lbl]) => '<button data-cap="' + v + '"' + (state.cap === v ? ' class="on"' : "") + ">" + esc(lbl) + "</button>").join("") + "</div>" + // Only once the database knows the setting; an older one would just error.
-    (state.shareAi === void 0 ? "" : '<h4 style="margin-top:18px">' + esc(t("shareAiTitle")) + '</h4><p class="hint">' + esc(t("shareAiNote")) + '</p><div class="covrow"><button data-shareai="1"' + (state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOn")) + '</button><button data-shareai="0"' + (!state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOff")) + "</button></div>") + fvkLinkCard();
+    (state.shareAi === void 0 ? "" : '<h4 style="margin-top:18px">' + esc(t("shareAiTitle")) + '</h4><p class="hint">' + esc(t("shareAiNote")) + '</p><div class="covrow"><button data-shareai="1"' + (state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOn")) + '</button><button data-shareai="0"' + (!state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOff")) + "</button></div>") + // Lektionskollen on its own never mentions Frånvarokollen.
+    (SHELL === "fvk" ? fvkLinkCard() : "");
   }
   async function loadFeedback() {
     loadSettings();
@@ -1229,7 +1248,7 @@
       // depth switch belongs to the person in front of the class.
       projector: false
     }) + "</div>";
-    h += window.LKPlan.after(p, lbl) + '<section class="reg reg-plain"><div class="reg-h"><span class="n">&#9742;</span>' + esc(t("whoToCall")) + '</div><p style="font-size:13px"><b>' + esc(t("coordinator")) + "</b> \xB7 " + esc(state.me?.school || "") + '<br><span style="color:var(--ink-soft)">' + esc(t("phoneNote")) + "</span></p></section>";
+    h += window.LKPlan.after(p, lbl) + '<section class="reg reg-plain"><div class="reg-h"><span class="n">&#9742;</span>' + esc(t("whoToCall")) + '</div><p style="font-size:13px"><b>' + esc(t("coordinator")) + "</b> \xB7 " + esc(state.me?.school || "") + (SHELL === "fvk" ? '<br><span style="color:var(--ink-soft)">' + esc(t("phoneNote")) + "</span>" : "") + "</p></section>";
     h += '<section class="reg reg-plain"><div class="reg-h"><span class="n">+</span>' + esc(t("assistTitle")) + '</div><p class="hint" style="margin:0 0 9px">' + esc(t("assistNote")) + '</p><div class="assist noprint"><span class="hint" style="align-self:center">' + esc(t("minLeft")) + "</span>" + [5, 10, 15, 20].map((m) => '<button data-fill="' + m + '">' + m + "</button>").join("") + "</div></section>";
     h += '<div class="foot"><span class="hint">' + esc(t("subSeesThis")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-view="coordinator">' + esc(t("back")) + "</button></div></div>";
     return h;
@@ -1319,249 +1338,6 @@
     const hint = s.origin === "teacher" ? t("shareHintTeacher") : fillT("shareHintAi", { s: t(state.shareAi === false ? "setOff" : "setOn") });
     const now = !s.allowed ? t("shareOff") : s.shared ? t("shareNow") : t("shareWaits");
     return '<label class="sharetick"><input type="checkbox" data-shareplan' + (s.allowed ? " checked" : "") + "><span><b>" + esc(t("shareTitle")) + '</b> <span class="orig ' + (s.origin === "teacher" ? "tch" : "ai") + '">' + esc(t(s.origin === "teacher" ? "origTeacher" : "origAi")) + '</span><br><span class="hint">' + esc(now) + " " + esc(hint) + "</span></span></label>";
-  }
-
-  // app-src/lk-wait.ts
-  var waitTimer;
-  var WAIT_EXPECT = 120;
-  var OWL_SVG = '<svg class="owl" viewBox="0 0 140 130" aria-hidden="true"><ellipse cx="70" cy="122" rx="44" ry="5" fill="rgba(13,35,64,.12)"/><g class="owl-bob"><ellipse cx="70" cy="72" rx="36" ry="40" fill="#1b4776"/><path d="M40 62 Q30 80 38 100 Q46 90 46 72Z" fill="#153a62"/><path d="M100 62 Q110 80 102 100 Q94 90 94 72Z" fill="#153a62"/><ellipse cx="70" cy="84" rx="23" ry="26" fill="#e8f0fb"/><path d="M58 80 q4 4 8 0 M70 88 q4 4 8 0 M58 96 q4 4 8 0 M74 78 q3 3 6 0" stroke="#b8c9dc" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="56" cy="56" r="14" fill="#fff"/><circle cx="84" cy="56" r="14" fill="#fff"/><g class="owl-eyes"><circle cx="56" cy="59" r="6" fill="#0d2340"/><circle cx="84" cy="59" r="6" fill="#0d2340"/><circle cx="58" cy="57" r="2" fill="#fff"/><circle cx="86" cy="57" r="2" fill="#fff"/></g><g class="owl-lids"><ellipse cx="56" cy="56" rx="15" ry="15" fill="#1b4776"/><ellipse cx="84" cy="56" rx="15" ry="15" fill="#1b4776"/></g><path d="M65 66 L75 66 L70 75Z" fill="#f5a524"/><path d="M40 34 L70 22 L100 34 L70 46Z" fill="#0d2340"/><path d="M52 40 L52 48 Q70 56 88 48 L88 40 L70 46Z" fill="#0d2340"/><path class="owl-tassel" d="M100 34 L100 50" stroke="#f5a524" stroke-width="2.5" stroke-linecap="round"/></g><path d="M30 104 Q50 96 70 104 Q90 96 110 104 L110 120 Q90 112 70 120 Q50 112 30 120Z" fill="#fff" stroke="#1b4776" stroke-width="2"/><line x1="70" y1="104" x2="70" y2="120" stroke="#1b4776" stroke-width="1.5"/><g class="owl-ink" stroke="#1b4776" stroke-width="1.6" stroke-linecap="round"><line class="l1" x1="38" y1="106" x2="62" y2="104"/><line class="l2" x1="38" y1="111" x2="60" y2="109"/><line class="l3" x1="78" y1="104" x2="102" y2="106"/><line class="l4" x1="78" y1="109" x2="98" y2="111"/></g><g class="owl-pencil"><rect x="0" y="-2" width="22" height="5" rx="1" fill="#f5a524" transform="rotate(-35)"/><path d="M0 -2 L-5 0.5 L0 3Z" fill="#0d2340" transform="rotate(-35)"/></g></svg>';
-  function waitHtml(what) {
-    return '<div class="gen wait">' + OWL_SVG + '<div class="genstep" id="wait-what">' + esc(what) + '</div><div class="bar"><i id="wait-bar" style="width:3%"></i></div><div class="waitrow"><span id="wait-time" class="mono">0:00</span><span>\xB7</span><span>' + esc(t("waitUpTo")) + '</span></div><p class="hint waittip" id="wait-tip">' + esc(t("waitTip1")) + "</p></div>";
-  }
-  function startWait() {
-    stopWait();
-    const t0 = Date.now();
-    const tips = ["waitTip1", "waitTip2", "waitTip3", "waitTip4", "waitTip5", "waitTip6"];
-    waitTimer = window.setInterval(() => {
-      const sec = Math.floor((Date.now() - t0) / 1e3);
-      const tm = maybe$("wait-time");
-      if (!tm) {
-        stopWait();
-        return;
-      }
-      tm.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
-      const pct = 3 + 92 * (1 - Math.exp(-sec / (WAIT_EXPECT * 0.6)));
-      const bar = maybe$("wait-bar");
-      if (bar) bar.style.width = pct.toFixed(1) + "%";
-      const tip = maybe$("wait-tip");
-      if (tip) tip.textContent = sec > WAIT_EXPECT ? t("waitLong") : t(tips[Math.floor(sec / 8) % tips.length]);
-    }, 1e3);
-  }
-  function stopWait() {
-    if (waitTimer) {
-      clearInterval(waitTimer);
-      waitTimer = void 0;
-    }
-  }
-  function waitSay(what) {
-    const el = maybe$("wait-what");
-    if (el) el.textContent = what;
-  }
-
-  // app-src/lk-generate.ts
-  function showRequest() {
-    const r = state.row;
-    if (!r) return;
-    $("seam-state").textContent = "lk:init";
-    const matches = state.bank.filter((b) => canonSubject(b.subject) === canonSubject(r.subject) && canonYear(b.year_group) === canonYear(r.year) && b.approved);
-    $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("planFor")) + " " + esc(r.group) + '</h2><div class="plan-meta">' + esc(r.teacher) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.room) + (r.cover ? " \xB7 " + esc(r.cover) : " \xB7 " + esc(t("uncovered").toLowerCase())) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="derived"><div><dt>' + esc(t("subjectLbl")) + "</dt><dd>" + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t("fromCode")) + ' "' + esc(r.raw) + '"</div></div><div><dt>' + esc(t("yearLbl")) + "</dt><dd>" + esc(yearLabel(r.year)) + '</dd><div class="from">' + esc(t("derivedFrom")) + ' "' + esc(r.group) + '"</div></div><div><dt>' + esc(t("lengthLbl")) + "</dt><dd>" + r.mins + " " + esc(t("min")) + '</dd><div class="from">' + esc(r.start) + "\u2013" + esc(r.end) + "</div></div></div>" + (r.practical ? '<div class="flag"><span>\u26A0</span><div><b>' + esc(t("practicalWarn")) + "</b> " + esc(t("practicalBody")) + "</div></div>" : "") + (matches.length ? '<div><div class="sect-h">' + esc(t("fromBank")) + " \u2014 " + matches.length + " " + esc(matches.length === 1 ? t("bankApproved") : t("bankApprovedPl")) + '</div><div class="bankrow">' + matches.map((b) => {
-      const had = usesOf(b.id, r.group);
-      return '<button class="bankcard' + (had.length ? " hadit" : "") + '" data-usebank="' + b.id + '"><div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div><div class="m">' + b.minutes + " " + esc(t("min")) + " \xB7 " + b.rating_count + " " + esc(t("ratings")) + (b.shared ? " \xB7 " + esc(t("sharedTag")) : "") + "</div>" + (had.length ? '<div class="hadwarn">\u26A0 ' + esc(fillT("hadIt", { g: r.group, d: fmtDate(had[0].used_on) })) + "</div>" : "") + '</div><span class="stars">' + stars(b.rating) + '</span><span class="btn btn-soft btn-sm">' + esc(t("use")) + "</span></button>";
-    }).join("") + "</div></div>" : '<div><div class="sect-h">' + esc(t("fromBank")) + '</div><p class="hint">' + esc(t("bankNone")) + " " + esc(subjectLabel(r.subject)) + " " + esc(yearLabel(r.year)) + " " + esc(t("bankNoneTail")) + (EMBED ? "" : ' <button class="btn btn-ghost btn-sm" data-poolgo>' + esc(t("poolBrowse")) + " \u2192</button>") + "</p></div>") + (matches.length ? '<details class="steerbox"><summary>' + esc(t("noFit")) + "</summary>" : "") + '<div><div class="sect-h">' + esc(t("steer")) + '</div><div class="steer"><label class="f full">' + esc(t("fTopic")) + '<input id="s-topic" placeholder="' + esc(t("fTopicPh")) + '"></label><label class="f full">' + esc(t("fNotes")) + '<textarea id="s-notes" rows="2" placeholder="' + esc(t("fNotesPh")) + '"></textarea></label><label class="f">' + esc(t("fType")) + '<select id="s-type">' + (r.practical ? ["typeTheory", "typeContinue", "typePractical"] : ["typeRevision", "typeDeep", "typeQuiet"]).map((k) => "<option>" + esc(t(k)) + "</option>").join("") + '</select></label><p class="hint full" style="margin:2px 0 0">' + esc(t("fTypeHint")) + '</p><div class="full"><div class="sect-h" style="margin-bottom:6px">' + esc(t("fRes")) + '</div><div class="chips">' + ["resWhiteboard", "resProjector", "resComputers", "resBooks", "resMini"].map((k, i) => '<button class="tog' + (i === 0 ? " on" : "") + '" data-res>' + esc(t(k)) + "</button>").join("") + "</div></div></div></div>" + (matches.length ? "</details>" : "") + '<div class="foot"><span class="hint">' + esc(t("privacyNote")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn ' + (matches.length ? "btn-ghost" : "btn-primary") + '" data-generate>' + esc(t("create")) + "</button></div></div>";
-  }
-  function gatherRequest() {
-    const r = state.row;
-    if (!r) throw new Error("no lesson selected");
-    return {
-      absence_ref: r.id,
-      subject: r.subject,
-      year_group: r.year,
-      group_name: r.group,
-      room: r.room,
-      starts_at: r.start,
-      ends_at: r.end,
-      minutes: r.mins,
-      topic: maybe$("s-topic")?.value || "",
-      notes: maybe$("s-notes")?.value || "",
-      lesson_type: maybe$("s-type")?.value || "",
-      // Always both languages: lk-generate writes one and translates it, so the
-      // plan carries sv and en and the reader toggles.
-      language: "sv",
-      resources: [...document.querySelectorAll("[data-res].on")].map((b) => b.textContent)
-    };
-  }
-  async function invokeGen(body) {
-    const r = await sb.functions.invoke("lk-generate", { body });
-    if (r.error && !r.data) {
-      try {
-        const ctx = r.error.context;
-        if (ctx && typeof ctx.json === "function") return { data: await ctx.json(), error: r.error };
-      } catch {
-      }
-    }
-    return r;
-  }
-  function genErrText(data, error) {
-    const code = String(data?.error || "");
-    if (code === "no_model") return t("errNoModel");
-    if (code === "quota") return fillT("errQuota", { n: data?.limit ?? "" });
-    if (code === "bad_output") return t("errBadOutput");
-    if (code === "no_school") return t("errNoSchool");
-    if (code === "too_large") return t("errTooLarge");
-    if (code || error) console.warn("lk-generate", code, data?.detail, error);
-    return t("errUnknown");
-  }
-  async function generate() {
-    const req = gatherRequest();
-    const seq = nextPanel(), row = state.row;
-    const stillHere = () => panelIs(seq) && state.row === row;
-    $("seam-state").textContent = t("seamGenerating");
-    $("addin-content").innerHTML = waitHtml(t("genCalling"));
-    startWait();
-    const other = req.language === "en" ? "sv" : "en";
-    const main = await invokeGen({ request: req });
-    let alt = { error: new Error("skipped") };
-    if (!main.error && !main.data?.error) {
-      waitSay(t("genTranslating"));
-      alt = await invokeGen({ request: { ...req, language: other }, translate: main.data.source === "model" ? main.data.plan : void 0 });
-    }
-    if (!stillHere()) return;
-    stopWait();
-    if (main.error || main.data?.error) {
-      const msg = genErrText(main.data, main.error);
-      $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><h2>' + esc(t("failed")) + '</h2><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="alert error">' + esc(msg) + '</div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-generate>' + esc(t("retry")) + "</button></div></div>";
-      return;
-    }
-    const altPlan = !alt.error && !alt.data?.error ? alt.data.plan : null;
-    const { data: pid, error: saveErr } = await sb.rpc("lk_save_plan", {
-      p_request: req,
-      p_plan: main.data.plan,
-      p_model: main.data.model || null,
-      p_plan_alt: altPlan,
-      p_language_alt: altPlan ? other : null
-    });
-    if (saveErr) toast(t("saveFailed") + " " + saveErr.message);
-    if (!stillHere()) {
-      loadBank();
-      return;
-    }
-    const bodies = { [req.language]: main.data.plan };
-    if (altPlan) bodies[other] = altPlan;
-    state.bodies = bodies;
-    state.plan = pickBody();
-    state.planId = pid || null;
-    state.approved = false;
-    applyApproval({});
-    state.shareToken = null;
-    state.pshare = null;
-    state.view = "coordinator";
-    state.model = main.data.model || null;
-    showPlan();
-    loadBank();
-  }
-  function pickBody() {
-    const b = state.bodies || {};
-    return b[LANG] || b.sv || b.en || Object.values(b)[0] || null;
-  }
-  function bodyIsFallback() {
-    return !!(state.bodies && !state.bodies[LANG]);
-  }
-  function applyApproval(d) {
-    state.approved = !!d.approved;
-    state.apprRank = Number(d.approval_rank) || 0;
-    state.apprBy = d.approved_name || null;
-    state.apprSubject = d.approved_subject || null;
-    state.apprStale = !!d.approval_stale;
-  }
-
-  // app-src/lk-embed.ts
-  function planUrl(token) {
-    const base = location.origin + location.pathname.replace(/[^/]*$/, "") + "plan.html?";
-    return String(token).startsWith("r:") ? base + "r=" + String(token).slice(2) : base + "t=" + token;
-  }
-  function subLinkToken() {
-    const g = state.row?.group;
-    const u = g && g !== "\u2014" && state.planId ? usesOf(state.planId, g)[0] : null;
-    return u && u.run_token ? "r:" + u.run_token : state.shareToken;
-  }
-  var EMBED = (() => {
-    const q = new URLSearchParams(location.search);
-    if (q.get("embed") !== "1") return null;
-    const num = (k, d) => {
-      const n = parseInt(q.get(k) || "", 10);
-      return Number.isFinite(n) ? n : d;
-    };
-    return {
-      row: {
-        id: q.get("ref") || "",
-        subject: q.get("subject") || "\u2014",
-        year: q.get("year") || "",
-        group: q.get("group") || "",
-        raw: q.get("code") || q.get("subject") || "",
-        mins: num("mins", 45),
-        start: q.get("start") || "",
-        end: q.get("end") || "",
-        time: [q.get("start"), q.get("end")].filter(Boolean).join("\u2013"),
-        room: q.get("room") || "\u2014",
-        teacher: q.get("teacher") || "\u2014",
-        cover: q.get("cover") || null,
-        practical: q.get("practical") === "1",
-        plannable: true
-      }
-    };
-  })();
-  function toParent(type, payload) {
-    if (!EMBED || window.parent === window) return;
-    try {
-      window.parent.postMessage({ source: "lektionskollen", type, ...payload }, "*");
-    } catch {
-    }
-  }
-  function openEmbed() {
-    if (!EMBED) return;
-    document.body.classList.add("embed");
-    state.row = EMBED.row;
-    state.plan = null;
-    state.planId = null;
-    state.view = "coordinator";
-    $("overlay").hidden = false;
-    const seq = nextPanel();
-    bankReady.then(() => {
-      if (panelIs(seq) && !state.planId) showRequest();
-    });
-    toParent("lk:ready", { ref: EMBED.row.id });
-  }
-  function openAddin(id) {
-    nextPanel();
-    state.row = ROWS.find((x) => x.id === id) || null;
-    state.plan = null;
-    state.planId = null;
-    state.view = "coordinator";
-    state.pshare = null;
-    if (state.row) {
-      state.pool.sub = canonSubject(state.row.subject);
-      state.pool.yr = canonYear(state.row.year);
-      savePoolPick();
-    }
-    $("overlay").hidden = false;
-    document.body.style.overflow = "hidden";
-    showRequest();
-  }
-  function closeAddin() {
-    stopWait();
-    nextPanel();
-    state.cr = null;
-    if (EMBED) {
-      toParent("lk:close", {});
-      return;
-    }
-    state.row = null;
-    $("overlay").hidden = true;
-    document.body.style.overflow = "";
-    document.body.classList.remove("panelmode");
-    if (state.screen === "cover" || state.screen === "today") loadCoverPlans().then(renderRows).catch(() => {
-    });
-    if (state.screen === "create") showScreen("bank");
   }
 
   // app-src/lk-link.ts
@@ -1821,7 +1597,7 @@
   function renderLoudPicker() {
     const el = maybe$("cv-loud");
     if (!el) return;
-    el.innerHTML = '<span class="lbl">' + esc(t("cvHow")) + "</span>" + [["quiet", "cvQuiet"], ["marked", "cvMarked"], ["nudge", "cvNudge"]].map(([v, k]) => '<button class="' + (LOUD === v ? "on" : "") + '" data-loud="' + v + '">' + esc(t(k)) + "</button>").join("") + '<span class="hint">' + esc(t("cvHowNote")) + "</span>";
+    el.innerHTML = '<span class="lbl">' + esc(t("cvAddon")) + '</span><button class="' + (ADDON ? "on" : "") + '" data-addon="on">' + esc(t("cvAddonOn")) + '</button><button class="' + (!ADDON ? "on" : "") + '" data-addon="off">' + esc(t("cvAddonOff")) + "</button>" + (ADDON ? '<span class="lbl" style="margin-left:14px">' + esc(t("cvHow")) + "</span>" + [["quiet", "cvQuiet"], ["marked", "cvMarked"], ["nudge", "cvNudge"]].map(([v, k]) => '<button class="' + (LOUD === v ? "on" : "") + '" data-loud="' + v + '">' + esc(t(k)) + "</button>").join("") : "") + '<span class="hint">' + esc(t(ADDON ? "cvHowNote" : "cvAddonOffNote")) + "</span>";
   }
   var PLANS = {};
   function planFor(ref) {
@@ -1846,7 +1622,7 @@
     POP = ref;
     const plan = planFor(ref);
     const el = $("cv-pop");
-    const planBtn = r.plannable ? planRow(r, plan) : '<p class="pnote">' + esc(t(r.whyKey || "whyRast")) + "</p>";
+    const planBtn = !ADDON ? "" : r.plannable ? planRow(r, plan) : '<p class="pnote">' + esc(t(r.whyKey || "whyRast")) + "</p>";
     el.innerHTML = '<div class="pophead"><p class="ph">' + esc([r.group, r.subject].filter(Boolean).join(" ") || r.raw) + (r.room ? '<span class="rm">' + esc(r.room) + "</span>" : "") + '</p><p class="pm">' + esc(t("cvWas")) + ": " + esc(r.teacher) + " \u2022 " + esc(r.time) + " \u2022 " + r.mins + " min</p></div>" + (r.cover ? '<div class="poprow"><span class="covpill">\u2713 ' + esc(r.cover) + '</span><span class="popicons"><button disabled title="' + esc(t("cvNotify")) + '">\u2709</button><button disabled title="' + esc(t("cvRemove")) + '">\xD7</button></span></div>' : '<div class="poprow"><select disabled><option>' + esc(t("cvAssign")) + "</option></select></div>") + planBtn;
     el.hidden = false;
     if (window.innerWidth < 640) {
@@ -1859,123 +1635,251 @@
     el.style.top = Math.min(y, window.innerHeight - hGuess - 12) + "px";
   }
 
-  // app-src/lk-today.ts
-  var KEY = "lk.today";
-  var dayKey = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  var formOpen = false;
-  function loadOwn() {
-    try {
-      const v = JSON.parse(localStorage.getItem(KEY) || "{}");
-      return v.day === dayKey() && Array.isArray(v.rows) ? v.rows : [];
-    } catch {
-      return [];
+  // app-src/lk-wait.ts
+  var waitTimer;
+  var WAIT_EXPECT = 120;
+  var OWL_SVG = '<svg class="owl" viewBox="0 0 140 130" aria-hidden="true"><ellipse cx="70" cy="122" rx="44" ry="5" fill="rgba(13,35,64,.12)"/><g class="owl-bob"><ellipse cx="70" cy="72" rx="36" ry="40" fill="#1b4776"/><path d="M40 62 Q30 80 38 100 Q46 90 46 72Z" fill="#153a62"/><path d="M100 62 Q110 80 102 100 Q94 90 94 72Z" fill="#153a62"/><ellipse cx="70" cy="84" rx="23" ry="26" fill="#e8f0fb"/><path d="M58 80 q4 4 8 0 M70 88 q4 4 8 0 M58 96 q4 4 8 0 M74 78 q3 3 6 0" stroke="#b8c9dc" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="56" cy="56" r="14" fill="#fff"/><circle cx="84" cy="56" r="14" fill="#fff"/><g class="owl-eyes"><circle cx="56" cy="59" r="6" fill="#0d2340"/><circle cx="84" cy="59" r="6" fill="#0d2340"/><circle cx="58" cy="57" r="2" fill="#fff"/><circle cx="86" cy="57" r="2" fill="#fff"/></g><g class="owl-lids"><ellipse cx="56" cy="56" rx="15" ry="15" fill="#1b4776"/><ellipse cx="84" cy="56" rx="15" ry="15" fill="#1b4776"/></g><path d="M65 66 L75 66 L70 75Z" fill="#f5a524"/><path d="M40 34 L70 22 L100 34 L70 46Z" fill="#0d2340"/><path d="M52 40 L52 48 Q70 56 88 48 L88 40 L70 46Z" fill="#0d2340"/><path class="owl-tassel" d="M100 34 L100 50" stroke="#f5a524" stroke-width="2.5" stroke-linecap="round"/></g><path d="M30 104 Q50 96 70 104 Q90 96 110 104 L110 120 Q90 112 70 120 Q50 112 30 120Z" fill="#fff" stroke="#1b4776" stroke-width="2"/><line x1="70" y1="104" x2="70" y2="120" stroke="#1b4776" stroke-width="1.5"/><g class="owl-ink" stroke="#1b4776" stroke-width="1.6" stroke-linecap="round"><line class="l1" x1="38" y1="106" x2="62" y2="104"/><line class="l2" x1="38" y1="111" x2="60" y2="109"/><line class="l3" x1="78" y1="104" x2="102" y2="106"/><line class="l4" x1="78" y1="109" x2="98" y2="111"/></g><g class="owl-pencil"><rect x="0" y="-2" width="22" height="5" rx="1" fill="#f5a524" transform="rotate(-35)"/><path d="M0 -2 L-5 0.5 L0 3Z" fill="#0d2340" transform="rotate(-35)"/></g></svg>';
+  function waitHtml(what) {
+    return '<div class="gen wait">' + OWL_SVG + '<div class="genstep" id="wait-what">' + esc(what) + '</div><div class="bar"><i id="wait-bar" style="width:3%"></i></div><div class="waitrow"><span id="wait-time" class="mono">0:00</span><span>\xB7</span><span>' + esc(t("waitUpTo")) + '</span></div><p class="hint waittip" id="wait-tip">' + esc(t("waitTip1")) + "</p></div>";
+  }
+  function startWait() {
+    stopWait();
+    const t0 = Date.now();
+    const tips = ["waitTip1", "waitTip2", "waitTip3", "waitTip4", "waitTip5", "waitTip6"];
+    waitTimer = window.setInterval(() => {
+      const sec = Math.floor((Date.now() - t0) / 1e3);
+      const tm = maybe$("wait-time");
+      if (!tm) {
+        stopWait();
+        return;
+      }
+      tm.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+      const pct = 3 + 92 * (1 - Math.exp(-sec / (WAIT_EXPECT * 0.6)));
+      const bar = maybe$("wait-bar");
+      if (bar) bar.style.width = pct.toFixed(1) + "%";
+      const tip = maybe$("wait-tip");
+      if (tip) tip.textContent = sec > WAIT_EXPECT ? t("waitLong") : t(tips[Math.floor(sec / 8) % tips.length]);
+    }, 1e3);
+  }
+  function stopWait() {
+    if (waitTimer) {
+      clearInterval(waitTimer);
+      waitTimer = void 0;
     }
   }
-  function saveOwn(rows) {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({ day: dayKey(), rows }));
-    } catch {
-    }
+  function waitSay(what) {
+    const el = maybe$("wait-what");
+    if (el) el.textContent = what;
   }
-  function loadTodayRows() {
-    for (const r of loadOwn()) if (!ROWS.some((x) => x.id === r.id)) ROWS.push(r);
+
+  // app-src/lk-embed.ts
+  function planUrl(token) {
+    const base = location.origin + location.pathname.replace(/[^/]*$/, "") + "plan.html?";
+    return String(token).startsWith("r:") ? base + "r=" + String(token).slice(2) : base + "t=" + token;
   }
-  var isOwn = (r) => r.id.startsWith("own-");
-  var lessons = () => ROWS.filter((r) => r.plannable).sort((a, b) => a.start.localeCompare(b.start));
-  function status(r) {
-    const p = planFor(r.id);
-    if (!p) return ["warn", t("tdNeeds")];
-    if (p.kind === "not_needed") return ["neutral", t("tdNotNeeded")];
-    if (p.kind === "generated") return p.approved ? ["ok", t("tdReady")] : ["draft", t("tdDraft")];
-    return ["ok", t("tdTeacherOwn")];
+  function subLinkToken() {
+    const g = state.row?.group;
+    const u = g && g !== "\u2014" && state.planId ? usesOf(state.planId, g)[0] : null;
+    return u && u.run_token ? "r:" + u.run_token : state.shareToken;
   }
-  function lessonCard(r) {
-    const [cls, word] = status(r);
-    const what = [r.group, subjectLabel(r.subject), yearLabel(r.year)].filter(Boolean).join(" \xB7 ");
-    return '<article class="tdcard"><div class="tdtime mono">' + esc(r.start) + "<span>" + esc(r.end) + '</span></div><div class="tdmain"><div class="tdtop"><b>' + esc(what) + '</b><span class="tdst ' + cls + '">' + esc(word) + '</span></div><p class="tdmeta">' + [
-      r.room ? esc(r.room) : "",
-      r.teacher ? esc(t("tdFor")) + " " + esc(r.teacher) : "",
-      r.cover ? '<span class="covpill">\u2713 ' + esc(r.cover) + "</span>" : '<span class="tdnosub">' + esc(t("tdNoSub")) + "</span>",
-      isOwn(r) ? '<span class="tdown">' + esc(t("tdOwn")) + "</span>" : ""
-    ].filter(Boolean).join(" \xB7 ") + '</p><div class="tdplan">' + planRow(r, planFor(r.id)) + "</div></div>" + (isOwn(r) ? '<button class="x tdremove" data-tdremove="' + esc(r.id) + '" title="' + esc(t("tdRemove")) + '" aria-label="' + esc(t("tdRemove")) + '">\u2715</button>' : "") + "</article>";
-  }
-  function addForm() {
-    const opt = (v, lbl, on = false) => '<option value="' + esc(v) + '"' + (on ? " selected" : "") + ">" + esc(lbl) + "</option>";
-    return '<div class="bcard fx tdform"><h3>' + esc(t("tdAddTitle")) + '</h3><div class="tdgrid"><label class="f">' + esc(t("tdSubject")) + '<select id="td-subject">' + CATALOG_SUBJECTS.map((s) => opt(s, subjectLabel(s))).join("") + '</select></label><label class="f">' + esc(t("tdYear")) + '<select id="td-year">' + CATALOG_YEARS.map((y) => opt(y, yearLabel(y), y === "\xC5k 7")).join("") + '</select></label><label class="f">' + esc(t("tdClass")) + '<input id="td-class" maxlength="40" placeholder="7B"></label><label class="f">' + esc(t("tdStart")) + '<input id="td-start" type="time" value="08:20"></label><label class="f">' + esc(t("tdEnd")) + '<input id="td-end" type="time" value="09:20"></label><label class="f">' + esc(t("tdRoom")) + '<input id="td-room" maxlength="40"></label><label class="f">' + esc(t("tdTeacher")) + '<input id="td-teacher" maxlength="80"></label><label class="f">' + esc(t("tdSub")) + '<input id="td-sub" maxlength="80"></label></div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-tdcancel>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-tdsave>' + esc(t("tdSave")) + "</button></div></div>";
-  }
-  function renderToday() {
-    const host = maybe$("today-page");
-    if (!host) return;
-    const list = lessons();
-    const done = list.filter((r) => planFor(r.id)).length;
-    const pct = list.length ? Math.round(100 * done / list.length) : 100;
-    const day = (/* @__PURE__ */ new Date()).toLocaleDateString(LANG === "sv" ? "sv-SE" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
-    host.innerHTML = '<div class="tdhead card-elevated"><div class="tdsum"><p class="tdkicker">' + esc(day) + "</p><h2>" + esc(list.length ? fillT("tdSummary", { n: done, m: list.length }) : t("tdNone")) + '</h2><div class="tdbar"><i style="width:' + pct + '%"></i></div></div><div class="tdactions">' + (done < list.length ? '<button class="btn btn-primary" data-tdnext>' + esc(t("tdNext")) + "</button>" : "") + '<button class="btn btn-ghost" data-tdadd>' + esc(t("tdAdd")) + "</button></div></div>" + (formOpen ? addForm() : "") + '<div class="tdlist">' + list.map(lessonCard).join("") + '</div><p class="note">' + esc(t("tdSample")) + "</p>";
-  }
-  function saveForm() {
-    const v = (id) => (maybe$(id)?.value || "").trim();
-    const start = v("td-start"), end = v("td-end");
-    const toMin = (s) => {
-      const [h = 0, m = 0] = s.split(":").map(Number);
-      return h * 60 + m;
+  var EMBED = (() => {
+    const q = new URLSearchParams(location.search);
+    if (q.get("embed") !== "1") return null;
+    const num = (k, d) => {
+      const n = parseInt(q.get(k) || "", 10);
+      return Number.isFinite(n) ? n : d;
     };
-    const mins = toMin(end) - toMin(start);
-    if (!start || !end || mins <= 0) {
-      toast(t("tdBadTime"));
+    return {
+      row: {
+        id: q.get("ref") || "",
+        subject: q.get("subject") || "\u2014",
+        year: q.get("year") || "",
+        group: q.get("group") || "",
+        raw: q.get("code") || q.get("subject") || "",
+        mins: num("mins", 45),
+        start: q.get("start") || "",
+        end: q.get("end") || "",
+        time: [q.get("start"), q.get("end")].filter(Boolean).join("\u2013"),
+        room: q.get("room") || "\u2014",
+        teacher: q.get("teacher") || "\u2014",
+        cover: q.get("cover") || null,
+        practical: q.get("practical") === "1",
+        plannable: true
+      }
+    };
+  })();
+  function toParent(type, payload) {
+    if (!EMBED || window.parent === window) return;
+    try {
+      window.parent.postMessage({ source: "lektionskollen", type, ...payload }, "*");
+    } catch {
+    }
+  }
+  function openEmbed() {
+    if (!EMBED) return;
+    document.body.classList.add("embed");
+    state.row = EMBED.row;
+    state.plan = null;
+    state.planId = null;
+    state.view = "coordinator";
+    $("overlay").hidden = false;
+    const seq = nextPanel();
+    bankReady.then(() => {
+      if (panelIs(seq) && !state.planId) showRequest();
+    });
+    toParent("lk:ready", { ref: EMBED.row.id });
+  }
+  function openAddin(id) {
+    nextPanel();
+    state.row = ROWS.find((x) => x.id === id) || null;
+    state.plan = null;
+    state.planId = null;
+    state.view = "coordinator";
+    state.pshare = null;
+    if (state.row) {
+      state.pool.sub = canonSubject(state.row.subject);
+      state.pool.yr = canonYear(state.row.year);
+      savePoolPick();
+    }
+    $("overlay").hidden = false;
+    document.body.style.overflow = "hidden";
+    showRequest();
+  }
+  function closeAddin() {
+    stopWait();
+    nextPanel();
+    state.cr = null;
+    if (EMBED) {
+      toParent("lk:close", {});
       return;
     }
-    const subject = v("td-subject"), year = v("td-year");
-    const row = {
-      id: "own-" + Date.now().toString(36),
-      start,
-      end,
-      time: start + "\u2013" + end,
-      mins,
-      teacher: v("td-teacher"),
-      group: v("td-class"),
-      raw: subject,
-      subject,
-      year,
-      room: v("td-room"),
-      cover: v("td-sub") || null,
-      plannable: true
-    };
-    ROWS.push(row);
-    saveOwn([...loadOwn(), row]);
-    formOpen = false;
-    renderToday();
+    state.row = null;
+    $("overlay").hidden = true;
+    document.body.style.overflow = "";
+    document.body.classList.remove("panelmode");
+    if (state.screen === "cover") loadCoverPlans().then(renderRows).catch(() => {
+    });
+    if (state.screen === "create") {
+      const back = state.back;
+      state.back = "bank";
+      showScreen(back);
+    }
   }
-  function todayClick(tg) {
-    if (tg.closest("[data-tdadd]")) {
-      formOpen = !formOpen;
-      renderToday();
-      if (formOpen) maybe$("td-class")?.focus();
-      return true;
+
+  // app-src/lk-generate.ts
+  function showRequest() {
+    const r = state.row;
+    if (!r) return;
+    $("seam-state").textContent = "lk:init";
+    const matches = state.bank.filter((b) => canonSubject(b.subject) === canonSubject(r.subject) && canonYear(b.year_group) === canonYear(r.year) && b.approved);
+    $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("planFor")) + " " + esc(r.group) + '</h2><div class="plan-meta">' + esc(r.teacher) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.room) + (r.cover ? " \xB7 " + esc(r.cover) : " \xB7 " + esc(t("uncovered").toLowerCase())) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="derived"><div><dt>' + esc(t("subjectLbl")) + "</dt><dd>" + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t("fromCode")) + ' "' + esc(r.raw) + '"</div></div><div><dt>' + esc(t("yearLbl")) + "</dt><dd>" + esc(yearLabel(r.year)) + '</dd><div class="from">' + esc(t("derivedFrom")) + ' "' + esc(r.group) + '"</div></div><div><dt>' + esc(t("lengthLbl")) + "</dt><dd>" + r.mins + " " + esc(t("min")) + '</dd><div class="from">' + esc(r.start) + "\u2013" + esc(r.end) + "</div></div></div>" + (r.practical ? '<div class="flag"><span>\u26A0</span><div><b>' + esc(t("practicalWarn")) + "</b> " + esc(t("practicalBody")) + "</div></div>" : "") + (matches.length ? '<div><div class="sect-h">' + esc(t("fromBank")) + " \u2014 " + matches.length + " " + esc(matches.length === 1 ? t("bankApproved") : t("bankApprovedPl")) + '</div><div class="bankrow">' + matches.map((b) => {
+      const had = usesOf(b.id, r.group);
+      return '<button class="bankcard' + (had.length ? " hadit" : "") + '" data-usebank="' + b.id + '"><div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div><div class="m">' + b.minutes + " " + esc(t("min")) + " \xB7 " + b.rating_count + " " + esc(t("ratings")) + (b.shared ? " \xB7 " + esc(t("sharedTag")) : "") + "</div>" + (had.length ? '<div class="hadwarn">\u26A0 ' + esc(fillT("hadIt", { g: r.group, d: fmtDate(had[0].used_on) })) + "</div>" : "") + '</div><span class="stars">' + stars(b.rating) + '</span><span class="btn btn-soft btn-sm">' + esc(t("use")) + "</span></button>";
+    }).join("") + "</div></div>" : '<div><div class="sect-h">' + esc(t("fromBank")) + '</div><p class="hint">' + esc(t("bankNone")) + " " + esc(subjectLabel(r.subject)) + " " + esc(yearLabel(r.year)) + " " + esc(t("bankNoneTail")) + (EMBED ? "" : ' <button class="btn btn-ghost btn-sm" data-poolgo>' + esc(t("poolBrowse")) + " \u2192</button>") + "</p></div>") + (matches.length ? '<details class="steerbox"><summary>' + esc(t("noFit")) + "</summary>" : "") + '<div><div class="sect-h">' + esc(t("steer")) + '</div><div class="steer"><label class="f full">' + esc(t("fTopic")) + '<input id="s-topic" placeholder="' + esc(t("fTopicPh")) + '"></label><label class="f full">' + esc(t("fNotes")) + '<textarea id="s-notes" rows="2" placeholder="' + esc(t("fNotesPh")) + '"></textarea></label><label class="f">' + esc(t("fType")) + '<select id="s-type">' + (r.practical ? ["typeTheory", "typeContinue", "typePractical"] : ["typeRevision", "typeDeep", "typeQuiet"]).map((k) => "<option>" + esc(t(k)) + "</option>").join("") + '</select></label><p class="hint full" style="margin:2px 0 0">' + esc(t("fTypeHint")) + '</p><div class="full"><div class="sect-h" style="margin-bottom:6px">' + esc(t("fRes")) + '</div><div class="chips">' + ["resWhiteboard", "resProjector", "resComputers", "resBooks", "resMini"].map((k, i) => '<button class="tog' + (i === 0 ? " on" : "") + '" data-res>' + esc(t(k)) + "</button>").join("") + "</div></div></div></div>" + (matches.length ? "</details>" : "") + '<div class="foot"><span class="hint">' + esc(t("privacyNote")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn ' + (matches.length ? "btn-ghost" : "btn-primary") + '" data-generate>' + esc(t("create")) + "</button></div></div>";
+  }
+  function gatherRequest() {
+    const r = state.row;
+    if (!r) throw new Error("no lesson selected");
+    return {
+      absence_ref: r.id,
+      subject: r.subject,
+      year_group: r.year,
+      group_name: r.group,
+      room: r.room,
+      starts_at: r.start,
+      ends_at: r.end,
+      minutes: r.mins,
+      topic: maybe$("s-topic")?.value || "",
+      notes: maybe$("s-notes")?.value || "",
+      lesson_type: maybe$("s-type")?.value || "",
+      // Always both languages: lk-generate writes one and translates it, so the
+      // plan carries sv and en and the reader toggles.
+      language: "sv",
+      resources: [...document.querySelectorAll("[data-res].on")].map((b) => b.textContent)
+    };
+  }
+  async function invokeGen(body) {
+    const r = await sb.functions.invoke("lk-generate", { body });
+    if (r.error && !r.data) {
+      try {
+        const ctx = r.error.context;
+        if (ctx && typeof ctx.json === "function") return { data: await ctx.json(), error: r.error };
+      } catch {
+      }
     }
-    if (tg.closest("[data-tdcancel]")) {
-      formOpen = false;
-      renderToday();
-      return true;
+    return r;
+  }
+  function genErrText(data, error) {
+    const code = String(data?.error || "");
+    if (code === "no_model") return t("errNoModel");
+    if (code === "quota") return fillT("errQuota", { n: data?.limit ?? "" });
+    if (code === "bad_output") return t("errBadOutput");
+    if (code === "no_school") return t("errNoSchool");
+    if (code === "too_large") return t("errTooLarge");
+    if (code || error) console.warn("lk-generate", code, data?.detail, error);
+    return t("errUnknown");
+  }
+  async function generate() {
+    const req = gatherRequest();
+    const seq = nextPanel(), row = state.row;
+    const stillHere = () => panelIs(seq) && state.row === row;
+    $("seam-state").textContent = t("seamGenerating");
+    $("addin-content").innerHTML = waitHtml(t("genCalling"));
+    startWait();
+    const other = req.language === "en" ? "sv" : "en";
+    const main = await invokeGen({ request: req });
+    let alt = { error: new Error("skipped") };
+    if (!main.error && !main.data?.error) {
+      waitSay(t("genTranslating"));
+      alt = await invokeGen({ request: { ...req, language: other }, translate: main.data.source === "model" ? main.data.plan : void 0 });
     }
-    if (tg.closest("[data-tdsave]")) {
-      saveForm();
-      return true;
+    if (!stillHere()) return;
+    stopWait();
+    if (main.error || main.data?.error) {
+      const msg = genErrText(main.data, main.error);
+      $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><h2>' + esc(t("failed")) + '</h2><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="alert error">' + esc(msg) + '</div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-generate>' + esc(t("retry")) + "</button></div></div>";
+      return;
     }
-    const rm = tg.closest("[data-tdremove]");
-    if (rm) {
-      const id = rm.getAttribute("data-tdremove");
-      const i = ROWS.findIndex((r) => r.id === id);
-      if (i >= 0) ROWS.splice(i, 1);
-      saveOwn(loadOwn().filter((r) => r.id !== id));
-      renderToday();
-      return true;
+    const altPlan = !alt.error && !alt.data?.error ? alt.data.plan : null;
+    const { data: pid, error: saveErr } = await sb.rpc("lk_save_plan", {
+      p_request: req,
+      p_plan: main.data.plan,
+      p_model: main.data.model || null,
+      p_plan_alt: altPlan,
+      p_language_alt: altPlan ? other : null
+    });
+    if (saveErr) toast(t("saveFailed") + " " + saveErr.message);
+    if (!stillHere()) {
+      loadBank();
+      return;
     }
-    if (tg.closest("[data-tdnext]")) {
-      const next = lessons().find((r) => !planFor(r.id));
-      if (next) openPlanPanel(next.id);
-      return true;
-    }
-    return false;
+    const bodies = { [req.language]: main.data.plan };
+    if (altPlan) bodies[other] = altPlan;
+    state.bodies = bodies;
+    state.plan = pickBody();
+    state.planId = pid || null;
+    state.approved = false;
+    applyApproval({});
+    state.shareToken = null;
+    state.pshare = null;
+    state.view = "coordinator";
+    state.model = main.data.model || null;
+    showPlan();
+    loadBank();
+  }
+  function pickBody() {
+    const b = state.bodies || {};
+    return b[LANG] || b.sv || b.en || Object.values(b)[0] || null;
+  }
+  function bodyIsFallback() {
+    return !!(state.bodies && !state.bodies[LANG]);
+  }
+  function applyApproval(d) {
+    state.approved = !!d.approved;
+    state.apprRank = Number(d.approval_rank) || 0;
+    state.apprBy = d.approved_name || null;
+    state.apprSubject = d.approved_subject || null;
+    state.apprStale = !!d.approval_stale;
   }
 
   // app-src/lk-create.ts
@@ -2048,11 +1952,11 @@
   }
   function crLesson() {
     const c = state.cr;
-    const opt = (list, cur, fmt) => list.map((x) => '<option value="' + esc(x) + '"' + (x === cur ? " selected" : "") + ">" + esc(fmt(x)) + "</option>").join("");
+    const opt2 = (list, cur, fmt) => list.map((x) => '<option value="' + esc(x) + '"' + (x === cur ? " selected" : "") + ">" + esc(fmt(x)) + "</option>").join("");
     const thisWeek = isoWeek(/* @__PURE__ */ new Date());
     const rows = (c.term || []).filter((r) => r.topic).map((r) => ({ ...r, w: Number(r.week) })).filter((r) => r.w >= thisWeek - 2 && r.w <= thisWeek + 3).sort((a, b) => a.w - b.w);
     const term = c.term === null ? '<p class="hint">' + esc(t("loading")) + "</p>" : rows.length ? '<div class="chips">' + rows.map((r) => '<button class="tog' + (c.topic === r.topic ? " on" : "") + '" data-crtopic="' + esc(String(r.topic)) + '" data-crnote="' + esc(String(r.note || "")) + '">' + esc(t("tpWeek")) + " " + r.w + (r.w === thisWeek ? " \u2605" : "") + " \xB7 " + esc(String(r.topic)) + "</button>").join("") + "</div>" : '<p class="hint">' + esc(t("crNoTerm")) + "</p>";
-    return '<div class="steer"><label class="f">' + esc(t("subjectLbl")) + '<select id="cr-subject">' + opt(CATALOG_SUBJECTS, c.subject, subjectLabel) + '</select></label><label class="f">' + esc(t("yearLbl")) + '<select id="cr-year">' + opt(CATALOG_YEARS, c.year, yearLabel) + '</select></label><label class="f">' + esc(t("lengthLbl")) + '<select id="cr-min">' + [30, 40, 45, 50, 60, 70, 80, 90].map((m) => '<option value="' + m + '"' + (m === c.minutes ? " selected" : "") + ">" + m + " " + esc(t("min")) + "</option>").join("") + '</select></label><label class="f">' + esc(t("crLang")) + '<select id="cr-lang"><option value="sv"' + (c.lang === "sv" ? " selected" : "") + '>Svenska</option><option value="en"' + (c.lang === "en" ? " selected" : "") + '>English</option></select></label><label class="f full">' + esc(t("fTopic")) + '<input id="cr-topic" value="' + esc(c.topic) + '" placeholder="' + esc(t("fTopicPh")) + '"></label></div><div><div class="sect-h">' + esc(fillT("crTermH", { s: subjectLabel(c.subject), y: yearLabel(c.year) })) + "</div>" + term + "</div>" + crFoot("data-crback", "crNext", "data-crnext");
+    return '<div class="steer"><label class="f">' + esc(t("subjectLbl")) + '<select id="cr-subject">' + opt2(CATALOG_SUBJECTS, c.subject, subjectLabel) + '</select></label><label class="f">' + esc(t("yearLbl")) + '<select id="cr-year">' + opt2(CATALOG_YEARS, c.year, yearLabel) + '</select></label><label class="f">' + esc(t("lengthLbl")) + '<select id="cr-min">' + [30, 40, 45, 50, 60, 70, 80, 90].map((m) => '<option value="' + m + '"' + (m === c.minutes ? " selected" : "") + ">" + m + " " + esc(t("min")) + "</option>").join("") + '</select></label><label class="f">' + esc(t("crLang")) + '<select id="cr-lang"><option value="sv"' + (c.lang === "sv" ? " selected" : "") + '>Svenska</option><option value="en"' + (c.lang === "en" ? " selected" : "") + '>English</option></select></label><label class="f full">' + esc(t("fTopic")) + '<input id="cr-topic" value="' + esc(c.topic) + '" placeholder="' + esc(t("fTopicPh")) + '"></label></div><div><div class="sect-h">' + esc(fillT("crTermH", { s: subjectLabel(c.subject), y: yearLabel(c.year) })) + "</div>" + term + "</div>" + crFoot("data-crback", "crNext", "data-crnext");
   }
   function crHow() {
     const c = state.cr;
@@ -2473,6 +2377,164 @@
     });
   }
 
+  // app-src/lk-today.ts
+  var today = () => (/* @__PURE__ */ new Date()).toLocaleDateString("sv-SE");
+  var LOW = 1;
+  var plans = /* @__PURE__ */ new Map();
+  var all = [];
+  var ask = null;
+  var found = false;
+  var busy = false;
+  async function loadPlans() {
+    const { data } = await sb.rpc("lk_pool", { p_subject: null, p_year: null, p_scope: "all", p_approval: "any" });
+    all = data || [];
+    plans = new Map(all.map((p) => [p.id, p]));
+  }
+  async function loadToday() {
+    try {
+      await Promise.all([loadPlans(), loadUses()]);
+    } catch {
+    }
+    renderToday();
+  }
+  var usesToday = () => state.uses.filter((u) => u.used_on === today()).sort((a, b) => (a.lesson_time || "99").localeCompare(b.lesson_time || "99"));
+  function unused(subject, year, group) {
+    const g = group.trim();
+    const ok = all.filter((p) => p.approved && !p.approval_stale && p.subject === subject && p.year_group === year && !(g && usesOf(p.id, g).length));
+    return [...ok.filter((p) => p.origin === "teacher"), ...ok.filter((p) => p.origin !== "teacher")];
+  }
+  var originChip = (p) => p.origin === "teacher" ? '<span class="tdst ok">' + esc(t("origTeacher")) + (p.author_name ? " \xB7 " + esc(p.author_name) : "") + "</span>" : '<span class="tdst draft">' + esc(t("origAi")) + "</span>";
+  function stockChip(subject, year, group) {
+    const n = unused(subject, year, group).length;
+    if (n > LOW) return '<span class="tdstock">' + esc(fillT("tdLeft", { n, g: group })) + "</span>";
+    return '<span class="tdst warn">' + esc(n ? fillT("tdLow", { n, g: group }) : fillT("tdOut", { g: group })) + "</span>";
+  }
+  function useCard(u) {
+    const p = plans.get(u.plan_id);
+    const [start = "", end = ""] = (u.lesson_time || "").split("\u2013");
+    const title = p ? LANG !== p.language_alt ? p.title : p.title_alt || p.title : t("tdGone");
+    const what = [u.group_name, p ? subjectLabel(p.subject) : "", p ? yearLabel(p.year_group) : ""].filter(Boolean).join(" \xB7 ");
+    const link = u.run_token ? planUrl("r:" + u.run_token) : p ? planUrl(p.share_token) : "";
+    return '<article class="tdcard"><div class="tdtime mono">' + esc(start || "\u2014") + "<span>" + esc(end) + '</span></div><div class="tdmain"><div class="tdtop"><b>' + esc(what) + "</b>" + (p ? originChip(p) : "") + '</div><p class="tdtitle">' + esc(title) + '</p><p class="tdmeta">' + [
+      u.substitute ? esc(t("tdSubName")) + ": " + esc(u.substitute) : "",
+      p ? stockChip(p.subject, p.year_group, u.group_name) : ""
+    ].filter(Boolean).join(" \xB7 ") + "</p></div>" + (link ? '<a class="btn btn-ghost btn-sm tdopen" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(t("tdOpen")) + "</a>" : "") + "</article>";
+  }
+  function opt(v, lbl, on) {
+    return '<option value="' + esc(v) + '"' + (on ? " selected" : "") + ">" + esc(lbl) + "</option>";
+  }
+  function pickCard(p) {
+    const title = LANG !== p.language_alt ? p.title : p.title_alt || p.title;
+    return '<div class="tdpick"><div class="tdmain"><div class="tdtop"><b>' + esc(title) + "</b>" + originChip(p) + '</div><p class="tdmeta">' + [p.minutes ? p.minutes + " min" : "", p.mine === false && p.school ? esc(p.school) : ""].filter(Boolean).join(" \xB7 ") + '</p></div><a class="btn btn-ghost btn-sm" href="' + esc(planUrl(p.share_token)) + '" target="_blank" rel="noopener">' + esc(t("tdPreview")) + '</a><button class="btn btn-primary btn-sm" data-tduse="' + esc(p.id) + '"' + (busy ? " disabled" : "") + ">" + esc(t("tdUse")) + "</button></div>";
+  }
+  function results(a) {
+    const list = unused(a.subject, a.year, a.group);
+    const own = list.filter((p) => p.origin === "teacher");
+    const lesson = esc(a.group) + " \xB7 " + esc(subjectLabel(a.subject)) + " \xB7 " + esc(yearLabel(a.year));
+    const create = '<button class="btn btn-ghost btn-sm" data-tdcreate>' + esc(t("tdCreate")) + "</button>";
+    if (!list.length) {
+      return '<div class="tdres"><p class="tdempty"><b>' + esc(t("tdNoneLeft")) + "</b> " + lesson + '</p><p class="hint">' + esc(t("tdAskTeacher")) + '</p><div class="tdactions">' + create + "</div></div>";
+    }
+    return '<div class="tdres">' + (own.length ? "" : '<p class="hint tdnoteach">' + esc(t("tdNoTeacher")) + "</p>") + list.slice(0, 3).map(pickCard).join("") + '<p class="hint">' + esc(list.length === 1 ? t("tdMore1") : fillT("tdMore", { n: list.length })) + " " + create + "</p></div>";
+  }
+  function form(a) {
+    return '<div class="bcard fx tdform"><h3>' + esc(t("tdPlanTitle")) + '</h3><p class="hint">' + esc(t("tdPlanLead")) + '</p><div class="tdgrid"><label class="f">' + esc(t("tdSubject")) + '<select id="td-subject">' + CATALOG_SUBJECTS.map((s) => opt(s, subjectLabel(s), s === a.subject)).join("") + '</select></label><label class="f">' + esc(t("tdYear")) + '<select id="td-year">' + CATALOG_YEARS.map((y) => opt(y, yearLabel(y), y === a.year)).join("") + '</select></label><label class="f">' + esc(t("tdClass")) + '<input id="td-class" maxlength="40" placeholder="7B" value="' + esc(a.group) + '"></label><label class="f">' + esc(t("tdSub")) + '<input id="td-sub" maxlength="80" value="' + esc(a.sub) + '"></label><label class="f">' + esc(t("tdStart")) + '<input id="td-start" type="time" value="' + esc(a.start) + '"></label><label class="f">' + esc(t("tdEnd")) + '<input id="td-end" type="time" value="' + esc(a.end) + '"></label></div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-tdcancel>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-tdfind>' + esc(t("tdFind")) + "</button></div>" + (found ? results(a) : "") + "</div>";
+  }
+  function renderToday() {
+    const host = maybe$("today-page");
+    if (!host) return;
+    const list = usesToday();
+    const low = list.filter((u) => {
+      const p = plans.get(u.plan_id);
+      return p && unused(p.subject, p.year_group, u.group_name).length <= LOW;
+    }).length;
+    const day = (/* @__PURE__ */ new Date()).toLocaleDateString(LANG === "sv" ? "sv-SE" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
+    host.innerHTML = '<div class="tdhead card-elevated"><div class="tdsum"><p class="tdkicker">' + esc(day) + "</p><h2>" + esc(!list.length ? t("tdNoneToday") : list.length === 1 ? t("tdInUse1") : fillT("tdInUse", { n: list.length })) + '</h2><p class="hint" style="margin:0">' + esc(!low ? t("tdLead") : low === 1 ? t("tdLowSum1") : fillT("tdLowSum", { n: low })) + '</p></div><div class="tdactions"><button class="btn btn-primary" data-tdplan>' + esc(t("tdPlan")) + "</button></div></div>" + (ask ? form(ask) : "") + '<div class="tdlist">' + list.map(useCard).join("") + "</div>";
+  }
+  function readForm() {
+    const v = (id) => (maybe$(id)?.value || "").trim();
+    return { subject: v("td-subject"), year: v("td-year"), group: v("td-class"), start: v("td-start"), end: v("td-end"), sub: v("td-sub") };
+  }
+  function valid(a) {
+    if (!a.group) {
+      toast(t("tdNeedClass"));
+      maybe$("td-class")?.focus();
+      return false;
+    }
+    const m = (s) => {
+      const [h = 0, mm = 0] = s.split(":").map(Number);
+      return h * 60 + mm;
+    };
+    if (a.start && a.end && m(a.end) <= m(a.start)) {
+      toast(t("tdBadTime"));
+      return false;
+    }
+    return true;
+  }
+  async function use(planId) {
+    const a = readForm();
+    if (!a || !valid(a)) return;
+    busy = true;
+    renderToday();
+    try {
+      const { data, error } = await sb.rpc("lk_log_run", {
+        p_plan_id: planId,
+        p_group: a.group,
+        p_substitute: a.sub || null,
+        p_on: today(),
+        p_time: a.start ? a.start + (a.end ? "\u2013" + a.end : "") : null
+      });
+      if (error || !data) {
+        toast(error?.message || t("tdUseFail"));
+        return;
+      }
+      toast(fillT("tdUsed", { g: a.group }));
+      ask = null;
+      found = false;
+      await loadUses();
+    } finally {
+      busy = false;
+      renderToday();
+    }
+  }
+  function todayClick(tg) {
+    if (tg.closest("[data-tdplan]")) {
+      const hr = (/* @__PURE__ */ new Date()).getHours();
+      ask = ask || { subject: CATALOG_SUBJECTS[0], year: "\xC5k 7", group: "", start: String(Math.min(hr + 1, 16)).padStart(2, "0") + ":00", end: "", sub: "" };
+      found = false;
+      renderToday();
+      maybe$("td-class")?.focus();
+      return true;
+    }
+    if (tg.closest("[data-tdcancel]")) {
+      ask = null;
+      found = false;
+      renderToday();
+      return true;
+    }
+    if (tg.closest("[data-tdfind]")) {
+      const a = readForm();
+      if (a && valid(a)) {
+        ask = a;
+        found = true;
+        renderToday();
+      }
+      return true;
+    }
+    const u = tg.closest("[data-tduse]");
+    if (u) {
+      use(u.getAttribute("data-tduse"));
+      return true;
+    }
+    if (tg.closest("[data-tdcreate]")) {
+      const a = readForm() || ask;
+      state.back = "today";
+      openCreate(a?.subject, a?.year);
+      return true;
+    }
+    return false;
+  }
+
   // app-src/lk.ts
   state.pool = loadPoolPick();
   function setLang(l) {
@@ -2510,7 +2572,6 @@
       showSignIn();
       return;
     }
-    loadTodayRows();
     renderNav();
     enterApp().then(() => Promise.all([loadFeedback(), loadUses()])).then(() => EMBED ? openEmbed() : void 0).catch(() => {
     });
@@ -2660,6 +2721,8 @@
       state.tab = "bank";
       return showScreen("plans");
     }
+    const addon = tg.closest("[data-addon]");
+    if (addon) return setAddon(addon.getAttribute("data-addon") === "on");
     const loud = tg.closest("[data-loud]");
     if (loud) return setLoud(loud.getAttribute("data-loud"));
     const po = tg.closest("[data-planopen]");
@@ -2907,8 +2970,9 @@
     if (which === "create") renderCreate();
     if (which === "settings") renderSettings();
     renderNav();
-    if (which === "cover" || which === "today") loadCoverPlans().then(renderRows).catch(() => {
+    if (which === "cover") loadCoverPlans().then(renderRows).catch(() => {
     });
+    if (which === "today") loadToday();
     setTitles();
     window.scrollTo(0, 0);
   }

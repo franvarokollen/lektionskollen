@@ -1,7 +1,7 @@
 /* ── Stand-in for FVK's cover feed ──────────────────
    Shape mirrors cover_assignments. When FVK is wired up these arrive
    in the lk:init message instead. */
-import { $, CoverPlan, Row, esc, maybe$, sb, t } from './lk-core';
+import { $, ADDON, CoverPlan, Row, esc, maybe$, sb, t } from './lk-core';
 import { renderRows } from './lk-daily';
 import { planRow } from './lk-link';
 export const ROWS: Row[] = [
@@ -49,10 +49,14 @@ export function setLoud(v: string) {
 export function renderLoudPicker() {
   const el = maybe$('cv-loud');
   if (!el) return;
-  el.innerHTML = '<span class="lbl">' + esc(t('cvHow')) + '</span>' +
+  // The add-on switch: what a school with and without Lektionskollen sees.
+  el.innerHTML = '<span class="lbl">' + esc(t('cvAddon')) + '</span>' +
+    '<button class="' + (ADDON ? 'on' : '') + '" data-addon="on">' + esc(t('cvAddonOn')) + '</button>' +
+    '<button class="' + (!ADDON ? 'on' : '') + '" data-addon="off">' + esc(t('cvAddonOff')) + '</button>' +
+    (ADDON ? '<span class="lbl" style="margin-left:14px">' + esc(t('cvHow')) + '</span>' +
     ([['quiet', 'cvQuiet'], ['marked', 'cvMarked'], ['nudge', 'cvNudge']] as const).map(([v, k]) =>
-      '<button class="' + (LOUD === v ? 'on' : '') + '" data-loud="' + v + '">' + esc(t(k)) + '</button>').join('') +
-    '<span class="hint">' + esc(t('cvHowNote')) + '</span>';
+      '<button class="' + (LOUD === v ? 'on' : '') + '" data-loud="' + v + '">' + esc(t(k)) + '</button>').join('') : '') +
+    '<span class="hint">' + esc(t(ADDON ? 'cvHowNote' : 'cvAddonOffNote')) + '</span>';
 }
 
 /* ── What each cover slot has ────────────────────────────
@@ -91,7 +95,7 @@ export function openPop(ref: string, x: number, y: number) {
   POP = ref;
   const plan = planFor(ref);
   const el = $('cv-pop');
-  const planBtn = r.plannable ? planRow(r, plan) : '<p class="pnote">' + esc(t(r.whyKey || 'whyRast')) + '</p>';
+  const planBtn = !ADDON ? '' : r.plannable ? planRow(r, plan) : '<p class="pnote">' + esc(t(r.whyKey || 'whyRast')) + '</p>';
 
   el.innerHTML =
     '<div class="pophead">' +

@@ -1,5 +1,5 @@
 /** Everything marked data-t in the HTML. */
-import { $, LANG, SHELL, StrMap, esc, state, t } from './lk-core';
+import { $, ADDON, LANG, SHELL, StrMap, esc, state, t } from './lk-core';
 export function applyStatic() {
   document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.getAttribute('data-t') || ''); });
   document.querySelectorAll('[data-lang]').forEach((b) => b.classList.toggle('on', b.getAttribute('data-lang') === LANG));
@@ -57,16 +57,19 @@ const NAV_LK: NavItem[] = [
    shell reads like the product rather than a demo with two links. */
 const NAV_FVK: NavItem[] = [
   { id: 'cover', icon: 'users',     key: 'navCover',     real: true },
-  // One door for the add-on. The bank and the feedback queue are two views of
-  // the same thing, and a second sidebar entry made it look like two features.
-  { id: 'plans', icon: 'clipboard', key: 'navPlans', real: true, addon: true, badge: true },
+  // Two doors for the add-on, and only for a school that has it: the plans
+  // (bank, year planning and feedback as tabs) and Create a plan.
+  { id: 'plans',  icon: 'book',      key: 'navPlans',  real: true, addon: true, badge: true },
+  // The second door: making a plan is the other half of the product, and a
+  // coordinator should not have to find it inside the bank.
+  { id: 'create', icon: 'plus',      key: 'navCreate', real: true, addon: true },
   { id: 'hub',   icon: 'clipboard', key: 'navHub' },
   { id: 'radar', icon: 'radar',     key: 'navRadar' },
   { id: 'dash',  icon: 'grid',      key: 'navDashboard' },
   { id: 'set',   icon: 'settings',  key: 'navSettings' },
 ];
 
-export const NAV = SHELL === 'lk' ? NAV_LK : NAV_FVK;
+export const NAV = SHELL === 'lk' ? NAV_LK : NAV_FVK.filter((n) => ADDON || !n.addon);
 
 /** The nav item for what is on screen. In LK the plan tabs are pages of their own. */
 function currentNav(): string {

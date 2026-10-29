@@ -14,7 +14,7 @@ fi
 # 2. Keep the build stamp honest: anything staged under app/ restamps the pages.
 if git diff --cached --name-only | grep -q '^app/'; then
   node tools/stamp-build.mjs || exit 1
-  git add app/index.html app/plan.html app/version.txt
+  git add app/index.html app/fvk-demo.html app/plan.html app/version.txt
 fi
 
 # 3. The projector reads the plan's fields directly, so a careless edit there is
