@@ -380,6 +380,465 @@
     }
   };
 
+  // app-src/plan-core.ts
+  var sb = window.supabase.createClient(
+    "https://pbamabzbfbkxajntsrmc.supabase.co",
+    "sb_publishable_XtMg3eLikZtI-UkNspIwcA_bWGvj428"
+  );
+  var params = new URLSearchParams(location.search);
+  var RUN_CODE = params.get("r");
+  var P = {
+    token: params.get("t"),
+    RUN: null,
+    DATA: null,
+    EXTRAS: [],
+    REASONS: /* @__PURE__ */ new Set(),
+    // The substitute may not read Swedish comfortably, so they pick, not the school.
+    // Empty until a plan loads and picks a language it actually has.
+    LANG: params.get("lang") || (() => {
+      try {
+        return localStorage.getItem("lk.lang") || "";
+      } catch {
+        return "";
+      }
+    })(),
+    LASTASSIST: null,
+    STUDENT_TXT: "",
+    QUICK: false,
+    OFFLINE: false,
+    COV: "",
+    LEFT: "",
+    SAY: "",
+    // Teach mode is deliberately NOT remembered across visits: it is a thing you
+    // start when the class walks in, not a setting you live in.
+    TEACH: false,
+    TPHASE: 0,
+    // How much is written out (see that section).
+    DEPTH: (() => {
+      try {
+        return localStorage.getItem("lk.depth") || "full";
+      } catch {
+        return "full";
+      }
+    })(),
+    // Which tier the pupil sheet prints. The sheet itself never says which — a
+    // pupil handed "More support" at the top of the page has been told something
+    // about themselves that they did not ask to be told.
+    STIER: "core",
+    DECK: null,
+    DI: 0
+  };
+  var KEYID = RUN_CODE ? "r_" + RUN_CODE : P.token;
+  var ASPECTS = { reuse: "", clarity: "", timefit: "" };
+  var SESSION = (() => {
+    if (RUN_CODE) return "r_" + RUN_CODE;
+    const k = "lk.sess." + P.token;
+    try {
+      let v = localStorage.getItem(k);
+      if (!v) {
+        v = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem(k, v);
+      }
+      return v;
+    } catch {
+      return Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+  })();
+  var PROG = (() => {
+    const base = { ready: {}, done: {}, short: false, sec: {} };
+    try {
+      return Object.assign(base, JSON.parse(localStorage.getItem("lk.prog." + KEYID) || "{}"));
+    } catch {
+      return base;
+    }
+  })();
+  var saveProg = () => {
+    try {
+      localStorage.setItem("lk.prog." + KEYID, JSON.stringify(PROG));
+    } catch {
+    }
+  };
+  var ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+  var esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ESC[c] ?? c);
+  function $(id) {
+    const el = document.getElementById(id);
+    if (!el) throw new Error("missing #" + id);
+    return el;
+  }
+  var maybe$ = (id) => document.getElementById(id);
+  var L = () => P.LANG === "en" ? EN_LABELS : SV_LABELS;
+
+  // app-src/plan-teacher.ts
+  function renderTeacher(d) {
+    const l = L();
+    const all = { [d.language || "sv"]: d.body };
+    if (d.body_alt && d.language_alt) all[d.language_alt] = d.body_alt;
+    const p = all[P.LANG] || all[d.language || "sv"] || {};
+    const said = d.substitute_said || [];
+    const covText = { all: l.covAll, part: l.covPart, none: l.covNone };
+    $("out").innerHTML = '<div class="card"><span class="kicker">' + esc(l.tKicker) + "</span><h1>" + esc(p.title || d.title) + '</h1><p class="muted">' + esc(d.group_name) + " \xB7 " + esc(new Date(d.used_on).toLocaleDateString(
+      P.LANG === "sv" ? "sv-SE" : "en-GB",
+      { weekday: "long", day: "numeric", month: "long" }
+    )) + (d.substitute ? " \xB7 " + esc(d.substitute) : "") + "</p>" + (said.length ? '<div class="ps"><h3>' + esc(l.tSubSaid) + "</h3>" + said.map((x) => '<p style="margin:4px 0">' + (x.coverage ? "<b>" + esc(covText[x.coverage] || x.coverage) + ".</b> " : "") + (x.left_off ? esc(l.covLeftLbl) + ": " + esc(x.left_off) + ". " : "") + (x.comment ? esc(x.comment) : "") + "</p>").join("") + "</div>" : "") + '</div><div class="card ratebox noprint"><h3>' + esc(l.tQuestion) + '</h3><p class="muted" style="margin:0 0 10px">' + esc(l.tWhy) + '</p><div class="qpick" id="tverdict">' + [["right", l.tRight], ["mostly", l.tMostly], ["wrong", l.tWrong]].map((o) => '<button data-tv="' + o[0] + '"' + (d.teacher_verdict === o[0] ? ' class="on"' : "") + ">" + esc(o[1]) + "</button>").join("") + '</div><label for="tnote" style="display:block;font-size:13px;font-weight:600;margin:14px 0 5px">' + esc(l.tNoteLbl) + '</label><div class="noterow"><input id="tnote" type="text" maxlength="400" placeholder="' + esc(l.tNotePh) + '" value="' + esc(d.teacher_note || "") + '"><button data-tnote>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.tNoteHint) + '</p><p id="tmsg" class="hint" style="margin-top:10px"></p></div><div class="card"><h3>' + esc(l.tThePlan) + "</h3><p>" + esc(p.summary || "") + '</p><p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.goal) + "</b> " + esc(p.goal || "") + "</p>" + // Parenthesised deliberately: a bare ternary here takes the whole
+    // concatenation above as its condition and throws the card away.
+    ((p.tasks || []).length ? '<h4 style="margin-top:14px">' + esc(l.tasks) + '</h4><ol style="font-size:13.5px">' + (p.tasks || []).map((x) => "<li>" + esc(x.q) + '<br><span class="ans">' + esc(x.a) + "</span></li>").join("") + "</ol>" : "") + "</div>";
+  }
+
+  // app-src/plan-linked.ts
+  function safeUrl(u) {
+    try {
+      const url = new URL(String(u || ""));
+      return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+    } catch {
+      return null;
+    }
+  }
+  function embedUrl(u) {
+    const safe = safeUrl(u);
+    if (!safe) return null;
+    const url = new URL(safe);
+    if (/^(docs|drive)\.google\.com$/.test(url.hostname)) {
+      const m = url.pathname.match(/^\/(document|presentation|spreadsheets|file)\/d\/([^/]+)/);
+      if (m) return "https://" + url.hostname + "/" + m[1] + "/d/" + m[2] + "/preview";
+    }
+    return safe;
+  }
+  function renderLinked(d) {
+    const l = L();
+    const link = safeUrl(d.url);
+    const emb = link ? embedUrl(link) : null;
+    const what = d.label || (d.url ? l.linkedFrom : l.linkedNote);
+    const until = d.expires_at ? new Date(d.expires_at) : null;
+    const untilLine = until && !d.expired ? '<p class="hint">' + esc(l.linkedUntil) + " " + esc(runDate(new Date(until.getTime() - 1e3).toISOString().slice(0, 10))) + "</p>" : "";
+    $("out").innerHTML = '<div class="card"><span class="kicker">' + esc(l.linkedKicker) + "</span><h1>" + esc(what) + "</h1>" + untilLine + (d.expired ? '<div class="flag"><span>!</span><div><b>' + esc(l.linkedGoneH) + "</b> " + esc(l.linkedGoneB) + "</div></div>" : "") + // Typed instructions have no button to press, so they must not be told
+    // to press one. The teacher's own words are never translated — they are
+    // the teacher's, and a rough translation of a safety instruction is worse
+    // than the original. The reader can still choose to translate it with the
+    // browser (translate="yes" below), which is their call and shows them the
+    // original underneath on hover; we never do it for them.
+    (d.expired ? "" : '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + "</p>") + (d.note ? '<div class="ps"><h3>' + esc(l.linkedNoteH) + '</h3><p translate="yes" style="white-space:pre-wrap">' + esc(d.note) + "</p></div>" : "") + (link ? '<p class="noprint"><a class="openbtn" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(l.linkedOpen) + " \u2197</a></p>" + (emb ? '<details class="peek noprint"><summary>' + esc(l.linkedPeek) + '</summary><div class="embed"><iframe src="' + esc(emb) + '" title="' + esc(what) + '" loading="lazy"></iframe></div><p class="hint">' + esc(l.linkedFallback) + "</p></details>" : "") : "") + '</div><div class="card ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-lcov="' + k + '">' + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '"><button data-lleft>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><p id="lratemsg" class="hint" style="margin-top:10px"></p><p class="hint" style="margin:10px 0 0">' + esc(l.linkedNoRate) + "</p></div>";
+  }
+  function runDate(d) {
+    return (/* @__PURE__ */ new Date(d + "T12:00:00")).toLocaleDateString(
+      P.LANG === "sv" ? "sv-SE" : "en-GB",
+      { weekday: "short", day: "numeric", month: "short" }
+    );
+  }
+  function shiftT(tt, sh) {
+    if (!sh || !tt) return tt;
+    return String(tt).replace(/(\d{1,2}):(\d{2})/g, (_m, h, mi) => {
+      const v = ((+h * 60 + +mi + sh) % 1440 + 1440) % 1440;
+      return ("0" + Math.floor(v / 60)).slice(-2) + ":" + ("0" + v % 60).slice(-2);
+    });
+  }
+  function clockShift(p) {
+    const m = P.RUN && P.RUN.lesson_time && String(P.RUN.lesson_time).match(/(\d{1,2}):(\d{2})/);
+    const f = p && (p.phases || [])[0] && String(p.phases[0].t || "").match(/(\d{1,2}):(\d{2})/);
+    if (!m || !f) return 0;
+    return +m[1] * 60 + +m[2] - (+f[1] * 60 + +f[2]);
+  }
+  function runBand() {
+    if (!P.RUN) return "";
+    const l = L();
+    const until = P.RUN.expires_at ? new Date(P.RUN.expires_at) : null;
+    return '<div class="runband"><b>' + esc(P.RUN.group_name) + "</b>" + (P.RUN.lesson_time ? " \xB7 " + esc(P.RUN.lesson_time) : "") + " \xB7 " + esc(runDate(P.RUN.used_on)) + (P.RUN.substitute ? " \xB7 " + esc(P.RUN.substitute) : "") + (until ? '<span class="until">' + esc(l.runUntil) + " " + esc(runDate(new Date(until.getTime() - 1e3).toISOString().slice(0, 10))) + "</span>" : "") + "</div>";
+  }
+
+  // app-src/plan-load.ts
+  async function load() {
+    if (RUN_CODE) {
+      const rr = await sb.rpc("lk_run_by_token", { p_run: RUN_CODE });
+      P.RUN = rr.data;
+      if (!P.RUN) {
+        $("out").innerHTML = '<p class="muted">' + esc(L().notFound) + "</p>";
+        return;
+      }
+      if (P.RUN.expired || !P.RUN.plan_token) {
+        $("out").innerHTML = '<div class="full"><div class="offl">' + esc(L().runExpiredH) + '</div><p class="muted">' + esc(L().runExpiredB.replace("{g}", P.RUN.group_name).replace("{d}", runDate(P.RUN.used_on))) + "</p></div>";
+        return;
+      }
+      P.token = P.RUN.plan_token;
+    }
+    if (!P.token) {
+      $("out").innerHTML = '<p class="muted">' + esc(L().noCode) + "</p>";
+      return;
+    }
+    if (params.get("as") === "teacher") {
+      const tv = await sb.rpc("lk_teacher_view", { p_token: P.token });
+      if (tv.data) {
+        renderTeacher(tv.data);
+        return;
+      }
+    }
+    const linked = await sb.rpc("lk_linked_by_token", { p_token: P.token });
+    if (linked.data) {
+      renderLinked(linked.data);
+      return;
+    }
+    const [plan, extras] = await Promise.all([
+      sb.rpc("lk_plan_by_token", { p_token: P.token }),
+      sb.rpc("lk_extras_by_token", { p_token: P.token })
+    ]);
+    const ck = "lk.plan." + P.token;
+    if (plan.error && !plan.data) {
+      try {
+        const c = JSON.parse(localStorage.getItem(ck) || "null");
+        if (c && c.plan) {
+          P.OFFLINE = true;
+          P.EXTRAS = c.extras || [];
+          render(c.plan);
+          return;
+        }
+      } catch {
+      }
+    }
+    if (plan.error || !plan.data) {
+      $("out").innerHTML = '<p class="muted">' + esc(L().notFound) + "</p>";
+      return;
+    }
+    P.EXTRAS = Array.isArray(extras.data) ? extras.data : [];
+    try {
+      localStorage.setItem(ck, JSON.stringify({ plan: plan.data, extras: P.EXTRAS }));
+    } catch {
+    }
+    render(plan.data);
+  }
+  function bodies(d) {
+    const b = {};
+    b[d.language || "sv"] = d.body;
+    if (d.body_alt && d.language_alt) b[d.language_alt] = d.body_alt;
+    return b;
+  }
+
+  // app-src/plan-assist.ts
+  function assistRow(ref, label) {
+    const l = L(), a = (k, v, txt) => '<button data-assist="' + k + '" data-ref="' + esc(ref) + '"' + (v ? ' data-variant="' + v + '"' : "") + ' data-label="' + esc(label) + '">' + esc(txt) + "</button>";
+    return '<div class="assist noprint">' + a("explain", "", l.aExplain) + a("exercise", "", l.aExercise) + a("level", "easier", l.aEasier) + a("level", "harder", l.aHarder) + "</div>";
+  }
+  function extraBody(x) {
+    if (x.language === P.LANG) return { body: x.body, exact: true };
+    if (x.language_alt === P.LANG && x.body_alt) return { body: x.body_alt, exact: true };
+    return { body: x.body, exact: false, lang: x.language };
+  }
+  var extraHasContent = (b) => b && (b.title || (b.lines || []).length || b.board || (b.tasks || []).length);
+  function storedFor(opts) {
+    if (opts.kind === "filler") return null;
+    const hit = P.EXTRAS.filter((x) => x.section_ref === opts.ref && x.kind === opts.kind && (x.variant || "") === (opts.variant || "") && x.kept !== false).filter((x) => {
+      const b = extraBody(x);
+      return b.exact && extraHasContent(b.body);
+    });
+    return hit.length ? hit[hit.length - 1] : null;
+  }
+  function sheetHtml(extra, source, saveNote, extraId, opts) {
+    const l = L();
+    const srcTxt = source === "stored" ? l.srcStored : source === "model" ? l.srcModel : source === "cache" ? l.srcCache : source === "fallback" ? l.srcFallback : l.srcLibrary;
+    let h = "<h3>" + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) + (extra.minutes ? " \xB7 " + extra.minutes + " min" : "") + "</div>";
+    h += "<ol>" + (extra.lines || []).map((x) => "<li>" + esc(x) + "</li>").join("") + "</ol>";
+    if (extra.board) h += '<h4 style="font-size:13px;margin-bottom:5px">' + esc(l.boardNow) + '</h4><div class="board">' + esc(extra.board) + "</div>";
+    if ((extra.tasks || []).length) {
+      h += '<h4 style="font-size:13px;margin:14px 0 5px">' + esc(l.tasksNow) + '</h4><ol style="font-size:13.5px">' + extra.tasks.map((x) => "<li>" + esc(x.q) + ' <span class="ans">' + esc(x.a) + "</span></li>").join("") + "</ol>";
+    }
+    h += '<div class="sheetfoot"><span class="hint">' + esc(saveNote) + "</span></div>";
+    if (extraId) {
+      h += '<div class="xverdict"><span>' + esc(l.xvQ) + '</span><button data-xv="' + extraId + ':1">' + esc(l.xvUp) + '</button><button data-xv="' + extraId + ':0">' + esc(l.xvDown) + '</button><span class="hint" id="xvmsg"></span></div>';
+      h += '<div class="note"><label for="noteq">' + esc(l.whatHappened) + '</label><div class="noterow"><input id="noteq" type="text" maxlength="240" placeholder="' + esc(l.whatHappenedPh) + '"><button data-note="' + extraId + '" data-noteref="' + esc(opts?.ref || "") + '">' + esc(l.send) + '</button></div><p id="notemsg" class="hint" style="margin:7px 0 0"></p></div>';
+    }
+    return h;
+  }
+  async function runAssist(opts) {
+    const l = L();
+    P.LASTASSIST = opts;
+    $("sheet").hidden = false;
+    const have = opts.fresh ? null : storedFor(opts);
+    if (have) {
+      $("sheetbody").innerHTML = sheetHtml(extraBody(have).body || {}, "stored", "", have.id, opts) + '<div class="strow noprint"><button class="stbtn" data-assistnew="1">' + esc(l.genNew) + '</button><button class="stbtn" data-student="x:' + have.id + '">' + esc(l.forStudents) + "</button></div>";
+      return;
+    }
+    $("sheetbody").innerHTML = '<h3><span class="spin"></span> ' + esc(l.working) + "</h3>";
+    if (!P.DATA) return;
+    const p = currentBody();
+    const payload = {
+      kind: opts.kind,
+      section_ref: opts.ref,
+      section_label: opts.label,
+      section_text: opts.text || "",
+      variant: opts.variant || "",
+      language: P.LANG,
+      subject: P.DATA.subject,
+      year_group: P.DATA.year_group,
+      topic: p?.title || P.DATA.title,
+      minutes_left: opts.minutes || void 0,
+      fresh: opts.fresh || void 0,
+      // The plan this help is charged to; lk-assist takes from its daily cap.
+      token: P.token
+    };
+    const q = await sb.rpc("lk_assist_quota", { p_token: P.token });
+    if (typeof q.data === "number" && q.data <= 0) {
+      $("sheetbody").innerHTML = "<h3>" + esc(l.quota) + "</h3>";
+      return;
+    }
+    const { data, error } = await sb.functions.invoke("lk-assist", { body: payload });
+    if (error || !data?.extra) {
+      $("sheetbody").innerHTML = "<h3>" + esc(l.saveFail) + '</h3><p class="muted">' + esc(error?.message || "unknown") + "</p>";
+      return;
+    }
+    const saved = await sb.rpc("lk_assist_save", {
+      p_token: P.token,
+      p_section_ref: opts.ref,
+      p_section_label: opts.label || null,
+      p_kind: opts.kind,
+      p_variant: opts.variant || null,
+      p_language: data.language || P.LANG,
+      p_body: data.extra,
+      p_model: data.model || null,
+      p_body_alt: data.extra_alt || null,
+      p_language_alt: data.extra_alt ? data.language_alt : null
+    });
+    const ok = saved.data?.ok;
+    const note = ok ? l.saved : saved.data?.error === "quota" ? l.quota : "";
+    $("sheetbody").innerHTML = sheetHtml(data.extra, data.source, note, ok ? saved.data.id : null, opts);
+    if (ok) {
+      P.EXTRAS.push({
+        id: saved.data.id,
+        section_ref: opts.ref || "",
+        section_label: opts.label,
+        kind: opts.kind,
+        variant: opts.variant,
+        language: data.language || P.LANG,
+        body: data.extra,
+        language_alt: data.extra_alt ? data.language_alt : null,
+        body_alt: data.extra_alt || null
+      });
+      render(P.DATA, true);
+    }
+  }
+  function currentBody() {
+    if (!P.DATA) return null;
+    const all = bodies(P.DATA);
+    return all[P.LANG] || all[P.DATA.language || "sv"] || null;
+  }
+
+  // app-src/plan-depth.ts
+  function studentParts(which) {
+    const l = L();
+    const p = P.DATA && bodies(P.DATA)[P.LANG] || {};
+    let title, board, tasks, mats = [], exit = "";
+    if (which === "lesson") {
+      title = p.title;
+      board = p.board;
+      tasks = (p.tasks || []).filter((x) => (x.tier || "core") === P.STIER).map((x) => x.q);
+      mats = p.materials || [];
+      exit = p.exit?.q || "";
+    } else {
+      const x = P.EXTRAS.find((e) => String(e.id) === which.slice(2));
+      const { body } = extraBody(x || {});
+      title = body?.title;
+      board = body?.board;
+      tasks = (body?.tasks || []).map((q) => q.q);
+    }
+    const txt = [title, "", board, ""].concat(mats.map((m) => m.h + "\n" + m.body + "\n")).concat(tasks.map((q, i) => i + 1 + ". " + q)).concat(exit ? ["", l.exit + ": " + exit] : []).join("\n").trim();
+    let h = "<h1>" + esc(title || "") + "</h1>";
+    if (board) h += '<div class="bigboard">' + esc(board) + "</div>";
+    mats.forEach((m) => {
+      h += "<h2>" + esc(m.h) + '</h2><div class="mat">' + esc(m.body) + "</div>";
+    });
+    if (tasks.length) h += "<h2>" + esc(l.tasksNow.replace(/ med facit| with answers/i, "")) + "</h2><ol>" + tasks.map((q) => "<li>" + esc(q) + "</li>").join("") + "</ol>";
+    if (exit) h += "<h2>" + esc(l.exit) + '</h2><p style="font-size:19px">' + esc(exit) + "</p>";
+    return { html: h, txt };
+  }
+  function openStudent(which) {
+    const l = L();
+    const { html, txt } = studentParts(which);
+    P.STUDENT_TXT = txt;
+    const p = P.DATA && bodies(P.DATA)[P.LANG] || {};
+    const has = (k) => (p.tasks || []).some((x) => (x.tier || "core") === k);
+    const picker = which !== "lesson" || !(has("support") || has("extension")) ? "" : '<span class="stier">' + esc(l.tierQ) + "</span>" + [["support", l.tierSupport], ["core", l.tierStandard], ["extension", l.tierChallenge]].filter((x) => has(x[0])).map((x) => '<button class="stbtn' + (P.STIER === x[0] ? " on" : "") + '" data-stier="' + x[0] + '">' + esc(x[1]) + "</button>").join("");
+    const h = '<div class="in"><div class="stbar noprint">' + picker + '<span class="stsp"></span><button class="stbtn" data-stprint>' + esc(l.print) + '</button><button class="stbtn" data-stcopy>' + esc(l.copyText) + '</button><button class="stbtn" data-stclose>' + esc(l.close) + "</button></div>" + html + "</div>";
+    let el = document.getElementById("student");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "student";
+      document.body.appendChild(el);
+    }
+    el.innerHTML = h;
+    el.hidden = false;
+    el.scrollTop = 0;
+    document.body.classList.add("pst");
+  }
+  function closeStudent() {
+    const el = document.getElementById("student");
+    if (el) el.hidden = true;
+    document.body.classList.remove("pst");
+  }
+
+  // app-src/plan-render.ts
+  function render(d, keepScroll) {
+    const y = keepScroll ? window.scrollY : 0;
+    P.DATA = d;
+    const all = bodies(d);
+    if (!all[P.LANG]) P.LANG = d.language || Object.keys(all)[0];
+    const p = all[P.LANG] || {};
+    const choices = Object.keys(all);
+    const l = L();
+    if (P.QUICK) {
+      let q = '<div class="qmode"><div class="subhead"><div class="subhead-row"><div><h1>' + esc(l.quickTitle) + " \u2014 " + esc(p.title) + '</h1><div class="m">' + esc(l.quickHint) + '</div></div></div></div><div class="strow noprint"><button class="stbtn" data-quick="0">' + esc(l.fullBtn) + '</button></div><div class="flag" style="background:#f0f5fb;color:#14407a"><span>\u2460</span><div><b>' + esc(l.first90) + '</b><ul style="margin:6px 0 0;padding-left:18px">' + (p.first90 || []).map((x) => "<li>" + esc(x) + "</li>").join("") + '</ul></div></div><div class="ps"><h4>' + esc(l.board) + '</h4><div class="board">' + esc(p.board) + '</div><p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + "</b> " + esc(p.equipment?.need) + '</p></div><div class="ps"><h4>' + esc(l.clock) + "</h4>" + (p.phases || []).map((ph) => '<p style="margin:4px 0;font-size:14px"><span class="clock">' + esc(shiftT(ph.t, clockShift(p))) + "</span> <strong>" + esc(ph.n) + "</strong></p>").join("") + '</div><div class="strow noprint"><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + "</button></div></div>";
+      $("out").innerHTML = q;
+      $("bar").hidden = true;
+      if (keepScroll) window.scrollTo(0, y);
+      return;
+    }
+    const phases = p.phases || [];
+    const hooks = {
+      lbl: (k) => l[k] ?? "",
+      depth: P.DEPTH,
+      assistRow: (ref, name) => assistRow(ref, name),
+      projector: true,
+      shiftMin: clockShift(p),
+      help: false,
+      // lifted into the margin rail below
+      interactive: true,
+      ready: PROG.ready,
+      done: PROG.done,
+      short: PROG.short
+    };
+    if (P.TEACH) {
+      const i = Math.max(0, Math.min(P.TPHASE, phases.length - 1));
+      const one = window.LKPlan.render(p, Object.assign(
+        {},
+        hooks,
+        // done:{} so a finished step still shows when you go Back to it; in this
+        // view "Done" moves on instead of folding the only thing on screen.
+        { only: i, done: {}, assistRow: () => "", extras: () => "" }
+      ));
+      $("out").innerHTML = '<div class="teachview"><div class="tv">' + one + '</div><div class="tvbar"><button data-teach="0">' + esc(l.prepBtn) + "</button><button data-projdeck>" + esc(l.projDeck) + '</button><div class="tvdots">' + phases.map((_, j) => '<i class="' + (j === i ? "on" : "") + '"></i>').join("") + '</div><span class="pos">' + (i + 1) + " " + esc(l.phaseOf) + " " + phases.length + '</span><span class="sp"></span><button data-tph="' + (i - 1) + '"' + (i === 0 ? " disabled" : "") + ">" + esc(l.prevPhase) + '</button><button class="pri" data-tph="' + (i + 1) + '"' + (i >= phases.length - 1 ? " disabled" : "") + ">" + esc(l.nextPhase) + "</button></div></div>";
+      document.body.classList.add("teach");
+      $("bar").hidden = true;
+      return;
+    }
+    document.body.classList.remove("teach");
+    let h = '<div class="full">' + (d.model === "canned" ? '<div class="offl noprint">' + esc(l.simBanner) + "</div>" : "") + (P.OFFLINE ? '<div class="offl noprint">' + esc(l.offlineNote) + "</div>" : "") + '<div class="subhead">' + runBand() + '<div class="subhead-row"><div><h1>' + esc(p.title) + '</h1><div class="m">' + esc(d.subject) + " \xB7 " + esc(d.year_group) + " \xB7 " + d.minutes + " min \xB7 " + esc(d.school) + "</div></div>" + (choices.length > 1 ? '<div class="langpick noprint">' + choices.map((c) => '<button data-pick="' + c + '"' + (c === P.LANG ? ' class="on"' : "") + ">" + (c === "sv" ? "SV" : "EN") + "</button>").join("") + "</div>" : "") + '</div><div class="startrow noprint"><button class="startbtn" data-teach="1">' + esc(l.teachBtn) + '</button><span class="starthint">' + esc(l.teachHint) + '</span></div></div><div class="strow noprint"><button class="stbtn" data-quick="1">' + esc(l.quickBtn) + '</button><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button><button class="stbtn" data-pack>' + esc(l.packBtn) + '</button></div><div class="depthrow noprint"><span class="dl">' + esc(l.depthQ) + "</span>" + [["full", l.depthFull], ["guided", l.depthGuided], ["brief", l.depthBrief]].map((x) => '<button data-depth="' + x[0] + '"' + (P.DEPTH === x[0] ? ' class="on"' : "") + ">" + esc(x[1]) + "</button>").join("") + "</div></div>";
+    h += '<aside class="rail rail-l noprint"><div class="rail-in"><div class="nav"><h4>' + esc(l.railWhere) + "</h4>" + phases.map((ph, i) => '<a href="#ph' + i + '" class="' + window.LKPlan.kind(i) + '">' + esc(ph.n) + '<span class="t">' + esc(shiftT(ph.t, clockShift(p))) + "</span></a>").join("") + "</div></aside>";
+    h += '<main class="col">' + window.LKPlan.render(p, hooks) + "</main>";
+    h += '<aside class="rail rail-r"><div class="rail-in">' + window.LKPlan.help(p, hooks.lbl) + "</div></aside>";
+    h += '<hr class="after-rule noprint"><div class="full">' + window.LKPlan.after(p, hooks.lbl) + "</div>";
+    h += '<div class="full"><div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts("lesson").html + "</div></div>";
+    const SECV = [["good", l.fbGood], ["ok", l.fbOk], ["bad", l.fbBad]];
+    const STARS = Number(PROG.stars || 0);
+    h += '<section class="fbpanel noprint" id="feedback"><button class="fb-open" data-fbtoggle aria-expanded="' + (PROG.fbopen ? "true" : "false") + '"><span><b>' + esc(l.fbOpen) + "</b><small>" + esc(l.fbOpenSub) + '</small></span><i class="fb-caret">&#9662;</i></button><div class="fb-body"' + (PROG.fbopen ? "" : " hidden") + '><p class="fb-intro">' + esc(l.fbIntro) + "</p><h4>" + esc(l.fbSteps) + "</h4>" + phases.map((ph, i) => {
+      const ref = "phase:" + i, cur = PROG.sec[ref] || {};
+      return '<div class="fb-row" data-fbrow="' + ref + '"><div class="fb-top"><div class="fb-lbl"><span class="fb-n">' + (i + 1) + "</span>" + esc(ph.n) + '</div><div class="fb-pick">' + SECV.map((o) => '<button data-sec="' + ref + "|" + o[0] + '" class="fb-' + o[0] + (cur.v === o[0] ? " on" : "") + '">' + esc(o[1]) + "</button>").join("") + '<button data-sec="' + ref + '|skipped" class="fb-skipped' + (cur.v === "skipped" ? " on" : "") + '">' + esc(l.fbSkipped) + '</button></div></div><div class="fb-note"' + (cur.v === "ok" || cur.v === "bad" ? "" : " hidden") + '><input type="text" maxlength="300" placeholder="' + esc(l.fbNotePh) + '" value="' + esc(cur.note || "") + '" data-secnote-in="' + ref + '"><button data-secnote="' + ref + '">' + esc(l.send) + "</button></div></div>";
+    }).join("") + "<h4>" + esc(l.fbStarsQ) + '</h4><div class="fb-stars" id="fbstars" role="radiogroup"><span class="fb-sl">' + esc(l.fbStar1) + "</span>" + [1, 2, 3, 4, 5].map((n) => '<button data-star="' + n + '" class="' + (n <= STARS ? "on" : "") + '" aria-label="' + n + '">&#9733;</button>').join("") + '<span class="fb-sl">' + esc(l.fbStar5) + "</span></div>" + [["reuse", l.qReuse, [["yes", l.aReuseYes], ["changes", l.aReuseChanges], ["no", l.aReuseNo]]]].map(function(q) {
+      return '<div class="qrow"><p class="ql">' + esc(q[1]) + '</p><div class="qpick" id="q-' + q[0] + '">' + q[2].map(function(o) {
+        return '<button data-asp="' + q[0] + ":" + o[0] + '"' + (ASPECTS[q[0]] === o[0] ? ' class="on"' : "") + ">" + esc(o[1]) + "</button>";
+      }).join("") + "</div></div>";
+    }).join("") + "<h4>" + esc(l.covTitle) + '</h4><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-cov="' + k + '"' + (P.COV === k ? ' class="on"' : "") + ">" + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(P.LEFT) + '"><button data-leftoff>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><div id="why"' + (ASPECTS.reuse && ASPECTS.reuse !== "yes" ? "" : " hidden") + '><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p><div class="reasons">' + Object.keys(l.reasons).map((k) => '<button data-reason="' + k + '"' + (P.REASONS.has(k) ? ' class="on"' : "") + ">" + esc(l.reasons[k]) + "</button>").join("") + '</div></div><div id="saybox"' + (ASPECTS.reuse ? "" : " hidden") + ' class="note" style="margin-top:14px"><label for="say">' + esc(l.commentTitle) + '</label><div class="noterow"><input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '" value="' + esc(P.SAY) + '"><button data-comment>' + esc(l.send) + '</button></div></div><p id="ratemsg" class="hint" style="margin-top:10px"></p></div></section>';
+    $("out").innerHTML = h;
+    $("barlbl").textContent = l.barLbl;
+    $("fbjump").textContent = l.fbJump;
+    $("bar").hidden = false;
+    if (keepScroll) window.scrollTo(0, y);
+  }
+
   // app-src/deck.ts
   function already(S, txt) {
     if (!txt || !txt.trim()) return true;
@@ -464,439 +923,6 @@
   }
 
   // app-src/plan.ts
-  var sb = window.supabase.createClient(
-    "https://pbamabzbfbkxajntsrmc.supabase.co",
-    "sb_publishable_XtMg3eLikZtI-UkNspIwcA_bWGvj428"
-  );
-  var params = new URLSearchParams(location.search);
-  var RUN_CODE = params.get("r");
-  var token = params.get("t");
-  var RUN = null;
-  var KEYID = RUN_CODE ? "r_" + RUN_CODE : token;
-  var DATA = null;
-  var ASPECTS = { reuse: "", clarity: "", timefit: "" };
-  var SESSION = (() => {
-    if (RUN_CODE) return "r_" + RUN_CODE;
-    const k = "lk.sess." + token;
-    try {
-      let v = localStorage.getItem(k);
-      if (!v) {
-        v = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        localStorage.setItem(k, v);
-      }
-      return v;
-    } catch {
-      return Math.random().toString(36).slice(2) + Date.now().toString(36);
-    }
-  })();
-  var EXTRAS = [];
-  var REASONS = /* @__PURE__ */ new Set();
-  var PROG = (() => {
-    const base = { ready: {}, done: {}, short: false, sec: {} };
-    try {
-      return Object.assign(base, JSON.parse(localStorage.getItem("lk.prog." + KEYID) || "{}"));
-    } catch {
-      return base;
-    }
-  })();
-  var saveProg = () => {
-    try {
-      localStorage.setItem("lk.prog." + KEYID, JSON.stringify(PROG));
-    } catch {
-    }
-  };
-  var LANG = params.get("lang") || (() => {
-    try {
-      return localStorage.getItem("lk.lang") || "";
-    } catch {
-      return "";
-    }
-  })();
-  var ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
-  var esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ESC[c] ?? c);
-  function $(id) {
-    const el = document.getElementById(id);
-    if (!el) throw new Error("missing #" + id);
-    return el;
-  }
-  var maybe$ = (id) => document.getElementById(id);
-  var L = () => LANG === "en" ? EN_LABELS : SV_LABELS;
-  function renderTeacher(d) {
-    const l = L();
-    const all = { [d.language || "sv"]: d.body };
-    if (d.body_alt && d.language_alt) all[d.language_alt] = d.body_alt;
-    const p = all[LANG] || all[d.language || "sv"] || {};
-    const said = d.substitute_said || [];
-    const covText = { all: l.covAll, part: l.covPart, none: l.covNone };
-    $("out").innerHTML = '<div class="card"><span class="kicker">' + esc(l.tKicker) + "</span><h1>" + esc(p.title || d.title) + '</h1><p class="muted">' + esc(d.group_name) + " \xB7 " + esc(new Date(d.used_on).toLocaleDateString(
-      LANG === "sv" ? "sv-SE" : "en-GB",
-      { weekday: "long", day: "numeric", month: "long" }
-    )) + (d.substitute ? " \xB7 " + esc(d.substitute) : "") + "</p>" + (said.length ? '<div class="ps"><h3>' + esc(l.tSubSaid) + "</h3>" + said.map((x) => '<p style="margin:4px 0">' + (x.coverage ? "<b>" + esc(covText[x.coverage] || x.coverage) + ".</b> " : "") + (x.left_off ? esc(l.covLeftLbl) + ": " + esc(x.left_off) + ". " : "") + (x.comment ? esc(x.comment) : "") + "</p>").join("") + "</div>" : "") + '</div><div class="card ratebox noprint"><h3>' + esc(l.tQuestion) + '</h3><p class="muted" style="margin:0 0 10px">' + esc(l.tWhy) + '</p><div class="qpick" id="tverdict">' + [["right", l.tRight], ["mostly", l.tMostly], ["wrong", l.tWrong]].map((o) => '<button data-tv="' + o[0] + '"' + (d.teacher_verdict === o[0] ? ' class="on"' : "") + ">" + esc(o[1]) + "</button>").join("") + '</div><label for="tnote" style="display:block;font-size:13px;font-weight:600;margin:14px 0 5px">' + esc(l.tNoteLbl) + '</label><div class="noterow"><input id="tnote" type="text" maxlength="400" placeholder="' + esc(l.tNotePh) + '" value="' + esc(d.teacher_note || "") + '"><button data-tnote>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.tNoteHint) + '</p><p id="tmsg" class="hint" style="margin-top:10px"></p></div><div class="card"><h3>' + esc(l.tThePlan) + "</h3><p>" + esc(p.summary || "") + '</p><p style="font-size:13px;color:var(--ink-soft)"><b>' + esc(l.goal) + "</b> " + esc(p.goal || "") + "</p>" + // Parenthesised deliberately: a bare ternary here takes the whole
-    // concatenation above as its condition and throws the card away.
-    ((p.tasks || []).length ? '<h4 style="margin-top:14px">' + esc(l.tasks) + '</h4><ol style="font-size:13.5px">' + (p.tasks || []).map((x) => "<li>" + esc(x.q) + '<br><span class="ans">' + esc(x.a) + "</span></li>").join("") + "</ol>" : "") + "</div>";
-  }
-  function safeUrl(u) {
-    try {
-      const url = new URL(String(u || ""));
-      return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
-    } catch {
-      return null;
-    }
-  }
-  function embedUrl(u) {
-    const safe = safeUrl(u);
-    if (!safe) return null;
-    const url = new URL(safe);
-    if (/^(docs|drive)\.google\.com$/.test(url.hostname)) {
-      const m = url.pathname.match(/^\/(document|presentation|spreadsheets|file)\/d\/([^/]+)/);
-      if (m) return "https://" + url.hostname + "/" + m[1] + "/d/" + m[2] + "/preview";
-    }
-    return safe;
-  }
-  function renderLinked(d) {
-    const l = L();
-    const link = safeUrl(d.url);
-    const emb = link ? embedUrl(link) : null;
-    const what = d.label || (d.url ? l.linkedFrom : l.linkedNote);
-    const until = d.expires_at ? new Date(d.expires_at) : null;
-    const untilLine = until && !d.expired ? '<p class="hint">' + esc(l.linkedUntil) + " " + esc(runDate(new Date(until.getTime() - 1e3).toISOString().slice(0, 10))) + "</p>" : "";
-    $("out").innerHTML = '<div class="card"><span class="kicker">' + esc(l.linkedKicker) + "</span><h1>" + esc(what) + "</h1>" + untilLine + (d.expired ? '<div class="flag"><span>!</span><div><b>' + esc(l.linkedGoneH) + "</b> " + esc(l.linkedGoneB) + "</div></div>" : "") + // Typed instructions have no button to press, so they must not be told
-    // to press one. The teacher's own words are never translated — they are
-    // the teacher's, and a rough translation of a safety instruction is worse
-    // than the original. The reader can still choose to translate it with the
-    // browser (translate="yes" below), which is their call and shows them the
-    // original underneath on hover; we never do it for them.
-    (d.expired ? "" : '<p class="muted">' + esc(d.url ? l.linkedBody : l.noteBody) + "</p>") + (d.note ? '<div class="ps"><h3>' + esc(l.linkedNoteH) + '</h3><p translate="yes" style="white-space:pre-wrap">' + esc(d.note) + "</p></div>" : "") + (link ? '<p class="noprint"><a class="openbtn" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(l.linkedOpen) + " \u2197</a></p>" + (emb ? '<details class="peek noprint"><summary>' + esc(l.linkedPeek) + '</summary><div class="embed"><iframe src="' + esc(emb) + '" title="' + esc(what) + '" loading="lazy"></iframe></div><p class="hint">' + esc(l.linkedFallback) + "</p></details>" : "") : "") + '</div><div class="card ratebox noprint"><h3>' + esc(l.covTitle) + '</h3><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-lcov="' + k + '">' + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '"><button data-lleft>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><p id="lratemsg" class="hint" style="margin-top:10px"></p><p class="hint" style="margin:10px 0 0">' + esc(l.linkedNoRate) + "</p></div>";
-  }
-  function runDate(d) {
-    return (/* @__PURE__ */ new Date(d + "T12:00:00")).toLocaleDateString(
-      LANG === "sv" ? "sv-SE" : "en-GB",
-      { weekday: "short", day: "numeric", month: "short" }
-    );
-  }
-  function shiftT(tt, sh) {
-    if (!sh || !tt) return tt;
-    return String(tt).replace(/(\d{1,2}):(\d{2})/g, (_m, h, mi) => {
-      const v = ((+h * 60 + +mi + sh) % 1440 + 1440) % 1440;
-      return ("0" + Math.floor(v / 60)).slice(-2) + ":" + ("0" + v % 60).slice(-2);
-    });
-  }
-  function clockShift(p) {
-    const m = RUN && RUN.lesson_time && String(RUN.lesson_time).match(/(\d{1,2}):(\d{2})/);
-    const f = p && (p.phases || [])[0] && String(p.phases[0].t || "").match(/(\d{1,2}):(\d{2})/);
-    if (!m || !f) return 0;
-    return +m[1] * 60 + +m[2] - (+f[1] * 60 + +f[2]);
-  }
-  function runBand() {
-    if (!RUN) return "";
-    const l = L();
-    const until = RUN.expires_at ? new Date(RUN.expires_at) : null;
-    return '<div class="runband"><b>' + esc(RUN.group_name) + "</b>" + (RUN.lesson_time ? " \xB7 " + esc(RUN.lesson_time) : "") + " \xB7 " + esc(runDate(RUN.used_on)) + (RUN.substitute ? " \xB7 " + esc(RUN.substitute) : "") + (until ? '<span class="until">' + esc(l.runUntil) + " " + esc(runDate(new Date(until.getTime() - 1e3).toISOString().slice(0, 10))) + "</span>" : "") + "</div>";
-  }
-  async function load() {
-    if (RUN_CODE) {
-      const rr = await sb.rpc("lk_run_by_token", { p_run: RUN_CODE });
-      RUN = rr.data;
-      if (!RUN) {
-        $("out").innerHTML = '<p class="muted">' + esc(L().notFound) + "</p>";
-        return;
-      }
-      if (RUN.expired || !RUN.plan_token) {
-        $("out").innerHTML = '<div class="full"><div class="offl">' + esc(L().runExpiredH) + '</div><p class="muted">' + esc(L().runExpiredB.replace("{g}", RUN.group_name).replace("{d}", runDate(RUN.used_on))) + "</p></div>";
-        return;
-      }
-      token = RUN.plan_token;
-    }
-    if (!token) {
-      $("out").innerHTML = '<p class="muted">' + esc(L().noCode) + "</p>";
-      return;
-    }
-    if (params.get("as") === "teacher") {
-      const tv = await sb.rpc("lk_teacher_view", { p_token: token });
-      if (tv.data) {
-        renderTeacher(tv.data);
-        return;
-      }
-    }
-    const linked = await sb.rpc("lk_linked_by_token", { p_token: token });
-    if (linked.data) {
-      renderLinked(linked.data);
-      return;
-    }
-    const [plan, extras] = await Promise.all([
-      sb.rpc("lk_plan_by_token", { p_token: token }),
-      sb.rpc("lk_extras_by_token", { p_token: token })
-    ]);
-    const ck = "lk.plan." + token;
-    if (plan.error && !plan.data) {
-      try {
-        const c = JSON.parse(localStorage.getItem(ck) || "null");
-        if (c && c.plan) {
-          OFFLINE = true;
-          EXTRAS = c.extras || [];
-          render(c.plan);
-          return;
-        }
-      } catch {
-      }
-    }
-    if (plan.error || !plan.data) {
-      $("out").innerHTML = '<p class="muted">' + esc(L().notFound) + "</p>";
-      return;
-    }
-    EXTRAS = Array.isArray(extras.data) ? extras.data : [];
-    try {
-      localStorage.setItem(ck, JSON.stringify({ plan: plan.data, extras: EXTRAS }));
-    } catch {
-    }
-    render(plan.data);
-  }
-  function bodies(d) {
-    const b = {};
-    b[d.language || "sv"] = d.body;
-    if (d.body_alt && d.language_alt) b[d.language_alt] = d.body_alt;
-    return b;
-  }
-  function assistRow(ref, label) {
-    const l = L(), a = (k, v, txt) => '<button data-assist="' + k + '" data-ref="' + esc(ref) + '"' + (v ? ' data-variant="' + v + '"' : "") + ' data-label="' + esc(label) + '">' + esc(txt) + "</button>";
-    return '<div class="assist noprint">' + a("explain", "", l.aExplain) + a("exercise", "", l.aExercise) + a("level", "easier", l.aEasier) + a("level", "harder", l.aHarder) + "</div>";
-  }
-  function extraBody(x) {
-    if (x.language === LANG) return { body: x.body, exact: true };
-    if (x.language_alt === LANG && x.body_alt) return { body: x.body_alt, exact: true };
-    return { body: x.body, exact: false, lang: x.language };
-  }
-  var extraHasContent = (b) => b && (b.title || (b.lines || []).length || b.board || (b.tasks || []).length);
-  function storedFor(opts) {
-    if (opts.kind === "filler") return null;
-    const hit = EXTRAS.filter((x) => x.section_ref === opts.ref && x.kind === opts.kind && (x.variant || "") === (opts.variant || "") && x.kept !== false).filter((x) => {
-      const b = extraBody(x);
-      return b.exact && extraHasContent(b.body);
-    });
-    return hit.length ? hit[hit.length - 1] : null;
-  }
-  function sheetHtml(extra, source, saveNote, extraId, opts) {
-    const l = L();
-    const srcTxt = source === "stored" ? l.srcStored : source === "model" ? l.srcModel : source === "cache" ? l.srcCache : source === "fallback" ? l.srcFallback : l.srcLibrary;
-    let h = "<h3>" + esc(extra.title) + '</h3><div class="src">' + esc(srcTxt) + (extra.minutes ? " \xB7 " + extra.minutes + " min" : "") + "</div>";
-    h += "<ol>" + (extra.lines || []).map((x) => "<li>" + esc(x) + "</li>").join("") + "</ol>";
-    if (extra.board) h += '<h4 style="font-size:13px;margin-bottom:5px">' + esc(l.boardNow) + '</h4><div class="board">' + esc(extra.board) + "</div>";
-    if ((extra.tasks || []).length) {
-      h += '<h4 style="font-size:13px;margin:14px 0 5px">' + esc(l.tasksNow) + '</h4><ol style="font-size:13.5px">' + extra.tasks.map((x) => "<li>" + esc(x.q) + ' <span class="ans">' + esc(x.a) + "</span></li>").join("") + "</ol>";
-    }
-    h += '<div class="sheetfoot"><span class="hint">' + esc(saveNote) + "</span></div>";
-    if (extraId) {
-      h += '<div class="xverdict"><span>' + esc(l.xvQ) + '</span><button data-xv="' + extraId + ':1">' + esc(l.xvUp) + '</button><button data-xv="' + extraId + ':0">' + esc(l.xvDown) + '</button><span class="hint" id="xvmsg"></span></div>';
-      h += '<div class="note"><label for="noteq">' + esc(l.whatHappened) + '</label><div class="noterow"><input id="noteq" type="text" maxlength="240" placeholder="' + esc(l.whatHappenedPh) + '"><button data-note="' + extraId + '" data-noteref="' + esc(opts?.ref || "") + '">' + esc(l.send) + '</button></div><p id="notemsg" class="hint" style="margin:7px 0 0"></p></div>';
-    }
-    return h;
-  }
-  var LASTASSIST = null;
-  async function runAssist(opts) {
-    const l = L();
-    LASTASSIST = opts;
-    $("sheet").hidden = false;
-    const have = opts.fresh ? null : storedFor(opts);
-    if (have) {
-      $("sheetbody").innerHTML = sheetHtml(extraBody(have).body || {}, "stored", "", have.id, opts) + '<div class="strow noprint"><button class="stbtn" data-assistnew="1">' + esc(l.genNew) + '</button><button class="stbtn" data-student="x:' + have.id + '">' + esc(l.forStudents) + "</button></div>";
-      return;
-    }
-    $("sheetbody").innerHTML = '<h3><span class="spin"></span> ' + esc(l.working) + "</h3>";
-    if (!DATA) return;
-    const p = currentBody();
-    const payload = {
-      kind: opts.kind,
-      section_ref: opts.ref,
-      section_label: opts.label,
-      section_text: opts.text || "",
-      variant: opts.variant || "",
-      language: LANG,
-      subject: DATA.subject,
-      year_group: DATA.year_group,
-      topic: p?.title || DATA.title,
-      minutes_left: opts.minutes || void 0,
-      fresh: opts.fresh || void 0,
-      // The plan this help is charged to; lk-assist takes from its daily cap.
-      token
-    };
-    const q = await sb.rpc("lk_assist_quota", { p_token: token });
-    if (typeof q.data === "number" && q.data <= 0) {
-      $("sheetbody").innerHTML = "<h3>" + esc(l.quota) + "</h3>";
-      return;
-    }
-    const { data, error } = await sb.functions.invoke("lk-assist", { body: payload });
-    if (error || !data?.extra) {
-      $("sheetbody").innerHTML = "<h3>" + esc(l.saveFail) + '</h3><p class="muted">' + esc(error?.message || "unknown") + "</p>";
-      return;
-    }
-    const saved = await sb.rpc("lk_assist_save", {
-      p_token: token,
-      p_section_ref: opts.ref,
-      p_section_label: opts.label || null,
-      p_kind: opts.kind,
-      p_variant: opts.variant || null,
-      p_language: data.language || LANG,
-      p_body: data.extra,
-      p_model: data.model || null,
-      p_body_alt: data.extra_alt || null,
-      p_language_alt: data.extra_alt ? data.language_alt : null
-    });
-    const ok = saved.data?.ok;
-    const note = ok ? l.saved : saved.data?.error === "quota" ? l.quota : "";
-    $("sheetbody").innerHTML = sheetHtml(data.extra, data.source, note, ok ? saved.data.id : null, opts);
-    if (ok) {
-      EXTRAS.push({
-        id: saved.data.id,
-        section_ref: opts.ref || "",
-        section_label: opts.label,
-        kind: opts.kind,
-        variant: opts.variant,
-        language: data.language || LANG,
-        body: data.extra,
-        language_alt: data.extra_alt ? data.language_alt : null,
-        body_alt: data.extra_alt || null
-      });
-      render(DATA, true);
-    }
-  }
-  function currentBody() {
-    if (!DATA) return null;
-    const all = bodies(DATA);
-    return all[LANG] || all[DATA.language || "sv"] || null;
-  }
-  function render(d, keepScroll) {
-    const y = keepScroll ? window.scrollY : 0;
-    DATA = d;
-    const all = bodies(d);
-    if (!all[LANG]) LANG = d.language || Object.keys(all)[0];
-    const p = all[LANG] || {};
-    const choices = Object.keys(all);
-    const l = L();
-    if (QUICK) {
-      let q = '<div class="qmode"><div class="subhead"><div class="subhead-row"><div><h1>' + esc(l.quickTitle) + " \u2014 " + esc(p.title) + '</h1><div class="m">' + esc(l.quickHint) + '</div></div></div></div><div class="strow noprint"><button class="stbtn" data-quick="0">' + esc(l.fullBtn) + '</button></div><div class="flag" style="background:#f0f5fb;color:#14407a"><span>\u2460</span><div><b>' + esc(l.first90) + '</b><ul style="margin:6px 0 0;padding-left:18px">' + (p.first90 || []).map((x) => "<li>" + esc(x) + "</li>").join("") + '</ul></div></div><div class="ps"><h4>' + esc(l.board) + '</h4><div class="board">' + esc(p.board) + '</div><p style="margin-top:8px;font-size:13px"><b>' + esc(l.need) + "</b> " + esc(p.equipment?.need) + '</p></div><div class="ps"><h4>' + esc(l.clock) + "</h4>" + (p.phases || []).map((ph) => '<p style="margin:4px 0;font-size:14px"><span class="clock">' + esc(shiftT(ph.t, clockShift(p))) + "</span> <strong>" + esc(ph.n) + "</strong></p>").join("") + '</div><div class="strow noprint"><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + "</button></div></div>";
-      $("out").innerHTML = q;
-      $("bar").hidden = true;
-      if (keepScroll) window.scrollTo(0, y);
-      return;
-    }
-    const phases = p.phases || [];
-    const hooks = {
-      lbl: (k) => l[k] ?? "",
-      depth: DEPTH,
-      assistRow: (ref, name) => assistRow(ref, name),
-      projector: true,
-      shiftMin: clockShift(p),
-      help: false,
-      // lifted into the margin rail below
-      interactive: true,
-      ready: PROG.ready,
-      done: PROG.done,
-      short: PROG.short
-    };
-    if (TEACH) {
-      const i = Math.max(0, Math.min(TPHASE, phases.length - 1));
-      const one = window.LKPlan.render(p, Object.assign(
-        {},
-        hooks,
-        // done:{} so a finished step still shows when you go Back to it; in this
-        // view "Done" moves on instead of folding the only thing on screen.
-        { only: i, done: {}, assistRow: () => "", extras: () => "" }
-      ));
-      $("out").innerHTML = '<div class="teachview"><div class="tv">' + one + '</div><div class="tvbar"><button data-teach="0">' + esc(l.prepBtn) + "</button><button data-projdeck>" + esc(l.projDeck) + '</button><div class="tvdots">' + phases.map((_, j) => '<i class="' + (j === i ? "on" : "") + '"></i>').join("") + '</div><span class="pos">' + (i + 1) + " " + esc(l.phaseOf) + " " + phases.length + '</span><span class="sp"></span><button data-tph="' + (i - 1) + '"' + (i === 0 ? " disabled" : "") + ">" + esc(l.prevPhase) + '</button><button class="pri" data-tph="' + (i + 1) + '"' + (i >= phases.length - 1 ? " disabled" : "") + ">" + esc(l.nextPhase) + "</button></div></div>";
-      document.body.classList.add("teach");
-      $("bar").hidden = true;
-      return;
-    }
-    document.body.classList.remove("teach");
-    let h = '<div class="full">' + (d.model === "canned" ? '<div class="offl noprint">' + esc(l.simBanner) + "</div>" : "") + (OFFLINE ? '<div class="offl noprint">' + esc(l.offlineNote) + "</div>" : "") + '<div class="subhead">' + runBand() + '<div class="subhead-row"><div><h1>' + esc(p.title) + '</h1><div class="m">' + esc(d.subject) + " \xB7 " + esc(d.year_group) + " \xB7 " + d.minutes + " min \xB7 " + esc(d.school) + "</div></div>" + (choices.length > 1 ? '<div class="langpick noprint">' + choices.map((c) => '<button data-pick="' + c + '"' + (c === LANG ? ' class="on"' : "") + ">" + (c === "sv" ? "SV" : "EN") + "</button>").join("") + "</div>" : "") + '</div><div class="startrow noprint"><button class="startbtn" data-teach="1">' + esc(l.teachBtn) + '</button><span class="starthint">' + esc(l.teachHint) + '</span></div></div><div class="strow noprint"><button class="stbtn" data-quick="1">' + esc(l.quickBtn) + '</button><button class="stbtn" data-student="lesson">' + esc(l.studentSheet) + '</button><button class="stbtn" data-pack>' + esc(l.packBtn) + '</button></div><div class="depthrow noprint"><span class="dl">' + esc(l.depthQ) + "</span>" + [["full", l.depthFull], ["guided", l.depthGuided], ["brief", l.depthBrief]].map((x) => '<button data-depth="' + x[0] + '"' + (DEPTH === x[0] ? ' class="on"' : "") + ">" + esc(x[1]) + "</button>").join("") + "</div></div>";
-    h += '<aside class="rail rail-l noprint"><div class="rail-in"><div class="nav"><h4>' + esc(l.railWhere) + "</h4>" + phases.map((ph, i) => '<a href="#ph' + i + '" class="' + window.LKPlan.kind(i) + '">' + esc(ph.n) + '<span class="t">' + esc(shiftT(ph.t, clockShift(p))) + "</span></a>").join("") + "</div></aside>";
-    h += '<main class="col">' + window.LKPlan.render(p, hooks) + "</main>";
-    h += '<aside class="rail rail-r"><div class="rail-in">' + window.LKPlan.help(p, hooks.lbl) + "</div></aside>";
-    h += '<hr class="after-rule noprint"><div class="full">' + window.LKPlan.after(p, hooks.lbl) + "</div>";
-    h += '<div class="full"><div class="onlyprint"><div id="studentprint" class="stprint">' + studentParts("lesson").html + "</div></div>";
-    const SECV = [["good", l.fbGood], ["ok", l.fbOk], ["bad", l.fbBad]];
-    const STARS = Number(PROG.stars || 0);
-    h += '<section class="fbpanel noprint" id="feedback"><button class="fb-open" data-fbtoggle aria-expanded="' + (PROG.fbopen ? "true" : "false") + '"><span><b>' + esc(l.fbOpen) + "</b><small>" + esc(l.fbOpenSub) + '</small></span><i class="fb-caret">&#9662;</i></button><div class="fb-body"' + (PROG.fbopen ? "" : " hidden") + '><p class="fb-intro">' + esc(l.fbIntro) + "</p><h4>" + esc(l.fbSteps) + "</h4>" + phases.map((ph, i) => {
-      const ref = "phase:" + i, cur = PROG.sec[ref] || {};
-      return '<div class="fb-row" data-fbrow="' + ref + '"><div class="fb-top"><div class="fb-lbl"><span class="fb-n">' + (i + 1) + "</span>" + esc(ph.n) + '</div><div class="fb-pick">' + SECV.map((o) => '<button data-sec="' + ref + "|" + o[0] + '" class="fb-' + o[0] + (cur.v === o[0] ? " on" : "") + '">' + esc(o[1]) + "</button>").join("") + '<button data-sec="' + ref + '|skipped" class="fb-skipped' + (cur.v === "skipped" ? " on" : "") + '">' + esc(l.fbSkipped) + '</button></div></div><div class="fb-note"' + (cur.v === "ok" || cur.v === "bad" ? "" : " hidden") + '><input type="text" maxlength="300" placeholder="' + esc(l.fbNotePh) + '" value="' + esc(cur.note || "") + '" data-secnote-in="' + ref + '"><button data-secnote="' + ref + '">' + esc(l.send) + "</button></div></div>";
-    }).join("") + "<h4>" + esc(l.fbStarsQ) + '</h4><div class="fb-stars" id="fbstars" role="radiogroup"><span class="fb-sl">' + esc(l.fbStar1) + "</span>" + [1, 2, 3, 4, 5].map((n) => '<button data-star="' + n + '" class="' + (n <= STARS ? "on" : "") + '" aria-label="' + n + '">&#9733;</button>').join("") + '<span class="fb-sl">' + esc(l.fbStar5) + "</span></div>" + [["reuse", l.qReuse, [["yes", l.aReuseYes], ["changes", l.aReuseChanges], ["no", l.aReuseNo]]]].map(function(q) {
-      return '<div class="qrow"><p class="ql">' + esc(q[1]) + '</p><div class="qpick" id="q-' + q[0] + '">' + q[2].map(function(o) {
-        return '<button data-asp="' + q[0] + ":" + o[0] + '"' + (ASPECTS[q[0]] === o[0] ? ' class="on"' : "") + ">" + esc(o[1]) + "</button>";
-      }).join("") + "</div></div>";
-    }).join("") + "<h4>" + esc(l.covTitle) + '</h4><div class="covrow" id="covrow">' + ["all", "part", "none"].map((k) => '<button data-cov="' + k + '"' + (COV === k ? ' class="on"' : "") + ">" + esc(l[{ all: "covAll", part: "covPart", none: "covNone" }[k]]) + "</button>").join("") + '</div><label for="leftoff" style="display:block;font-size:13px;font-weight:600;margin:12px 0 5px">' + esc(l.leftLbl) + '</label><div class="noterow"><input id="leftoff" type="text" maxlength="300" placeholder="' + esc(l.leftOff) + '" value="' + esc(LEFT) + '"><button data-leftoff>' + esc(l.send) + '</button></div><p class="hint" style="margin:6px 0 0">' + esc(l.leftHint) + '</p><div id="why"' + (ASPECTS.reuse && ASPECTS.reuse !== "yes" ? "" : " hidden") + '><p class="hint" style="margin:14px 0 0">' + esc(l.whyTitle) + '</p><div class="reasons">' + Object.keys(l.reasons).map((k) => '<button data-reason="' + k + '"' + (REASONS.has(k) ? ' class="on"' : "") + ">" + esc(l.reasons[k]) + "</button>").join("") + '</div></div><div id="saybox"' + (ASPECTS.reuse ? "" : " hidden") + ' class="note" style="margin-top:14px"><label for="say">' + esc(l.commentTitle) + '</label><div class="noterow"><input id="say" type="text" maxlength="400" placeholder="' + esc(l.commentPh) + '" value="' + esc(SAY) + '"><button data-comment>' + esc(l.send) + '</button></div></div><p id="ratemsg" class="hint" style="margin-top:10px"></p></div></section>';
-    $("out").innerHTML = h;
-    $("barlbl").textContent = l.barLbl;
-    $("fbjump").textContent = l.fbJump;
-    $("bar").hidden = false;
-    if (keepScroll) window.scrollTo(0, y);
-  }
-  var STUDENT_TXT = "";
-  var QUICK = false;
-  var OFFLINE = false;
-  var COV = "";
-  var LEFT = "";
-  var SAY = "";
-  var TEACH = false;
-  var TPHASE = 0;
-  var DEPTH = (() => {
-    try {
-      return localStorage.getItem("lk.depth") || "full";
-    } catch {
-      return "full";
-    }
-  })();
-  var STIER = "core";
-  function studentParts(which) {
-    const l = L();
-    const p = DATA && bodies(DATA)[LANG] || {};
-    let title, board, tasks, mats = [], exit = "";
-    if (which === "lesson") {
-      title = p.title;
-      board = p.board;
-      tasks = (p.tasks || []).filter((x) => (x.tier || "core") === STIER).map((x) => x.q);
-      mats = p.materials || [];
-      exit = p.exit?.q || "";
-    } else {
-      const x = EXTRAS.find((e) => String(e.id) === which.slice(2));
-      const { body } = extraBody(x || {});
-      title = body?.title;
-      board = body?.board;
-      tasks = (body?.tasks || []).map((q) => q.q);
-    }
-    const txt = [title, "", board, ""].concat(mats.map((m) => m.h + "\n" + m.body + "\n")).concat(tasks.map((q, i) => i + 1 + ". " + q)).concat(exit ? ["", l.exit + ": " + exit] : []).join("\n").trim();
-    let h = "<h1>" + esc(title || "") + "</h1>";
-    if (board) h += '<div class="bigboard">' + esc(board) + "</div>";
-    mats.forEach((m) => {
-      h += "<h2>" + esc(m.h) + '</h2><div class="mat">' + esc(m.body) + "</div>";
-    });
-    if (tasks.length) h += "<h2>" + esc(l.tasksNow.replace(/ med facit| with answers/i, "")) + "</h2><ol>" + tasks.map((q) => "<li>" + esc(q) + "</li>").join("") + "</ol>";
-    if (exit) h += "<h2>" + esc(l.exit) + '</h2><p style="font-size:19px">' + esc(exit) + "</p>";
-    return { html: h, txt };
-  }
-  function openStudent(which) {
-    const l = L();
-    const { html, txt } = studentParts(which);
-    STUDENT_TXT = txt;
-    const p = DATA && bodies(DATA)[LANG] || {};
-    const has = (k) => (p.tasks || []).some((x) => (x.tier || "core") === k);
-    const picker = which !== "lesson" || !(has("support") || has("extension")) ? "" : '<span class="stier">' + esc(l.tierQ) + "</span>" + [["support", l.tierSupport], ["core", l.tierStandard], ["extension", l.tierChallenge]].filter((x) => has(x[0])).map((x) => '<button class="stbtn' + (STIER === x[0] ? " on" : "") + '" data-stier="' + x[0] + '">' + esc(x[1]) + "</button>").join("");
-    const h = '<div class="in"><div class="stbar noprint">' + picker + '<span class="stsp"></span><button class="stbtn" data-stprint>' + esc(l.print) + '</button><button class="stbtn" data-stcopy>' + esc(l.copyText) + '</button><button class="stbtn" data-stclose>' + esc(l.close) + "</button></div>" + html + "</div>";
-    let el = document.getElementById("student");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "student";
-      document.body.appendChild(el);
-    }
-    el.innerHTML = h;
-    el.hidden = false;
-    el.scrollTop = 0;
-    document.body.classList.add("pst");
-  }
-  function closeStudent() {
-    const el = document.getElementById("student");
-    if (el) el.hidden = true;
-    document.body.classList.remove("pst");
-  }
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       const sheet = maybe$("sheet");
@@ -912,51 +938,49 @@
       const b = document.querySelector(".proj");
       if (b) {
         b.remove();
-        DECK = null;
+        P.DECK = null;
         return;
       }
-      if (TEACH && DATA) {
+      if (P.TEACH && P.DATA) {
         const out = document.querySelector('[data-teach="0"]');
         if (out) out.click();
         else {
-          TEACH = false;
-          render(DATA);
+          P.TEACH = false;
+          render(P.DATA);
         }
         return;
       }
     }
-    if (document.querySelector(".proj") && DECK) {
+    if (document.querySelector(".proj") && P.DECK) {
       if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
         e.preventDefault();
-        DI++;
+        P.DI++;
         paintSlide();
         return;
       }
       if (e.key === "ArrowLeft" || e.key === "PageUp") {
         e.preventDefault();
-        DI--;
+        P.DI--;
         paintSlide();
         return;
       }
       return;
     }
-    if (!TEACH || !DATA) return;
+    if (!P.TEACH || !P.DATA) return;
     if (e.key === "ArrowRight" || e.key === "PageDown") {
-      const last = Math.max(0, ((bodies(DATA)[LANG] || {}).phases || []).length - 1);
-      if (TPHASE < last) {
-        TPHASE++;
-        render(DATA);
+      const last = Math.max(0, ((bodies(P.DATA)[P.LANG] || {}).phases || []).length - 1);
+      if (P.TPHASE < last) {
+        P.TPHASE++;
+        render(P.DATA);
         window.scrollTo(0, 0);
       }
     }
     if (e.key === "ArrowLeft" || e.key === "PageUp") {
-      TPHASE = Math.max(0, TPHASE - 1);
-      render(DATA);
+      P.TPHASE = Math.max(0, P.TPHASE - 1);
+      render(P.DATA);
       window.scrollTo(0, 0);
     }
   });
-  var DECK = null;
-  var DI = 0;
   function slideHtml(sl, i, n, l) {
     const part = sl.ph >= 0 && sl.pn ? '<span class="ttl">' + esc(l.projPart.replace("{i}", String(sl.ph + 1)).replace("{n}", String(sl.pn))) + "</span>" : "";
     let body;
@@ -967,22 +991,22 @@
     } else {
       body = '<div class="slide">' + (sl.step ? '<span class="step">' + esc(sl.step) + "</span>" : "") + (sl.h ? "<h2>" + esc(sl.h) + "</h2>" : "") + (sl.lead ? '<p class="lead">' + esc(l.projGoal) + ": " + esc(sl.lead) + "</p>" : "") + (sl.pre ? "<pre>" + esc(sl.pre) + "</pre>" : "") + (sl.items ? "<ol>" + sl.items.map((q) => "<li>" + esc(q) + "</li>").join("") + "</ol>" : "") + "</div>";
     }
-    const shown = (DECK || []).filter((x) => !x.end).length;
+    const shown = (P.DECK || []).filter((x) => !x.end).length;
     return part + body + (sl.end ? "" : '<span class="count">' + (i + 1) + " / " + shown + "</span>") + '<button class="cl" data-projclose>' + esc(l.projHint) + '</button><div class="pnav"><button data-projgo="-1"' + (i === 0 ? " disabled" : "") + ">" + esc(l.projPrev) + '</button><button data-projgo="1"' + (i === n - 1 ? " disabled" : "") + ">" + esc(l.projNext) + "</button></div>";
   }
   function paintSlide() {
     const box = document.querySelector(".proj");
-    if (!box || !DECK || !DECK.length) return;
-    DI = Math.max(0, Math.min(DI, DECK.length - 1));
-    box.innerHTML = slideHtml(DECK[DI], DI, DECK.length, L());
+    if (!box || !P.DECK || !P.DECK.length) return;
+    P.DI = Math.max(0, Math.min(P.DI, P.DECK.length - 1));
+    box.innerHTML = slideHtml(P.DECK[P.DI], P.DI, P.DECK.length, L());
   }
   function openDeck(scope) {
-    if (!DATA) return;
-    const all = bodies(DATA);
-    const pp = all[LANG] || {};
-    DECK = scope === "all" ? deckAll(pp, L()) : deckScope(pp, L(), scope);
-    if (!DECK.length) return;
-    DI = 0;
+    if (!P.DATA) return;
+    const all = bodies(P.DATA);
+    const pp = all[P.LANG] || {};
+    P.DECK = scope === "all" ? deckAll(pp, L()) : deckScope(pp, L(), scope);
+    if (!P.DECK.length) return;
+    P.DI = 0;
     const old = document.querySelector(".proj");
     if (old) old.remove();
     const box = document.createElement("div");
@@ -995,7 +1019,7 @@
     const tg = e.target;
     const sti = tg.closest("[data-stier]");
     if (sti) {
-      STIER = sti.getAttribute("data-stier");
+      P.STIER = sti.getAttribute("data-stier");
       openStudent("lesson");
       return;
     }
@@ -1005,7 +1029,7 @@
       if (st.hasAttribute("data-stclose")) return closeStudent();
       if (st.hasAttribute("data-stprint")) return window.print();
       try {
-        await navigator.clipboard.writeText(STUDENT_TXT);
+        await navigator.clipboard.writeText(P.STUDENT_TXT);
         st.textContent = l.copiedTxt;
         setTimeout(() => {
           st.textContent = l.copyText;
@@ -1015,51 +1039,51 @@
       return;
     }
     const rd = tg.closest("[data-ready]");
-    if (rd && DATA) {
+    if (rd && P.DATA) {
       const k = rd.getAttribute("data-ready");
       PROG.ready[k] = !PROG.ready[k];
       saveProg();
-      render(DATA, true);
+      render(P.DATA, true);
       return;
     }
     const sd = tg.closest("[data-stepdone]");
-    if (sd && DATA) {
+    if (sd && P.DATA) {
       const i = Number(sd.getAttribute("data-stepdone"));
       PROG.done[i] = true;
       saveProg();
-      if (TEACH) {
-        const cur = bodies(DATA)[LANG];
+      if (P.TEACH) {
+        const cur = bodies(P.DATA)[P.LANG];
         const last = cur ? (cur.phases || []).length - 1 : i;
         if (i < last) {
-          TPHASE = i + 1;
-          render(DATA);
+          P.TPHASE = i + 1;
+          render(P.DATA);
           window.scrollTo(0, 0);
           return;
         }
-        TEACH = false;
+        P.TEACH = false;
         PROG.fbopen = true;
         saveProg();
-        render(DATA);
+        render(P.DATA);
         const fb = maybe$("feedback");
         if (fb) fb.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
-      render(DATA, true);
+      render(P.DATA, true);
       const nx = document.querySelector(".ph-cur") || maybe$("feedback");
       if (nx) nx.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     const sr = tg.closest("[data-stepre]");
-    if (sr && DATA) {
+    if (sr && P.DATA) {
       delete PROG.done[Number(sr.getAttribute("data-stepre"))];
       saveProg();
-      render(DATA, true);
+      render(P.DATA, true);
       return;
     }
-    if (tg.closest("[data-short]") && DATA) {
+    if (tg.closest("[data-short]") && P.DATA) {
       PROG.short = !PROG.short;
       saveProg();
-      render(DATA, true);
+      render(P.DATA, true);
       return;
     }
     if (tg.closest("[data-fbjump]")) {
@@ -1076,14 +1100,14 @@
     if (sb1) {
       const [ref = "", verdict = ""] = sb1.getAttribute("data-sec").split("|");
       const idx = Number(ref.split(":")[1]);
-      const label = ((DATA && bodies(DATA)[LANG] || {}).phases || [])[idx]?.n || ref;
+      const label = ((P.DATA && bodies(P.DATA)[P.LANG] || {}).phases || [])[idx]?.n || ref;
       PROG.sec[ref] = Object.assign({}, PROG.sec[ref], { v: verdict });
       saveProg();
       const row = sb1.closest("[data-fbrow]");
       [...row.querySelectorAll("[data-sec]")].forEach((b) => b.classList.toggle("on", b === sb1));
       row.querySelector(".fb-note").hidden = !(verdict === "ok" || verdict === "bad");
       const { error } = await sb.rpc("lk_rate_section_by_token", {
-        p_token: token,
+        p_token: P.token,
         p_session: SESSION,
         p_ref: ref,
         p_label: label,
@@ -1099,7 +1123,7 @@
       PROG.stars = n;
       saveProg();
       [...document.querySelectorAll("#fbstars [data-star]")].forEach((b) => b.classList.toggle("on", Number(b.getAttribute("data-star")) <= n));
-      const { error } = await sb.rpc("lk_rate_stars_by_token", { p_token: token, p_session: SESSION, p_stars: n });
+      const { error } = await sb.rpc("lk_rate_stars_by_token", { p_token: P.token, p_session: SESSION, p_stars: n });
       $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
       return;
     }
@@ -1118,11 +1142,11 @@
       const val = (inp?.value || "").trim();
       if (!val) return;
       const idx = Number(ref.split(":")[1]);
-      const label = ((DATA && bodies(DATA)[LANG] || {}).phases || [])[idx]?.n || ref;
+      const label = ((P.DATA && bodies(P.DATA)[P.LANG] || {}).phases || [])[idx]?.n || ref;
       PROG.sec[ref] = Object.assign({}, PROG.sec[ref], { note: val });
       saveProg();
       const { error } = await sb.rpc("lk_rate_section_by_token", {
-        p_token: token,
+        p_token: P.token,
         p_session: SESSION,
         p_ref: ref,
         p_label: label,
@@ -1133,56 +1157,56 @@
       return;
     }
     const qk = tg.closest("[data-quick]");
-    if (qk && DATA) {
-      QUICK = qk.getAttribute("data-quick") === "1";
-      render(DATA);
+    if (qk && P.DATA) {
+      P.QUICK = qk.getAttribute("data-quick") === "1";
+      render(P.DATA);
       window.scrollTo(0, 0);
       return;
     }
     const tm = tg.closest("[data-teach]");
-    if (tm && DATA) {
-      TEACH = tm.getAttribute("data-teach") === "1";
-      if (TEACH) TPHASE = 0;
-      render(DATA);
+    if (tm && P.DATA) {
+      P.TEACH = tm.getAttribute("data-teach") === "1";
+      if (P.TEACH) P.TPHASE = 0;
+      render(P.DATA);
       window.scrollTo(0, 0);
       return;
     }
     const tp = tg.closest("[data-tph]");
-    if (tp && DATA) {
-      TPHASE = parseInt(tp.getAttribute("data-tph"), 10) || 0;
-      render(DATA);
+    if (tp && P.DATA) {
+      P.TPHASE = parseInt(tp.getAttribute("data-tph"), 10) || 0;
+      render(P.DATA);
       window.scrollTo(0, 0);
       return;
     }
     const pj = tg.closest("[data-proj]");
-    if (pj && DATA) {
+    if (pj && P.DATA) {
       openDeck(parseInt(pj.getAttribute("data-proj"), 10) || 0);
       return;
     }
     const pnx = tg.closest("[data-projpart]");
-    if (pnx && DATA) {
+    if (pnx && P.DATA) {
       openDeck(parseInt(pnx.getAttribute("data-projpart"), 10) || 0);
       return;
     }
-    if (tg.closest("[data-projdeck]") && DATA) {
+    if (tg.closest("[data-projdeck]") && P.DATA) {
       openDeck("all");
       return;
     }
     const pg = tg.closest("[data-projgo]");
     if (pg) {
-      DI += parseInt(pg.getAttribute("data-projgo"), 10);
+      P.DI += parseInt(pg.getAttribute("data-projgo"), 10);
       paintSlide();
       return;
     }
     if (tg.closest("[data-projclose]")) {
       const b = document.querySelector(".proj");
       if (b) b.remove();
-      const cs = DECK && DECK[DI];
-      DECK = null;
-      if (cs && typeof cs.ph === "number" && cs.ph >= 0 && DATA) {
-        if (TEACH) {
-          TPHASE = cs.ph;
-          render(DATA);
+      const cs = P.DECK && P.DECK[P.DI];
+      P.DECK = null;
+      if (cs && typeof cs.ph === "number" && cs.ph >= 0 && P.DATA) {
+        if (P.TEACH) {
+          P.TPHASE = cs.ph;
+          render(P.DATA);
           window.scrollTo(0, 0);
         } else {
           const t = document.getElementById("ph" + cs.ph);
@@ -1192,13 +1216,13 @@
       return;
     }
     const dp = tg.closest("[data-depth]");
-    if (dp && DATA) {
-      DEPTH = dp.getAttribute("data-depth");
+    if (dp && P.DATA) {
+      P.DEPTH = dp.getAttribute("data-depth");
       try {
-        localStorage.setItem("lk.depth", DEPTH);
+        localStorage.setItem("lk.depth", P.DEPTH);
       } catch {
       }
-      render(DATA, true);
+      render(P.DATA, true);
       return;
     }
     if (tg.closest("[data-pack]")) {
@@ -1211,7 +1235,7 @@
       const verdict = tv ? tv.getAttribute("data-tv") : null;
       if (tv) [...$("tverdict").children].forEach((x) => x.classList.toggle("on", x === tv));
       const { error } = await sb.rpc("lk_teacher_verdict", {
-        p_token: token,
+        p_token: P.token,
         p_verdict: verdict,
         p_note: tn ? $("tnote").value.trim() : null
       });
@@ -1222,11 +1246,11 @@
     const lleft = tg.closest("[data-lleft]");
     if (lcov || lleft) {
       if (lcov) {
-        COV = lcov.getAttribute("data-lcov");
+        P.COV = lcov.getAttribute("data-lcov");
         [...$("covrow").children].forEach((b) => b.classList.toggle("on", b === lcov));
       }
-      if (lleft) LEFT = $("leftoff").value.trim();
-      const { error } = await sb.rpc("lk_linked_coverage", { p_token: token, p_coverage: COV || null, p_left_off: LEFT || null });
+      if (lleft) P.LEFT = $("leftoff").value.trim();
+      const { error } = await sb.rpc("lk_linked_coverage", { p_token: P.token, p_coverage: P.COV || null, p_left_off: P.LEFT || null });
       $("lratemsg").textContent = error ? L().saveFail + error.message : L().thanks;
       return;
     }
@@ -1240,7 +1264,7 @@
         $("saybox").hidden = false;
       }
       const { error } = await sb.rpc("lk_rate_aspects_by_token", {
-        p_token: token,
+        p_token: P.token,
         p_session: SESSION,
         p_reuse: ASPECTS.reuse || null,
         p_clarity: ASPECTS.clarity || null,
@@ -1254,26 +1278,26 @@
     const lo = tg.closest("[data-leftoff]");
     if (cov || lo) {
       if (cov) {
-        COV = cov.getAttribute("data-cov");
+        P.COV = cov.getAttribute("data-cov");
         document.querySelectorAll("#covrow button").forEach((b) => b.classList.toggle("on", b === cov));
       }
-      LEFT = maybe$("leftoff")?.value || "";
-      if (!COV) {
+      P.LEFT = maybe$("leftoff")?.value || "";
+      if (!P.COV) {
         $("ratemsg").textContent = l.pickCovFirst;
         return;
       }
-      const { error } = await sb.rpc("lk_rate_coverage_by_token", { p_token: token, p_coverage: COV, p_left_off: LEFT });
+      const { error } = await sb.rpc("lk_rate_coverage_by_token", { p_token: P.token, p_coverage: P.COV, p_left_off: P.LEFT });
       $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
       return;
     }
     const pick = tg.closest("[data-pick]");
-    if (pick && DATA) {
-      LANG = pick.getAttribute("data-pick");
+    if (pick && P.DATA) {
+      P.LANG = pick.getAttribute("data-pick");
       try {
-        localStorage.setItem("lk.lang", LANG);
+        localStorage.setItem("lk.lang", P.LANG);
       } catch {
       }
-      render(DATA);
+      render(P.DATA);
       window.scrollTo(0, 0);
       return;
     }
@@ -1287,8 +1311,8 @@
         text: a.closest(".phase, .ps")?.innerText?.slice(0, 1200) || ""
       });
     }
-    if (tg.closest("[data-assistnew]") && LASTASSIST) {
-      return runAssist(Object.assign({}, LASTASSIST, { fresh: true }));
+    if (tg.closest("[data-assistnew]") && P.LASTASSIST) {
+      return runAssist(Object.assign({}, P.LASTASSIST, { fresh: true }));
     }
     const fill = tg.closest("[data-fill]");
     if (fill) {
@@ -1310,7 +1334,7 @@
         b.disabled = true;
         b.classList.toggle("on", b === xv);
       });
-      const { error } = await sb.rpc("lk_extra_verdict_by_token", { p_token: token, p_extra_id: Number(id), p_up: up === "1" });
+      const { error } = await sb.rpc("lk_extra_verdict_by_token", { p_token: P.token, p_extra_id: Number(id), p_up: up === "1" });
       const m = maybe$("xvmsg");
       if (m) m.textContent = error ? "" : l.xvThanks;
       return;
@@ -1321,7 +1345,7 @@
       if (!val.trim()) return;
       noteBtn.disabled = true;
       const { data, error } = await sb.rpc("lk_extra_note", {
-        p_token: token,
+        p_token: P.token,
         p_extra_id: Number(noteBtn.getAttribute("data-note")),
         p_note: val
       });
@@ -1332,25 +1356,25 @@
     if (sayBtn) {
       const val = maybe$("say")?.value || "";
       if (!val.trim()) return;
-      SAY = val;
+      P.SAY = val;
       sayBtn.disabled = true;
-      const { error } = await sb.rpc("lk_rate_comment_by_token", { p_token: token, p_comment: val });
+      const { error } = await sb.rpc("lk_rate_comment_by_token", { p_token: P.token, p_comment: val });
       $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
       return;
     }
     const reason = tg.closest("[data-reason]");
     if (reason) {
       const k = reason.getAttribute("data-reason");
-      if (REASONS.has(k)) {
-        REASONS.delete(k);
+      if (P.REASONS.has(k)) {
+        P.REASONS.delete(k);
         reason.classList.remove("on");
       } else {
-        REASONS.add(k);
+        P.REASONS.add(k);
         reason.classList.add("on");
       }
       const { error } = await sb.rpc("lk_rate_reasons_by_token", {
-        p_token: token,
-        p_reasons: [...REASONS]
+        p_token: P.token,
+        p_reasons: [...P.REASONS]
       });
       $("ratemsg").textContent = error ? l.saveFail + error.message : l.thanks;
       return;
