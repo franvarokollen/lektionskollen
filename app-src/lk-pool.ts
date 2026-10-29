@@ -185,13 +185,22 @@ function sortYears(ys: string[]) {
   return ys.slice().sort((a, b) => (yearNum(a) - yearNum(b)) || byLabelSv(yearLabel)(a, b));
 }
 
+/* The two ways to look at the pool. A switch, not a filter: it changes the
+   whole page, so it is drawn bigger than the dropdowns next to it. */
+const ICON_SHELF = '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>';
+const ICON_COVER = '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>';
+function viewBtn(id: 'shelf' | 'cover', on: string, label: string, icon: string) {
+  return '<button class="' + (on === id ? 'on' : '') + '" data-poolview="' + id + '" aria-pressed="' + (on === id) + '">' +
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    icon + '</svg>' + esc(label) + '</button>';
+}
+
 function poolViewToggle() {
   const v = state.pool.view;
   const box = maybe$('poolview');
   if (!box) return;
   box.innerHTML =
-    '<button class="' + (v === 'shelf' ? 'on' : '') + '" data-poolview="shelf">' + esc(t('poolShelf')) + '</button>' +
-    '<button class="' + (v === 'cover' ? 'on' : '') + '" data-poolview="cover">' + esc(t('poolCover')) + '</button>';
+    viewBtn('shelf', v, t('poolShelf'), ICON_SHELF) + viewBtn('cover', v, t('poolCover'), ICON_COVER);
 }
 
 export function renderBank() {
