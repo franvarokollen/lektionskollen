@@ -215,29 +215,31 @@ end; $$;
 create or replace function public.lk_cover_plans()
 returns jsonb language sql stable security definer
 set search_path to 'lektionskollen', 'pg_temp' as $$
+  -- One object: generated plans and the other kinds together. (A function
+  -- returning jsonb keeps only the first row, so the two must not be two rows.)
   select coalesce(jsonb_object_agg(x.absence_ref, x.state), '{}'::jsonb) from (
-    select distinct on (r.absence_ref) r.absence_ref,
-           jsonb_build_object('kind', 'generated', 'plan_id', p.id, 'title', p.title,
-                              'approved', p.approved, 'share_token', p.share_token) as state
-      from lektionskollen.plans p
-      join lektionskollen.requests r on r.id = p.request_id
-     where r.absence_ref is not null
-       and p.school_id in (select school_id from lektionskollen.members where user_id = auth.uid()
-                           union all select lektionskollen.demo_school())
-     order by r.absence_ref, p.approved desc, p.created_at desc
-  ) x
-  union all
-  select coalesce(jsonb_object_agg(c.absence_ref,
+    (select distinct on (r.absence_ref) r.absence_ref,
+            jsonb_build_object('kind', 'generated', 'plan_id', p.id, 'title', p.title,
+                               'approved', p.approved, 'share_token', p.share_token) as state
+       from lektionskollen.plans p
+       join lektionskollen.requests r on r.id = p.request_id
+      where r.absence_ref is not null
+        and p.school_id in (select school_id from lektionskollen.members where user_id = auth.uid()
+                            union all select lektionskollen.demo_school())
+      order by r.absence_ref, p.approved desc, p.created_at desc)
+    union all
+    select c.absence_ref,
            jsonb_build_object('kind', c.kind, 'url', c.url, 'note', c.note,
                               'label', c.label, 'share_token', c.share_token,
-                              'expires_at', c.expires_at, 'expired', c.expires_at < now())), '{}'::jsonb)
-    from lektionskollen.cover_plans c
-   where c.school_id in (select school_id from lektionskollen.members where user_id = auth.uid()
-                         union all select lektionskollen.demo_school())
-     and not exists (
-       select 1 from lektionskollen.plans p
-         join lektionskollen.requests r on r.id = p.request_id
-        where r.absence_ref = c.absence_ref and p.school_id = c.school_id)
+                              'expires_at', c.expires_at, 'expired', c.expires_at < now())
+      from lektionskollen.cover_plans c
+     where c.school_id in (select school_id from lektionskollen.members where user_id = auth.uid()
+                           union all select lektionskollen.demo_school())
+       and not exists (
+         select 1 from lektionskollen.plans p
+           join lektionskollen.requests r on r.id = p.request_id
+          where r.absence_ref = c.absence_ref and p.school_id = c.school_id)
+  ) x;
 $$;
 
 -- ── 6. Cover links are web addresses ───────────────────────────────────
