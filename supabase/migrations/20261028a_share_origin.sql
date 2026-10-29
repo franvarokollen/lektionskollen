@@ -147,6 +147,7 @@ language sql stable security definer set search_path = lektionskollen, pg_temp a
       join lektionskollen.schools s on s.id = p.school_id
       left join lektionskollen.ratings r on r.plan_id = p.id and r.would_reuse is not null
      where (p.school_id = (select sid from me) or p.shared)
+       and p.archived_at is null
        and (p_subject is null or p.subject = p_subject)
        and (p_year    is null or p.year_group = p_year)
        and (p_scope = 'all'

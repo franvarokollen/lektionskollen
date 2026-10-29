@@ -37,7 +37,9 @@ export type AssistReq = {
   minutes_left?: number
   /** Skip the stored answer and make a new one. */
   fresh?: boolean
-  // Which plan this extra supports. The per-plan cap needs it; without one the
-  // extras all land in the same bucket for the day.
+  // Which plan this extra supports, so the per-plan cap is charged to it:
+  // the share token from the substitute's page, or the plan id from the
+  // coordinator's preview. With neither, only the written library answers.
+  token?: string
   plan_id?: string
 }

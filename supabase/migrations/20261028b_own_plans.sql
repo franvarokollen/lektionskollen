@@ -21,7 +21,10 @@ begin
   if who is not null and char_length(who) > 80 then raise exception 'name too long'; end if;
 
   -- Same request + plan rows as every other plan; no absence attached.
-  pid := public.lk_save_plan(p_request - 'absence_ref', p_plan, p_model);
+  -- Named arguments: there were two overloads, and three positional ones were
+  -- ambiguous between them. 20261028d drops the old one.
+  pid := public.lk_save_plan(p_request => p_request - 'absence_ref', p_plan => p_plan,
+                             p_model => p_model, p_plan_alt => null, p_language_alt => null);
 
   update lektionskollen.plans
      set origin = p_origin,

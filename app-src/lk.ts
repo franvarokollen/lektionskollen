@@ -1442,6 +1442,35 @@ function startWait() {
  *  nobody is asking any more, and must not touch the screen. */
 let panelSeq = 0;
 
+/** lk-generate, with its answer readable on failure too. supabase-js hands back
+ *  data: null for any non-2xx, so the function's code (quota, no_model …) was
+ *  lost and the coordinator saw "non-2xx status code". The body is still on
+ *  the response; read it. */
+async function invokeGen(body: Record<string, unknown>): Promise<{ data: any; error: any }> {
+  const r = await sb.functions.invoke('lk-generate', { body });
+  if (r.error && !r.data) {
+    try {
+      const ctx = (r.error as { context?: Response }).context;
+      if (ctx && typeof ctx.json === 'function') return { data: await ctx.json(), error: r.error };
+    } catch { /* not JSON: keep the error as it is */ }
+  }
+  return r;
+}
+
+/** One sentence for whatever lk-generate said went wrong, in the reader's language. */
+function genErrText(data: any, error: any): string {
+  const code = String(data?.error || '');
+  if (code === 'no_model') return t('errNoModel');
+  if (code === 'quota') return fillT('errQuota', { n: data?.limit ?? '' });
+  if (code === 'bad_output') return t('errBadOutput');
+  if (code === 'no_school') return t('errNoSchool');
+  if (code === 'too_large') return t('errTooLarge');
+  // Anything else from the function is English and technical; the reader gets
+  // the plain sentence, the console gets the detail.
+  if (code || error) console.warn('lk-generate', code, data?.detail, error);
+  return t('errUnknown');
+}
+
 function stopWait() { if (waitTimer) { clearInterval(waitTimer); waitTimer = undefined; } }
 function waitSay(what: string) { const el = maybe$('wait-what'); if (el) el.textContent = what; }
 
@@ -1460,13 +1489,11 @@ async function generate() {
   // a second generation and the two stay the same lesson. (With no model set
   // the generator says so and nothing is saved.)
   const other: Lang = req.language === 'en' ? 'sv' : 'en';
-  const main = await sb.functions.invoke('lk-generate', { body: { request: req } });
+  const main = await invokeGen({ request: req });
   let alt: { error: unknown; data?: any } = { error: new Error('skipped') };
   if (!main.error && !main.data?.error) {
     waitSay(t('genTranslating'));
-    alt = await sb.functions.invoke('lk-generate', {
-      body: { request: { ...req, language: other }, translate: main.data.source === 'model' ? main.data.plan : undefined },
-    });
+    alt = await invokeGen({ request: { ...req, language: other }, translate: main.data.source === 'model' ? main.data.plan : undefined });
   }
   if (!stillHere()) return;
   stopWait();
@@ -1475,13 +1502,7 @@ async function generate() {
     // The function answers with a code, not a sentence: it has no idea which
     // language the coordinator reads. A code on screen helps nobody, so the
     // ones we expect become a sentence that says what to do instead.
-    const code = main.data?.error || '';
-    const saidMap: StrMap = {
-      no_model: t('errNoModel'),
-      quota: fillT('errQuota', { n: main.data?.limit ?? '' }),
-    };
-    const said = saidMap[code];
-    const msg = said || main.data?.detail || main.error?.message || t('errUnknown');
+    const msg = genErrText(main.data, main.error);
     $('addin-content').innerHTML =
       '<div class="addin-body"><div class="addin-head"><h2>' + esc(t('failed')) + '</h2>' +
       '<button class="x" data-close aria-label="' + esc(t('close')) + '">✕</button></div>' +
@@ -2403,13 +2424,13 @@ async function draftFix(i: number) {
   state.fixes[key] = { busy: true }; renderFeedback();
   const { data: pl, error } = await sb.rpc('lk_plan', { p_id: a.plan });
   if (error || !pl) { state.fixes[key] = { err: error?.message || t('errUnknown') }; renderFeedback(); return; }
-  const res = await sb.functions.invoke('lk-generate', { body: {
+  const res = await invokeGen({
     request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: pl.language },
     fix: { plan: pl.body, ref: a.ref, label: a.label, language: pl.language,
            feedback: { bad: a.bad, total: a.total, help: a.help, helpKinds: a.helpKinds, notes: a.notes } },
-  } });
+  });
   if (res.error || res.data?.error || !res.data?.plan) {
-    state.fixes[key] = { err: res.data?.error === 'no_model' ? t('errNoModel') : (res.data?.detail || res.data?.error || res.error?.message || t('errUnknown')) };
+    state.fixes[key] = { err: genErrText(res.data, res.error) };
   } else state.fixes[key] = { before: pl.body as Plan, after: res.data.plan as Plan };
   renderFeedback();
 }
@@ -2429,7 +2450,7 @@ async function useFix(i: number) {
     const other = pl.language === 'en' ? 'sv' : 'en';
     (async () => {
       try {
-        const tr = await sb.functions.invoke('lk-generate', { body: { request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: other }, translate: pl.body } });
+        const tr = await invokeGen({ request: { subject: pl.subject, year_group: pl.year_group, minutes: pl.minutes, language: other }, translate: pl.body });
         if (!tr.error && tr.data?.plan) await sb.rpc('lk_fill_alt', { p_id: a.plan, p_language: other, p_body: tr.data.plan });
       } catch { /* the plan still works in its own language */ }
     })();
@@ -3074,13 +3095,12 @@ async function crGo() {
   if (c.method === 'upload' && !c.source.trim()) { toast(t('crNeedText')); return; }
   c.busy = t(c.method === 'ai' ? 'crBusyAi' : 'crBusyUpload'); renderCreate(); startWait();
   const body = c.method === 'ai' ? { request: crRequest() } : { request: crRequest(), convert: { text: c.source } };
-  const { data, error } = await sb.functions.invoke('lk-generate', { body });
+  const { data, error } = await invokeGen(body);
   if (state.cr !== c) return;   // closed while it was writing
   stopWait();
   c.busy = '';
   if (error || !data || data.error || !data.plan) {
-    const code = data?.error || '';
-    toast(code === 'no_model' ? t('errNoModel') : code === 'quota' ? fillT('errQuota', { n: data?.limit ?? '' }) : (data?.detail || error?.message || t('errUnknown')), 8000);
+    toast(data?.error === 'empty_text' ? t('crNeedText') : genErrText(data, error), 8000);
     renderCreate(); return;
   }
   const plan = data.plan as Plan & { gaps?: string[] };

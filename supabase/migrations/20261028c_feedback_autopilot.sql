@@ -125,7 +125,7 @@ returns jsonb language plpgsql security definer
 set search_path to 'lektionskollen', 'pg_temp' as $$
 declare r lektionskollen.plans;
 begin
-  if p_body is null or jsonb_typeof(p_body) <> 'object' then
+  if p_body is null or jsonb_typeof(p_body) <> 'object' or length(p_body::text) > 200000 then
     return jsonb_build_object('ok', false, 'error', 'bad_body');
   end if;
   update lektionskollen.plans
