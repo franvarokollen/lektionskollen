@@ -84,6 +84,9 @@
 .hadwarn{margin-top:3px;font-size:11.5px;font-weight:600;color:#9a4d00}
 
 /* Embedded in Frånvarokollen's cover screen: our chrome goes, their panel stays */
+/* Inside FVK the iframe is the panel and nothing else: the page behind it
+   (the cover table, or LK's own pages) would only push the panel down. */
+body.embed #app{display:none}
 body.embed .sidebar,
 body.embed .topbar,
 body.embed .main > header{display:none}

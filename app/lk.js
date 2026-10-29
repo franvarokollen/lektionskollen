@@ -24,6 +24,7 @@
   })();
   var TT = window.LK_T;
   var t = (k) => TT[LANG] && TT[LANG][k] || TT.sv[k] || k;
+  var SHELL = document.body.dataset.shell === "fvk" ? "fvk" : "lk";
   function setLangValue(l) {
     LANG = l;
   }
@@ -48,7 +49,7 @@
     planId: null,
     view: "coordinator",
     bank: [],
-    screen: "cover",
+    screen: SHELL === "fvk" ? "cover" : "plans",
     fb: [],
     pending: 0,
     queue: [],
@@ -168,6 +169,103 @@
     return m ? "Year " + m[1] : y;
   }
 
+  // app-src/lk-daily.ts
+  var GRID = { gutter: 54, colMin: 150, pxPerHour: 76 };
+  function hhmmToMins(t2) {
+    const [h, m] = String(t2 || "0:0").split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+  function gridModel() {
+    const cols = [];
+    ROWS.forEach((r) => {
+      let c = cols.find((x) => x.teacher === r.teacher);
+      if (!c) {
+        c = { teacher: r.teacher, blocks: [] };
+        cols.push(c);
+      }
+      c.blocks.push(r);
+    });
+    const all = ROWS.map((r) => [hhmmToMins(r.start), hhmmToMins(r.end)]);
+    const from = Math.floor(Math.min(...all.map((x) => x[0])) / 60) * 60;
+    const to = Math.ceil(Math.max(...all.map((x) => x[1])) / 60) * 60;
+    const marks = [];
+    for (let m = from; m <= to; m += 60) marks.push(m);
+    return { cols, from, to, span: Math.max(1, to - from), marks };
+  }
+  function coverageStats() {
+    const plannable = ROWS.filter((r) => r.plannable);
+    const covered = plannable.filter((r) => r.cover).length;
+    const teachers = new Set(ROWS.map((r) => r.teacher)).size;
+    return {
+      total: plannable.length,
+      covered,
+      uncovered: plannable.length - covered,
+      absent: teachers,
+      pct: plannable.length ? Math.round(covered / plannable.length * 100) : 0
+    };
+  }
+  function donut(pct) {
+    const size = 72, sw = 7, r = (size - sw) / 2, c = 2 * Math.PI * r;
+    return '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="' + (pct === 0 ? "#e5e7eb" : "#fecaca") + '" stroke-width="' + sw + '"/>' + (pct > 0 ? '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="#16a34a" stroke-width="' + sw + '" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - pct / 100) + '" stroke-linecap="round" transform="rotate(-90 36 36)"/>' : "") + '<text x="36" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="var(--ink)">' + pct + '%</text><text x="36" y="48" text-anchor="middle" font-size="8" font-weight="600" fill="' + (pct >= 100 ? "#16a34a" : "var(--ink-soft)") + '" letter-spacing="0.5">' + esc(t("cvCovered").toUpperCase()) + "</text>";
+  }
+  function renderRows() {
+    if (SHELL === "lk") return renderToday();
+    const st = coverageStats();
+    const d = /* @__PURE__ */ new Date("2026-10-21T12:00:00");
+    const loc = LANG === "sv" ? "sv-SE" : "en-GB";
+    $("cv-kicker").textContent = t("cvToday") + " \xB7 " + t("cvWeek") + " 43";
+    $("cv-day").innerHTML = esc(d.toLocaleDateString(loc, { weekday: "long" })) + " <b>" + d.getDate() + "</b> " + esc(d.toLocaleDateString(loc, { month: "long" }));
+    $("cv-donut").innerHTML = donut(st.pct);
+    $("cv-need").textContent = st.uncovered ? st.uncovered + " " + t(st.uncovered === 1 ? "cvLesson" : "cvLessons") + " " + t("cvNeedCover") : t("cvAllCovered");
+    $("cv-counts").textContent = st.absent + " " + t("cvAbsent") + " \xB7 " + st.total + " " + t("cvLessons") + " \xB7 " + st.covered + " " + t("cvCovered");
+    const g = gridModel();
+    $("cv-chips").innerHTML = g.cols.map((c) => {
+      const mine = c.blocks.filter((b) => b.plannable);
+      const cov = mine.filter((b) => b.cover).length;
+      const all = mine.length > 0 && cov === mine.length;
+      return '<div class="schip' + (all ? " done" : "") + '"><span class="sname">' + esc(c.teacher) + "</span>" + (mine.length ? '<span class="sstat' + (all ? " ok" : "") + '">' + (all ? "\u2713 " + esc(t("cvChipCovered")) : cov + "/" + mine.length + " " + esc(t("cvChipCoveredN"))) + '</span><span class="sbar"><i class="' + (all ? "ok" : "") + '" style="width:' + Math.round(cov / mine.length * 100) + '%"></i></span>' : '<span class="sstat">' + esc(t("cvChipAbsent")) + "</span>") + (all ? '<span class="stick">\u2713</span>' : "") + "</div>";
+    }).join("");
+    const gap = ROWS.filter((r) => r.plannable && r.cover && !planSettled(r.id)).length;
+    $("cv-nudge").hidden = !(LOUD === "nudge" && gap > 0);
+    if (LOUD === "nudge" && gap > 0) {
+      $("cv-nudge").innerHTML = "<span>\u{1F4C4}</span><div>" + esc(fillT("cvGapLine", { n: gap === 1 ? t("cvGap1") : fillT("cvGapN", { n: gap }) })) + '</div><button class="btn btn-soft btn-sm" data-planfirst>' + esc(t("cvGapBtn")) + "</button>";
+    }
+    renderLoudPicker();
+    const h = Math.round(g.span / 60 * GRID.pxPerHour);
+    const top = (m) => (m - g.from) / g.span * 100;
+    const lines = g.marks.map((m) => '<div class="hline" style="top:' + top(m) + '%"></div>').join("");
+    $("cv-grid").style.minWidth = GRID.gutter + g.cols.length * GRID.colMin + "px";
+    $("cv-grid").innerHTML = '<div class="gutter" style="width:' + GRID.gutter + 'px"><div class="colhead"></div><div class="canvas" style="height:' + h + 'px">' + g.marks.map((m) => '<span class="hmark" style="top:calc(' + top(m) + '% - 6px)">' + minsToHHMM(m) + "</span>").join("") + '</div></div><div class="cols">' + g.cols.map((c) => '<div class="col" style="min-width:' + GRID.colMin + 'px"><div class="colhead"><span>' + esc(c.teacher) + '</span></div><div class="canvas" style="height:' + h + 'px">' + lines + c.blocks.map((b) => blockHtml(b, g, h)).join("") + "</div></div>").join("") + "</div>";
+  }
+  function blockTitle(b) {
+    const parts = [b.group, b.subject].filter((x) => x && x !== "\u2014");
+    return parts.length ? parts.join(" ") : b.raw;
+  }
+  function planMark(p) {
+    const marks = {
+      generated: p.approved ? ["\u2713", "ok", "cvHasPlan"] : ["\u25CB", "", "cvPlanDraft"],
+      linked: ["\u{1F517}", "ok", "cvHasLinked"],
+      note: ["\u{1F517}", "ok", "cvHasNote"],
+      authored: ["\u2713", "ok", "cvHasLinked"],
+      not_needed: null
+    };
+    const m = marks[p.kind];
+    if (!m) return "";
+    return '<span class="bplan ' + m[1] + '" title="' + esc(t(m[2])) + '">' + m[0] + "</span>";
+  }
+  function minsToHHMM(m) {
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  }
+  function blockHtml(b, g, gridH) {
+    const s = hhmmToMins(b.start), e = hhmmToMins(b.end);
+    const topPct = (s - g.from) / g.span * 100;
+    const hPct = (e - s) / g.span * 100;
+    const px = hPct / 100 * gridH;
+    const status2 = !b.plannable ? "nonteach" : b.cover ? "covered" : "uncovered";
+    const plan = planFor(b.id);
+    return '<div class="blk ' + status2 + '" role="button" tabindex="0" data-blk="' + esc(b.id) + '" style="top:calc(' + topPct + "% + 1px);height:calc(" + hPct + '% - 3px);min-height:22px" title="' + esc([b.group, b.subject].filter(Boolean).join(" ") + " \xB7 " + b.time + (b.cover ? " \xB7 \u2713 " + b.cover : "")) + '"><p class="bt">' + esc(blockTitle(b)) + "</p>" + (px >= 34 ? '<p class="bm">' + esc(b.time) + "</p>" : "") + (px >= 48 && b.cover ? '<p class="bc">\u2713 ' + esc(b.cover) + "</p>" : "") + (plan && LOUD !== "quiet" && px >= 30 ? planMark(plan) : "") + "</div>";
+  }
+
   // app-src/lk-pool.ts
   var bankReady = Promise.resolve();
   var bankSeq = 0;
@@ -252,9 +350,9 @@
     const n = st.n || 0;
     const rank = b.approved ? Number(b.approval_rank) || 0 : 0;
     const who = [b.approved_name, rank >= 2 && b.approved_subject ? subjectLabel(b.approved_subject) : ""].filter(Boolean).join(", ");
-    const status = apprStars(rank, who) + (!b.approved ? '<span class="chip chip-warn">' + esc(t("notApproved")) + "</span>" : b.approval_stale ? '<span class="chip chip-warn">' + esc(t("chipStale")) + "</span>" : '<span class="aplvl">' + esc(apprLevelName(rank)) + "</span>");
+    const status2 = apprStars(rank, who) + (!b.approved ? '<span class="chip chip-warn">' + esc(t("notApproved")) + "</span>" : b.approval_stale ? '<span class="chip chip-warn">' + esc(t("chipStale")) + "</span>" : '<span class="aplvl">' + esc(apprLevelName(rank)) + "</span>");
     const score = !b.approved ? "" : n ? '<span class="pc-score ' + (sc >= 75 ? "hi" : sc >= 55 ? "mid" : sc >= 40 ? "lo" : "bad") + '">' + sc + '</span><span class="pc-n">' + esc(fillT(n === 1 ? "scOne" : "scMany", { n })) + "</span>" : '<span class="pc-new">' + esc(t("scNew")) + "</span>";
-    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + "</div>" + originLine(b) + '<p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + "</span> \xB7 " : "") + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status + score + "</div>" + usedLine(b.id) + "</div>";
+    return '<div class="bcard pcard clickable" data-viewplan="' + b.id + '"><div class="pc-head"><h4>' + esc(rowTitle(b)) + "</h4>" + (b.approved ? '<button class="pc-copy" data-copylink="' + esc(b.share_token) + '" title="' + esc(t("copyLink")) + '">' + CHK + "</button>" : "") + "</div>" + originLine(b) + '<p class="pc-meta">' + (withYear ? '<span class="pc-yr">' + esc(yearLabel(b.year_group)) + "</span> \xB7 " : "") + b.minutes + " " + esc(t("min")) + (b.mine ? "" : " \xB7 " + esc(b.school || "")) + '</p><div class="pc-status">' + status2 + score + "</div>" + usedLine(b.id) + "</div>";
   }
   function originLine(b) {
     if (!b.origin) return "";
@@ -428,725 +526,6 @@
     return apprStars(rank) + " " + esc(apprLevelName(rank) + (rank >= 2 && state.apprSubject ? " \xB7 " + subjectLabel(state.apprSubject) : "")) + (state.apprBy ? " \u2014 " + esc(fillT("apprSignedBy", { n: state.apprBy })) : "") + (rank >= APPR_MAX ? " " + esc(t("apprLocked")) : "");
   }
 
-  // app-src/lk-daily.ts
-  var GRID = { gutter: 54, colMin: 150, pxPerHour: 76 };
-  function hhmmToMins(t2) {
-    const [h, m] = String(t2 || "0:0").split(":").map(Number);
-    return (h || 0) * 60 + (m || 0);
-  }
-  function gridModel() {
-    const cols = [];
-    ROWS.forEach((r) => {
-      let c = cols.find((x) => x.teacher === r.teacher);
-      if (!c) {
-        c = { teacher: r.teacher, blocks: [] };
-        cols.push(c);
-      }
-      c.blocks.push(r);
-    });
-    const all = ROWS.map((r) => [hhmmToMins(r.start), hhmmToMins(r.end)]);
-    const from = Math.floor(Math.min(...all.map((x) => x[0])) / 60) * 60;
-    const to = Math.ceil(Math.max(...all.map((x) => x[1])) / 60) * 60;
-    const marks = [];
-    for (let m = from; m <= to; m += 60) marks.push(m);
-    return { cols, from, to, span: Math.max(1, to - from), marks };
-  }
-  function coverageStats() {
-    const plannable = ROWS.filter((r) => r.plannable);
-    const covered = plannable.filter((r) => r.cover).length;
-    const teachers = new Set(ROWS.map((r) => r.teacher)).size;
-    return {
-      total: plannable.length,
-      covered,
-      uncovered: plannable.length - covered,
-      absent: teachers,
-      pct: plannable.length ? Math.round(covered / plannable.length * 100) : 0
-    };
-  }
-  function donut(pct) {
-    const size = 72, sw = 7, r = (size - sw) / 2, c = 2 * Math.PI * r;
-    return '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="' + (pct === 0 ? "#e5e7eb" : "#fecaca") + '" stroke-width="' + sw + '"/>' + (pct > 0 ? '<circle cx="36" cy="36" r="' + r + '" fill="none" stroke="#16a34a" stroke-width="' + sw + '" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - pct / 100) + '" stroke-linecap="round" transform="rotate(-90 36 36)"/>' : "") + '<text x="36" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="var(--ink)">' + pct + '%</text><text x="36" y="48" text-anchor="middle" font-size="8" font-weight="600" fill="' + (pct >= 100 ? "#16a34a" : "var(--ink-soft)") + '" letter-spacing="0.5">' + esc(t("cvCovered").toUpperCase()) + "</text>";
-  }
-  function renderRows() {
-    const st = coverageStats();
-    const d = /* @__PURE__ */ new Date("2026-10-21T12:00:00");
-    const loc = LANG === "sv" ? "sv-SE" : "en-GB";
-    $("cv-kicker").textContent = t("cvToday") + " \xB7 " + t("cvWeek") + " 43";
-    $("cv-day").innerHTML = esc(d.toLocaleDateString(loc, { weekday: "long" })) + " <b>" + d.getDate() + "</b> " + esc(d.toLocaleDateString(loc, { month: "long" }));
-    $("cv-donut").innerHTML = donut(st.pct);
-    $("cv-need").textContent = st.uncovered ? st.uncovered + " " + t(st.uncovered === 1 ? "cvLesson" : "cvLessons") + " " + t("cvNeedCover") : t("cvAllCovered");
-    $("cv-counts").textContent = st.absent + " " + t("cvAbsent") + " \xB7 " + st.total + " " + t("cvLessons") + " \xB7 " + st.covered + " " + t("cvCovered");
-    const g = gridModel();
-    $("cv-chips").innerHTML = g.cols.map((c) => {
-      const mine = c.blocks.filter((b) => b.plannable);
-      const cov = mine.filter((b) => b.cover).length;
-      const all = mine.length > 0 && cov === mine.length;
-      return '<div class="schip' + (all ? " done" : "") + '"><span class="sname">' + esc(c.teacher) + "</span>" + (mine.length ? '<span class="sstat' + (all ? " ok" : "") + '">' + (all ? "\u2713 " + esc(t("cvChipCovered")) : cov + "/" + mine.length + " " + esc(t("cvChipCoveredN"))) + '</span><span class="sbar"><i class="' + (all ? "ok" : "") + '" style="width:' + Math.round(cov / mine.length * 100) + '%"></i></span>' : '<span class="sstat">' + esc(t("cvChipAbsent")) + "</span>") + (all ? '<span class="stick">\u2713</span>' : "") + "</div>";
-    }).join("");
-    const gap = ROWS.filter((r) => r.plannable && r.cover && !planSettled(r.id)).length;
-    $("cv-nudge").hidden = !(LOUD === "nudge" && gap > 0);
-    if (LOUD === "nudge" && gap > 0) {
-      $("cv-nudge").innerHTML = "<span>\u{1F4C4}</span><div>" + esc(fillT("cvGapLine", { n: gap === 1 ? t("cvGap1") : fillT("cvGapN", { n: gap }) })) + '</div><button class="btn btn-soft btn-sm" data-planfirst>' + esc(t("cvGapBtn")) + "</button>";
-    }
-    renderLoudPicker();
-    const h = Math.round(g.span / 60 * GRID.pxPerHour);
-    const top = (m) => (m - g.from) / g.span * 100;
-    const lines = g.marks.map((m) => '<div class="hline" style="top:' + top(m) + '%"></div>').join("");
-    $("cv-grid").style.minWidth = GRID.gutter + g.cols.length * GRID.colMin + "px";
-    $("cv-grid").innerHTML = '<div class="gutter" style="width:' + GRID.gutter + 'px"><div class="colhead"></div><div class="canvas" style="height:' + h + 'px">' + g.marks.map((m) => '<span class="hmark" style="top:calc(' + top(m) + '% - 6px)">' + minsToHHMM(m) + "</span>").join("") + '</div></div><div class="cols">' + g.cols.map((c) => '<div class="col" style="min-width:' + GRID.colMin + 'px"><div class="colhead"><span>' + esc(c.teacher) + '</span></div><div class="canvas" style="height:' + h + 'px">' + lines + c.blocks.map((b) => blockHtml(b, g, h)).join("") + "</div></div>").join("") + "</div>";
-  }
-  function blockTitle(b) {
-    const parts = [b.group, b.subject].filter((x) => x && x !== "\u2014");
-    return parts.length ? parts.join(" ") : b.raw;
-  }
-  function planMark(p) {
-    const marks = {
-      generated: p.approved ? ["\u2713", "ok", "cvHasPlan"] : ["\u25CB", "", "cvPlanDraft"],
-      linked: ["\u{1F517}", "ok", "cvHasLinked"],
-      note: ["\u{1F517}", "ok", "cvHasNote"],
-      authored: ["\u2713", "ok", "cvHasLinked"],
-      not_needed: null
-    };
-    const m = marks[p.kind];
-    if (!m) return "";
-    return '<span class="bplan ' + m[1] + '" title="' + esc(t(m[2])) + '">' + m[0] + "</span>";
-  }
-  function minsToHHMM(m) {
-    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
-  }
-  function blockHtml(b, g, gridH) {
-    const s = hhmmToMins(b.start), e = hhmmToMins(b.end);
-    const topPct = (s - g.from) / g.span * 100;
-    const hPct = (e - s) / g.span * 100;
-    const px = hPct / 100 * gridH;
-    const status = !b.plannable ? "nonteach" : b.cover ? "covered" : "uncovered";
-    const plan = planFor(b.id);
-    return '<div class="blk ' + status + '" role="button" tabindex="0" data-blk="' + esc(b.id) + '" style="top:calc(' + topPct + "% + 1px);height:calc(" + hPct + '% - 3px);min-height:22px" title="' + esc([b.group, b.subject].filter(Boolean).join(" ") + " \xB7 " + b.time + (b.cover ? " \xB7 \u2713 " + b.cover : "")) + '"><p class="bt">' + esc(blockTitle(b)) + "</p>" + (px >= 34 ? '<p class="bm">' + esc(b.time) + "</p>" : "") + (px >= 48 && b.cover ? '<p class="bc">\u2713 ' + esc(b.cover) + "</p>" : "") + (plan && LOUD !== "quiet" && px >= 30 ? planMark(plan) : "") + "</div>";
-  }
-
-  // app-src/lk-panel.ts
-  async function usePlan(id, row = null) {
-    const seq = nextPanel();
-    const { data, error } = await sb.rpc("lk_plan", { p_id: id });
-    if (!panelIs(seq)) return false;
-    if (error || !data) {
-      toast(t("errOpen"));
-      return false;
-    }
-    state.view = "coordinator";
-    const bodies = { [data.language || "sv"]: data.body };
-    if (data.body_alt && data.language_alt) bodies[data.language_alt] = data.body_alt;
-    state.bodies = bodies;
-    state.plan = pickBody();
-    state.planId = data.id;
-    applyApproval(data);
-    state.pshare = data.origin ? {
-      origin: data.origin,
-      author: data.author_name || null,
-      allowed: !!data.share_allowed,
-      choice: data.share_choice ?? null,
-      mine: !!data.mine,
-      shared: !!data.shared
-    } : null;
-    state.shareToken = data.share_token;
-    state.model = data.model || null;
-    state.row = row || { id: "", raw: "", subject: data.subject, year: data.year_group, group: "", mins: data.minutes, time: "", start: "", end: "", room: "", teacher: "", cover: null };
-    $("overlay").hidden = false;
-    document.body.style.overflow = "hidden";
-    if (data.check_result && state.checks[data.id] === void 0) {
-      state.checks[data.id] = data.check_result;
-    }
-    showPlan();
-    checkPlan(data.id).then(() => {
-      if (state.planId === data.id) showPlan();
-    }).catch(() => {
-    });
-    return true;
-  }
-  function showPlan() {
-    const r = state.row, p = state.plan;
-    if (!r || !p) return;
-    $("seam-state").textContent = state.approved ? t("seamApproved") : t("seamWaiting");
-    const fallbackNote = bodyIsFallback() ? '<div class="flag" style="background:var(--warn-bg);color:#7c4a02"><span>!</span><div>' + esc(t("onlyInOther")) + "</div></div>" : "";
-    const simNote = state.model === "canned" ? '<div class="flag sim"><span>\u26A0</span><div><b>' + esc(t("simTitle")) + "</b> " + esc(t("simBody")) + "</div></div>" : "";
-    const fbRow = state.view === "coordinator" ? fbRowForOpenPlan() : null;
-    const fbBox = fbRow ? '<div class="fx fbbox"><h4>' + esc(t("fbThisPlan")) + "</h4>" + fbBody(fbRow) + "</div>" : "";
-    const head = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title" class="plan-title">' + esc(p.title) + '</h2><div class="plan-meta">' + esc([
-      subjectLabel(r.subject),
-      yearLabel(r.year),
-      r.group,
-      r.start ? r.start + "\u2013" + r.end : ""
-    ].filter(Boolean).join(" \xB7 ")) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="viewtog"><button class="' + (state.view === "coordinator" ? "on" : "") + '" data-view="coordinator">' + esc(t("viewCoord")) + '</button><button class="' + (state.view === "vikarie" ? "on" : "") + '" data-view="vikarie">' + esc(t("viewSub")) + "</button></div>" + // The sidebar toggle sits behind this overlay, so the plan carries its own.
-    (state.bodies && Object.keys(state.bodies).length > 1 ? '<div class="viewtog">' + ["sv", "en"].filter((c) => state.bodies?.[c]).map((c) => '<button class="' + (c === LANG ? "on" : "") + '" data-planlang="' + c + '">' + (c === "sv" ? "SV" : "EN") + "</button>").join("") + "</div>" : "") + '<span class="hint">' + (state.view === "coordinator" ? esc(t("coordHint")) : esc(t("subHint")) + " " + esc(p.readTime || "")) + "</span></div>";
-    const check = state.planId ? state.checks[state.planId] : null;
-    const checkNote = state.view === "coordinator" ? checkBanner(check) : "";
-    const approveNote = state.view === "coordinator" && state.planId ? approveBar() : "";
-    const staleNote = state.apprStale ? '<div class="flag" style="background:var(--warn-bg)"><span>!</span><div>' + esc(t("apprStaleWarn")) + "</div></div>" : "";
-    $("addin-content").innerHTML = head + checkNote + staleNote + approveNote + simNote + fallbackNote + fbBox + (state.view === "coordinator" ? coordView(p, r) : vikarieView(p, r)) + "</div>";
-  }
-  function minDiff(a, b) {
-    const [h1 = 0, m1 = 0] = a.split(":").map(Number), [h2 = 0, m2 = 0] = b.split(":").map(Number);
-    return h2 * 60 + m2 - (h1 * 60 + m1);
-  }
-  function coordView(p, r) {
-    const phases = p.phases || [];
-    const sum = phases.reduce((a, ph) => {
-      const m = String(ph.t || "").split("\u2013");
-      return a + (m.length === 2 ? minDiff(m[0], m[1]) : 0);
-    }, 0);
-    const lt = subLinkToken();
-    const link = lt ? planUrl(lt) : null;
-    return '<div class="plan"><div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t("whatItIs")) + "</h4><p>" + esc(p.summary) + '</p></div><div class="twocol"><div class="callout"><strong>' + esc(t("goal")) + "</strong>" + esc(p.goal) + '</div><div class="callout"><strong>' + esc(t("curriculum")) + '</strong><span style="font-size:12.5px">' + esc(p.curriculum) + '</span></div></div><div class="ps"><h4>' + esc(t("toCheck")) + "</h4><ul><li>" + esc(t("phasesSum")) + " <b>" + sum + " " + esc(t("min")) + "</b> \u2014 " + esc(t("lessonIs")) + " " + r.mins + " " + esc(t("min")) + ". " + (sum === r.mins ? '<span class="chip chip-ok">' + esc(t("matches")) + "</span>" : '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>") + "</li>" + // From the check, not assumed: a plan with blockers is not "all written".
-    (() => {
-      const ck = state.planId ? state.checks[state.planId] : null;
-      return "<li>" + esc(t("allWritten")) + " " + (!ck ? '<span class="chip chip-neutral">' + esc(t("allWrittenUnknown")) + "</span>" : ck.blockers || 0 ? '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>" : '<span class="chip chip-ok">' + esc(t("ok")) + "</span>") + "</li>";
-    })() + "<li>" + esc(t("requires")) + " " + esc(p.equipment?.need || "\u2014") + "</li></ul></div>" + (state.approved ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>\u2713</span><div><b>' + esc(t("approvedTitle")) + "</b> " + apprSignedLine() + " " + (link ? esc(t("subLink")) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t("copyLink")) + '">' + CHK + '<span class="cl-label">' + esc(link) + "</span></button>" : "") + "</div></div>" : "") + shareTick() + '<div class="foot">' + (state.approved ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t("seeSubView")) + "</button>" + (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyMail")) + "</span></button>" : "") + (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyLink")) + "</span></button>" : "") : '<span class="hint">' + esc(t("nothingBefore")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-frompool>' + esc(t("fromPool")) + '</button><button class="btn btn-ghost" data-regen>' + esc(t("regen")) + "</button>" + (state.planId ? apprButtons(0) : "")) + "</div></div>";
-  }
-  function shareTick() {
-    const s = state.pshare;
-    if (!s || !s.mine) return "";
-    const hint = s.origin === "teacher" ? t("shareHintTeacher") : fillT("shareHintAi", { s: t(state.shareAi === false ? "setOff" : "setOn") });
-    const now = !s.allowed ? t("shareOff") : s.shared ? t("shareNow") : t("shareWaits");
-    return '<label class="sharetick"><input type="checkbox" data-shareplan' + (s.allowed ? " checked" : "") + "><span><b>" + esc(t("shareTitle")) + '</b> <span class="orig ' + (s.origin === "teacher" ? "tch" : "ai") + '">' + esc(t(s.origin === "teacher" ? "origTeacher" : "origAi")) + '</span><br><span class="hint">' + esc(now) + " " + esc(hint) + "</span></span></label>";
-  }
-
-  // app-src/lk-link.ts
-  async function checkPlan(id) {
-    if (state.checks[id] !== void 0) return state.checks[id];
-    try {
-      const { data, error } = await sb.functions.invoke("lk-verify", { body: { plan_id: id } });
-      state.checks[id] = error ? null : data;
-    } catch {
-      state.checks[id] = null;
-    }
-    return state.checks[id];
-  }
-  function checkBanner(v) {
-    if (!v) return "";
-    if (v.ok && !v.warnings) {
-      return '<div class="flag chk ok"><span>\u2713</span><div>' + esc(t("chkClean")) + (v.subject_checked ? " " + esc(t("chkSubject")) : "") + "</div></div>";
-    }
-    const lines = (v.problems || []).map((p) => '<li class="' + (p.level === "blocker" ? "bad" : "warn") + '"><b>' + esc(p.where) + "</b> \u2014 " + esc(p.detail) + "</li>").join("");
-    return '<div class="flag chk ' + (v.ok ? "warn" : "bad") + '"><span>' + (v.ok ? "!" : "\u2715") + "</span><div><b>" + esc(v.ok ? fillT("chkWarnings", { n: v.warnings }) : fillT("chkBlockers", { n: v.blockers })) + "</b> " + esc(v.ok ? t("chkWarnBody") : t("chkBlockBody")) + '<ul class="chklist">' + lines + "</ul></div></div>";
-  }
-  function planRow(r, p) {
-    if (!p) {
-      return '<div class="planrow"><span class="plbl">' + esc(t("cvMakePlan")) + '</span><button class="plopt" data-planopen="' + esc(r.id) + '">' + esc(t("cvPlMake")) + '</button><button class="plopt" data-planlink="' + esc(r.id) + '">' + esc(t("cvPlLink")) + '</button><button class="plopt quiet" data-plannot="' + esc(r.id) + '">' + esc(t("cvPlNot")) + "</button></div>";
-    }
-    if (p.kind === "not_needed") {
-      return '<div class="planrow done"><span class="plbl">' + esc(t("cvPlNotSet")) + '</span><button class="plopt quiet" data-planclear="' + esc(r.id) + '">' + esc(t("cvPlUndo")) + "</button></div>";
-    }
-    if (p.kind === "generated") {
-      return '<button class="planbtn ' + (p.approved ? "done" : "draft") + '" data-planopen="' + esc(r.id) + '"><span>' + (p.approved ? "\u2713" : "\u{1F4C4}") + "</span>" + esc(p.approved ? t("cvOpenPlan") : t("cvPlReview")) + "</button>";
-    }
-    const what = p.label || (p.kind === "note" ? t("cvPlNoteKind") : hostOf(p.url) || t("cvPlLinkKind"));
-    const expLine = p.expires_at ? '<div class="planrow"><span class="plbl">' + esc(p.expired ? t("cvPlExpired") : t("cvPlUntil") + " " + new Date(new Date(p.expires_at).getTime() - 1e3).toLocaleDateString(LANG === "sv" ? "sv-SE" : "en-GB", { day: "numeric", month: "short" })) + "</span>" + (p.expired ? "" : '<button class="plopt quiet" data-planextend="' + esc(r.id) + '">' + esc(t("cvPlExtend")) + "</button>") + "</div>" : "";
-    return '<button class="planbtn linked" data-planopen="' + esc(r.id) + '"><span>\u{1F517}</span>' + esc(t("cvPlTeachers")) + " \u2014 " + esc(what) + "</button>" + expLine + '<div class="planrow"><button class="plopt quiet" data-planlink="' + esc(r.id) + '">' + esc(t("cvPlChange")) + '</button><button class="plopt quiet" data-planclear="' + esc(r.id) + '">' + esc(t("cvPlRemove")) + "</button></div>";
-  }
-  function hostOf(url) {
-    try {
-      return new URL(url || "").hostname.replace(/^www\./, "");
-    } catch {
-      return null;
-    }
-  }
-  function openLinkBox(ref) {
-    const r = ROWS.find((b) => b.id === ref);
-    if (!r) return;
-    const p = planFor(ref) || {};
-    closePop();
-    $("linkbox").innerHTML = '<div class="lbx"><h3>' + esc(t("cvPlLinkTitle")) + '</h3><p class="hint">' + esc(blockTitle(r)) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.teacher) + '</p><label class="f full">' + esc(t("cvPlUrl")) + '<input id="lb-url" type="url" placeholder="https://\u2026" value="' + esc(p.url || "") + '"></label><p class="linkstate" id="lb-state" hidden></p><label class="f full">' + esc(t("cvPlNoteLbl")) + '<textarea id="lb-note" rows="3" placeholder="' + esc(t("cvPlNotePh")) + '">' + esc(p.note || "") + '</textarea></label><label class="f full">' + esc(t("cvPlLabel")) + '<input id="lb-label" maxlength="60" placeholder="' + esc(t("cvPlLabelPh")) + '" value="' + esc(p.label || "") + '"></label><p class="hint">' + esc(t("cvPlWrapNote")) + '</p><div class="lbxfoot"><button class="btn btn-ghost btn-sm" data-lbcancel>' + esc(t("cancel")) + '</button><button class="btn btn-primary btn-sm" data-lbsave="' + esc(ref) + '">' + esc(t("save")) + "</button></div></div>";
-    $("linkbox").hidden = false;
-    const urlField = $("lb-url");
-    urlField.addEventListener("blur", () => checkLink(urlField.value));
-    if (p.url) checkLink(p.url);
-  }
-  async function checkLink(url) {
-    const box = maybe$("lb-state");
-    if (!box) return;
-    const u = (url || "").trim();
-    if (!u) {
-      box.hidden = true;
-      return;
-    }
-    box.hidden = false;
-    box.className = "linkstate busy";
-    box.textContent = t("lkChecking");
-    let r;
-    try {
-      const { data, error } = await sb.functions.invoke("lk-checklink", { body: { url: u } });
-      r = error ? { status: "unreachable" } : data;
-    } catch {
-      r = { status: "unreachable" };
-    }
-    const map = {
-      ok: ["ok", "lkOk"],
-      missing: ["bad", "lkMissing"],
-      private: ["warn", "lkPrivate"],
-      slow: ["warn", "lkSlow"],
-      unreachable: ["warn", "lkUnreachable"],
-      bad: ["bad", r && r.reason === "not_http" ? "lkNotHttp" : r && r.reason === "private_address" ? "lkPrivateAddr" : "lkNotUrl"]
-    };
-    const m = map[r && r.status || "unreachable"] || map.unreachable;
-    box.className = "linkstate " + m[0];
-    box.textContent = t(m[1]);
-  }
-  async function saveLink(ref) {
-    const url = $("lb-url").value.trim();
-    const note = $("lb-note").value.trim();
-    const label = $("lb-label").value.trim();
-    if (!url && !note) {
-      toast(t("cvPlNeedOne"));
-      return;
-    }
-    if (url && !/^https?:\/\//i.test(url)) {
-      toast(t("cvPlNeedHttp"));
-      return;
-    }
-    const { error } = await sb.rpc("lk_set_cover_plan", {
-      p_absence_ref: ref,
-      p_kind: url ? "linked" : "note",
-      p_url: url || null,
-      p_note: note || null,
-      p_label: label || null
-    });
-    if (error) {
-      toast(error.message);
-      return;
-    }
-    $("linkbox").hidden = true;
-    await loadCoverPlans();
-    renderRows();
-    toast(t("cvPlSaved"));
-  }
-  function openPlanPanel(ref) {
-    const r = ROWS.find((b) => b.id === ref);
-    if (!r) return;
-    const p = planFor(ref);
-    if (p && (p.kind === "linked" || p.kind === "note")) {
-      closePop();
-      window.open(planUrl(p.share_token), "_blank", "noopener");
-      return;
-    }
-    closePop();
-    document.body.classList.add("panelmode");
-    if (p && p.kind === "generated" && p.plan_id) {
-      usePlan(p.plan_id, r);
-      return;
-    }
-    openAddin(ref);
-  }
-
-  // app-src/lk-cover.ts
-  var ROWS = [
-    {
-      id: "abs-1",
-      time: "08:20\u201309:20",
-      start: "08:20",
-      end: "09:20",
-      mins: 60,
-      teacher: "Anna Lindqvist",
-      group: "Tb7a",
-      raw: "Ma",
-      subject: "Matematik",
-      year: "\xC5k 7",
-      room: "A101",
-      cover: "Erik Sandberg",
-      plannable: true
-    },
-    {
-      id: "abs-2",
-      time: "09:40\u201310:40",
-      start: "09:40",
-      end: "10:40",
-      mins: 60,
-      teacher: "Anna Lindqvist",
-      group: "Tb7b",
-      raw: "Ma",
-      subject: "Matematik",
-      year: "\xC5k 7",
-      room: "A101",
-      cover: null,
-      plannable: true
-    },
-    {
-      id: "abs-3",
-      time: "10:00\u201310:45",
-      start: "10:00",
-      end: "10:45",
-      mins: 45,
-      teacher: "Johan Berg",
-      group: "",
-      raw: "Rast",
-      subject: "\u2014",
-      year: "",
-      room: "Korridor B",
-      cover: "Sara Nilsson",
-      plannable: false,
-      whyKey: "whyRast"
-    },
-    {
-      id: "abs-4",
-      time: "11:00\u201311:45",
-      start: "11:00",
-      end: "11:45",
-      mins: 45,
-      teacher: "Johan Berg",
-      group: "Tb5c",
-      raw: "Sv",
-      subject: "Svenska",
-      year: "\xC5k 5",
-      room: "B204",
-      cover: "Sara Nilsson",
-      plannable: true
-    },
-    {
-      id: "abs-5",
-      time: "13:00\u201314:00",
-      start: "13:00",
-      end: "14:00",
-      mins: 60,
-      teacher: "Johan Berg",
-      group: "Tb9a",
-      raw: "En",
-      subject: "Engelska",
-      year: "\xC5k 9",
-      room: "B204",
-      cover: null,
-      plannable: true
-    },
-    {
-      id: "abs-6",
-      time: "07:30\u201315:30",
-      start: "07:30",
-      end: "15:30",
-      mins: 480,
-      teacher: "Leila Haddad",
-      group: "",
-      raw: "Arbetstid",
-      subject: "\u2014",
-      year: "",
-      room: "",
-      cover: null,
-      plannable: false,
-      whyKey: "whyArbetstid"
-    },
-    {
-      id: "abs-7",
-      time: "14:15\u201315:35",
-      start: "14:15",
-      end: "15:35",
-      mins: 80,
-      teacher: "Leila Haddad",
-      group: "Tb8b:SltmHT",
-      raw: "Sl",
-      subject: "Sl\xF6jd",
-      year: "\xC5k 8",
-      room: "Sl\xF6jdsal 2",
-      cover: "Mats Ek",
-      plannable: true,
-      practical: true
-    }
-  ];
-  var LOUD = (() => {
-    try {
-      return localStorage.getItem("lk.loud") || "marked";
-    } catch {
-      return "marked";
-    }
-  })();
-  function setLoud(v) {
-    LOUD = v;
-    try {
-      localStorage.setItem("lk.loud", v);
-    } catch {
-    }
-    renderRows();
-    renderLoudPicker();
-  }
-  function renderLoudPicker() {
-    const el = maybe$("cv-loud");
-    if (!el) return;
-    el.innerHTML = '<span class="lbl">' + esc(t("cvHow")) + "</span>" + [["quiet", "cvQuiet"], ["marked", "cvMarked"], ["nudge", "cvNudge"]].map(([v, k]) => '<button class="' + (LOUD === v ? "on" : "") + '" data-loud="' + v + '">' + esc(t(k)) + "</button>").join("") + '<span class="hint">' + esc(t("cvHowNote")) + "</span>";
-  }
-  var PLANS = {};
-  function planFor(ref) {
-    return PLANS[ref] || null;
-  }
-  function planSettled(ref) {
-    const p = planFor(ref);
-    return !!p;
-  }
-  async function loadCoverPlans() {
-    const { data } = await sb.rpc("lk_cover_plans");
-    PLANS = data || {};
-  }
-  var POP = null;
-  function closePop() {
-    POP = null;
-    $("cv-pop").hidden = true;
-  }
-  function openPop(ref, x, y) {
-    const r = ROWS.find((b) => b.id === ref);
-    if (!r) return;
-    POP = ref;
-    const plan = planFor(ref);
-    const el = $("cv-pop");
-    const planBtn = r.plannable ? planRow(r, plan) : '<p class="pnote">' + esc(t(r.whyKey || "whyRast")) + "</p>";
-    el.innerHTML = '<div class="pophead"><p class="ph">' + esc([r.group, r.subject].filter(Boolean).join(" ") || r.raw) + (r.room ? '<span class="rm">' + esc(r.room) + "</span>" : "") + '</p><p class="pm">' + esc(t("cvWas")) + ": " + esc(r.teacher) + " \u2022 " + esc(r.time) + " \u2022 " + r.mins + " min</p></div>" + (r.cover ? '<div class="poprow"><span class="covpill">\u2713 ' + esc(r.cover) + '</span><span class="popicons"><button disabled title="' + esc(t("cvNotify")) + '">\u2709</button><button disabled title="' + esc(t("cvRemove")) + '">\xD7</button></span></div>' : '<div class="poprow"><select disabled><option>' + esc(t("cvAssign")) + "</option></select></div>") + planBtn;
-    el.hidden = false;
-    if (window.innerWidth < 640) {
-      el.style.left = "";
-      el.style.top = "";
-      return;
-    }
-    const w = 300, hGuess = 190;
-    el.style.left = Math.min(x, window.innerWidth - w - 12) + "px";
-    el.style.top = Math.min(y, window.innerHeight - hGuess - 12) + "px";
-  }
-
-  // app-src/lk-wait.ts
-  var waitTimer;
-  var WAIT_EXPECT = 120;
-  var OWL_SVG = '<svg class="owl" viewBox="0 0 140 130" aria-hidden="true"><ellipse cx="70" cy="122" rx="44" ry="5" fill="rgba(13,35,64,.12)"/><g class="owl-bob"><ellipse cx="70" cy="72" rx="36" ry="40" fill="#1b4776"/><path d="M40 62 Q30 80 38 100 Q46 90 46 72Z" fill="#153a62"/><path d="M100 62 Q110 80 102 100 Q94 90 94 72Z" fill="#153a62"/><ellipse cx="70" cy="84" rx="23" ry="26" fill="#e8f0fb"/><path d="M58 80 q4 4 8 0 M70 88 q4 4 8 0 M58 96 q4 4 8 0 M74 78 q3 3 6 0" stroke="#b8c9dc" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="56" cy="56" r="14" fill="#fff"/><circle cx="84" cy="56" r="14" fill="#fff"/><g class="owl-eyes"><circle cx="56" cy="59" r="6" fill="#0d2340"/><circle cx="84" cy="59" r="6" fill="#0d2340"/><circle cx="58" cy="57" r="2" fill="#fff"/><circle cx="86" cy="57" r="2" fill="#fff"/></g><g class="owl-lids"><ellipse cx="56" cy="56" rx="15" ry="15" fill="#1b4776"/><ellipse cx="84" cy="56" rx="15" ry="15" fill="#1b4776"/></g><path d="M65 66 L75 66 L70 75Z" fill="#f5a524"/><path d="M40 34 L70 22 L100 34 L70 46Z" fill="#0d2340"/><path d="M52 40 L52 48 Q70 56 88 48 L88 40 L70 46Z" fill="#0d2340"/><path class="owl-tassel" d="M100 34 L100 50" stroke="#f5a524" stroke-width="2.5" stroke-linecap="round"/></g><path d="M30 104 Q50 96 70 104 Q90 96 110 104 L110 120 Q90 112 70 120 Q50 112 30 120Z" fill="#fff" stroke="#1b4776" stroke-width="2"/><line x1="70" y1="104" x2="70" y2="120" stroke="#1b4776" stroke-width="1.5"/><g class="owl-ink" stroke="#1b4776" stroke-width="1.6" stroke-linecap="round"><line class="l1" x1="38" y1="106" x2="62" y2="104"/><line class="l2" x1="38" y1="111" x2="60" y2="109"/><line class="l3" x1="78" y1="104" x2="102" y2="106"/><line class="l4" x1="78" y1="109" x2="98" y2="111"/></g><g class="owl-pencil"><rect x="0" y="-2" width="22" height="5" rx="1" fill="#f5a524" transform="rotate(-35)"/><path d="M0 -2 L-5 0.5 L0 3Z" fill="#0d2340" transform="rotate(-35)"/></g></svg>';
-  function waitHtml(what) {
-    return '<div class="gen wait">' + OWL_SVG + '<div class="genstep" id="wait-what">' + esc(what) + '</div><div class="bar"><i id="wait-bar" style="width:3%"></i></div><div class="waitrow"><span id="wait-time" class="mono">0:00</span><span>\xB7</span><span>' + esc(t("waitUpTo")) + '</span></div><p class="hint waittip" id="wait-tip">' + esc(t("waitTip1")) + "</p></div>";
-  }
-  function startWait() {
-    stopWait();
-    const t0 = Date.now();
-    const tips = ["waitTip1", "waitTip2", "waitTip3", "waitTip4", "waitTip5", "waitTip6"];
-    waitTimer = window.setInterval(() => {
-      const sec = Math.floor((Date.now() - t0) / 1e3);
-      const tm = maybe$("wait-time");
-      if (!tm) {
-        stopWait();
-        return;
-      }
-      tm.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
-      const pct = 3 + 92 * (1 - Math.exp(-sec / (WAIT_EXPECT * 0.6)));
-      const bar = maybe$("wait-bar");
-      if (bar) bar.style.width = pct.toFixed(1) + "%";
-      const tip = maybe$("wait-tip");
-      if (tip) tip.textContent = sec > WAIT_EXPECT ? t("waitLong") : t(tips[Math.floor(sec / 8) % tips.length]);
-    }, 1e3);
-  }
-  function stopWait() {
-    if (waitTimer) {
-      clearInterval(waitTimer);
-      waitTimer = void 0;
-    }
-  }
-  function waitSay(what) {
-    const el = maybe$("wait-what");
-    if (el) el.textContent = what;
-  }
-
-  // app-src/lk-embed.ts
-  function planUrl(token) {
-    const base = location.origin + location.pathname.replace(/[^/]*$/, "") + "plan.html?";
-    return String(token).startsWith("r:") ? base + "r=" + String(token).slice(2) : base + "t=" + token;
-  }
-  function subLinkToken() {
-    const g = state.row?.group;
-    const u = g && g !== "\u2014" && state.planId ? usesOf(state.planId, g)[0] : null;
-    return u && u.run_token ? "r:" + u.run_token : state.shareToken;
-  }
-  var EMBED = (() => {
-    const q = new URLSearchParams(location.search);
-    if (q.get("embed") !== "1") return null;
-    const num = (k, d) => {
-      const n = parseInt(q.get(k) || "", 10);
-      return Number.isFinite(n) ? n : d;
-    };
-    return {
-      row: {
-        id: q.get("ref") || "",
-        subject: q.get("subject") || "\u2014",
-        year: q.get("year") || "",
-        group: q.get("group") || "",
-        raw: q.get("code") || q.get("subject") || "",
-        mins: num("mins", 45),
-        start: q.get("start") || "",
-        end: q.get("end") || "",
-        time: [q.get("start"), q.get("end")].filter(Boolean).join("\u2013"),
-        room: q.get("room") || "\u2014",
-        teacher: q.get("teacher") || "\u2014",
-        cover: q.get("cover") || null,
-        practical: q.get("practical") === "1",
-        plannable: true
-      }
-    };
-  })();
-  function toParent(type, payload) {
-    if (!EMBED || window.parent === window) return;
-    try {
-      window.parent.postMessage({ source: "lektionskollen", type, ...payload }, "*");
-    } catch {
-    }
-  }
-  function openEmbed() {
-    if (!EMBED) return;
-    document.body.classList.add("embed");
-    state.row = EMBED.row;
-    state.plan = null;
-    state.planId = null;
-    state.view = "coordinator";
-    $("overlay").hidden = false;
-    const seq = nextPanel();
-    bankReady.then(() => {
-      if (panelIs(seq) && !state.planId) showRequest();
-    });
-    toParent("lk:ready", { ref: EMBED.row.id });
-  }
-  function openAddin(id) {
-    nextPanel();
-    state.row = ROWS.find((x) => x.id === id) || null;
-    state.plan = null;
-    state.planId = null;
-    state.view = "coordinator";
-    state.pshare = null;
-    if (state.row) {
-      state.pool.sub = canonSubject(state.row.subject);
-      state.pool.yr = canonYear(state.row.year);
-      savePoolPick();
-    }
-    $("overlay").hidden = false;
-    document.body.style.overflow = "hidden";
-    showRequest();
-  }
-  function closeAddin() {
-    stopWait();
-    nextPanel();
-    state.cr = null;
-    if (EMBED) {
-      toParent("lk:close", {});
-      return;
-    }
-    state.row = null;
-    $("overlay").hidden = true;
-    document.body.style.overflow = "";
-    document.body.classList.remove("panelmode");
-    if (state.screen === "cover") loadCoverPlans().then(renderRows).catch(() => {
-    });
-  }
-
-  // app-src/lk-generate.ts
-  function showRequest() {
-    const r = state.row;
-    if (!r) return;
-    $("seam-state").textContent = "lk:init";
-    const matches = state.bank.filter((b) => canonSubject(b.subject) === canonSubject(r.subject) && canonYear(b.year_group) === canonYear(r.year) && b.approved);
-    $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("planFor")) + " " + esc(r.group) + '</h2><div class="plan-meta">' + esc(r.teacher) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.room) + (r.cover ? " \xB7 " + esc(r.cover) : " \xB7 " + esc(t("uncovered").toLowerCase())) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="derived"><div><dt>' + esc(t("subjectLbl")) + "</dt><dd>" + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t("fromCode")) + ' "' + esc(r.raw) + '"</div></div><div><dt>' + esc(t("yearLbl")) + "</dt><dd>" + esc(yearLabel(r.year)) + '</dd><div class="from">' + esc(t("derivedFrom")) + ' "' + esc(r.group) + '"</div></div><div><dt>' + esc(t("lengthLbl")) + "</dt><dd>" + r.mins + " " + esc(t("min")) + '</dd><div class="from">' + esc(r.start) + "\u2013" + esc(r.end) + "</div></div></div>" + (r.practical ? '<div class="flag"><span>\u26A0</span><div><b>' + esc(t("practicalWarn")) + "</b> " + esc(t("practicalBody")) + "</div></div>" : "") + (matches.length ? '<div><div class="sect-h">' + esc(t("fromBank")) + " \u2014 " + matches.length + " " + esc(matches.length === 1 ? t("bankApproved") : t("bankApprovedPl")) + '</div><div class="bankrow">' + matches.map((b) => {
-      const had = usesOf(b.id, r.group);
-      return '<button class="bankcard' + (had.length ? " hadit" : "") + '" data-usebank="' + b.id + '"><div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div><div class="m">' + b.minutes + " " + esc(t("min")) + " \xB7 " + b.rating_count + " " + esc(t("ratings")) + (b.shared ? " \xB7 " + esc(t("sharedTag")) : "") + "</div>" + (had.length ? '<div class="hadwarn">\u26A0 ' + esc(fillT("hadIt", { g: r.group, d: fmtDate(had[0].used_on) })) + "</div>" : "") + '</div><span class="stars">' + stars(b.rating) + '</span><span class="btn btn-soft btn-sm">' + esc(t("use")) + "</span></button>";
-    }).join("") + "</div></div>" : '<div><div class="sect-h">' + esc(t("fromBank")) + '</div><p class="hint">' + esc(t("bankNone")) + " " + esc(subjectLabel(r.subject)) + " " + esc(yearLabel(r.year)) + " " + esc(t("bankNoneTail")) + (EMBED ? "" : ' <button class="btn btn-ghost btn-sm" data-poolgo>' + esc(t("poolBrowse")) + " \u2192</button>") + "</p></div>") + (matches.length ? '<details class="steerbox"><summary>' + esc(t("noFit")) + "</summary>" : "") + '<div><div class="sect-h">' + esc(t("steer")) + '</div><div class="steer"><label class="f full">' + esc(t("fTopic")) + '<input id="s-topic" placeholder="' + esc(t("fTopicPh")) + '"></label><label class="f full">' + esc(t("fNotes")) + '<textarea id="s-notes" rows="2" placeholder="' + esc(t("fNotesPh")) + '"></textarea></label><label class="f">' + esc(t("fType")) + '<select id="s-type">' + (r.practical ? ["typeTheory", "typeContinue", "typePractical"] : ["typeRevision", "typeDeep", "typeQuiet"]).map((k) => "<option>" + esc(t(k)) + "</option>").join("") + '</select></label><p class="hint full" style="margin:2px 0 0">' + esc(t("fTypeHint")) + '</p><div class="full"><div class="sect-h" style="margin-bottom:6px">' + esc(t("fRes")) + '</div><div class="chips">' + ["resWhiteboard", "resProjector", "resComputers", "resBooks", "resMini"].map((k, i) => '<button class="tog' + (i === 0 ? " on" : "") + '" data-res>' + esc(t(k)) + "</button>").join("") + "</div></div></div></div>" + (matches.length ? "</details>" : "") + '<div class="foot"><span class="hint">' + esc(t("privacyNote")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn ' + (matches.length ? "btn-ghost" : "btn-primary") + '" data-generate>' + esc(t("create")) + "</button></div></div>";
-  }
-  function gatherRequest() {
-    const r = state.row;
-    if (!r) throw new Error("no lesson selected");
-    return {
-      absence_ref: r.id,
-      subject: r.subject,
-      year_group: r.year,
-      group_name: r.group,
-      room: r.room,
-      starts_at: r.start,
-      ends_at: r.end,
-      minutes: r.mins,
-      topic: maybe$("s-topic")?.value || "",
-      notes: maybe$("s-notes")?.value || "",
-      lesson_type: maybe$("s-type")?.value || "",
-      // Always both languages: lk-generate writes one and translates it, so the
-      // plan carries sv and en and the reader toggles.
-      language: "sv",
-      resources: [...document.querySelectorAll("[data-res].on")].map((b) => b.textContent)
-    };
-  }
-  async function invokeGen(body) {
-    const r = await sb.functions.invoke("lk-generate", { body });
-    if (r.error && !r.data) {
-      try {
-        const ctx = r.error.context;
-        if (ctx && typeof ctx.json === "function") return { data: await ctx.json(), error: r.error };
-      } catch {
-      }
-    }
-    return r;
-  }
-  function genErrText(data, error) {
-    const code = String(data?.error || "");
-    if (code === "no_model") return t("errNoModel");
-    if (code === "quota") return fillT("errQuota", { n: data?.limit ?? "" });
-    if (code === "bad_output") return t("errBadOutput");
-    if (code === "no_school") return t("errNoSchool");
-    if (code === "too_large") return t("errTooLarge");
-    if (code || error) console.warn("lk-generate", code, data?.detail, error);
-    return t("errUnknown");
-  }
-  async function generate() {
-    const req = gatherRequest();
-    const seq = nextPanel(), row = state.row;
-    const stillHere = () => panelIs(seq) && state.row === row;
-    $("seam-state").textContent = t("seamGenerating");
-    $("addin-content").innerHTML = waitHtml(t("genCalling"));
-    startWait();
-    const other = req.language === "en" ? "sv" : "en";
-    const main = await invokeGen({ request: req });
-    let alt = { error: new Error("skipped") };
-    if (!main.error && !main.data?.error) {
-      waitSay(t("genTranslating"));
-      alt = await invokeGen({ request: { ...req, language: other }, translate: main.data.source === "model" ? main.data.plan : void 0 });
-    }
-    if (!stillHere()) return;
-    stopWait();
-    if (main.error || main.data?.error) {
-      const msg = genErrText(main.data, main.error);
-      $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><h2>' + esc(t("failed")) + '</h2><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="alert error">' + esc(msg) + '</div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-generate>' + esc(t("retry")) + "</button></div></div>";
-      return;
-    }
-    const altPlan = !alt.error && !alt.data?.error ? alt.data.plan : null;
-    const { data: pid, error: saveErr } = await sb.rpc("lk_save_plan", {
-      p_request: req,
-      p_plan: main.data.plan,
-      p_model: main.data.model || null,
-      p_plan_alt: altPlan,
-      p_language_alt: altPlan ? other : null
-    });
-    if (saveErr) toast(t("saveFailed") + " " + saveErr.message);
-    if (!stillHere()) {
-      loadBank();
-      return;
-    }
-    const bodies = { [req.language]: main.data.plan };
-    if (altPlan) bodies[other] = altPlan;
-    state.bodies = bodies;
-    state.plan = pickBody();
-    state.planId = pid || null;
-    state.approved = false;
-    applyApproval({});
-    state.shareToken = null;
-    state.pshare = null;
-    state.view = "coordinator";
-    state.model = main.data.model || null;
-    showPlan();
-    loadBank();
-  }
-  function pickBody() {
-    const b = state.bodies || {};
-    return b[LANG] || b.sv || b.en || Object.values(b)[0] || null;
-  }
-  function bodyIsFallback() {
-    return !!(state.bodies && !state.bodies[LANG]);
-  }
-  function applyApproval(d) {
-    state.approved = !!d.approved;
-    state.apprRank = Number(d.approval_rank) || 0;
-    state.apprBy = d.approved_name || null;
-    state.apprSubject = d.approved_subject || null;
-    state.apprStale = !!d.approval_stale;
-  }
-
   // app-src/lk-shell.ts
   function applyStatic() {
     document.querySelectorAll("[data-t]").forEach((el) => {
@@ -1155,22 +534,40 @@
     document.querySelectorAll("[data-lang]").forEach((b) => b.classList.toggle("on", b.getAttribute("data-lang") === LANG));
   }
   function setTitles() {
-    const onPlans = state.screen === "plans";
-    const onFb = onPlans && state.tab === "feedback";
-    $("pagetitle").textContent = onPlans ? t("titlePlans") : t("titleCover");
-    $("pagesub").textContent = onFb ? state.pending + " " + t("toReview") + " \xB7 " + state.fb.length + " " + t("plansCount") : onPlans ? state.bank.length + " " + t("plansCount") + " \xB7 " + state.bank.filter((b) => b.shared).length + " " + t("sharedBetween") : (/* @__PURE__ */ new Date()).toLocaleDateString(
+    const today = (/* @__PURE__ */ new Date()).toLocaleDateString(
       LANG === "sv" ? "sv-SE" : "en-GB",
       { weekday: "long", day: "numeric", month: "long", year: "numeric" }
     );
+    const onPlans = state.screen === "plans";
+    const tab = onPlans ? state.tab : "";
+    const [title, sub] = state.screen === "today" ? [t("navToday"), today] : state.screen === "create" ? [t("crTitle"), t("crLead")] : state.screen === "settings" ? [t("navSettings"), state.me?.school || ""] : tab === "feedback" ? [
+      SHELL === "lk" ? t("tabFeedback") : t("titlePlans"),
+      state.pending + " " + t("toReview") + " \xB7 " + state.fb.length + " " + t("plansCount")
+    ] : tab === "term" && SHELL === "lk" ? [t("tabTerm"), t("tpLead")] : onPlans ? [t("titlePlans"), state.bank.length + " " + t("plansCount") + " \xB7 " + state.bank.filter((b) => b.shared).length + " " + t("sharedBetween")] : [t("titleCover"), today];
+    $("pagetitle").textContent = title;
+    $("pagesub").textContent = sub;
   }
   var ICONS = {
+    calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 15h2"/><path d="M14 15h2"/>',
+    book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    plus: '<circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/>',
+    wheel: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path d="M3 12h18"/><path d="m5.6 5.6 12.8 12.8"/>',
+    message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     clipboard: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14h6"/><path d="M9 18h6"/><path d="M9 10h6"/>',
     radar: '<circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10"/><path d="M2 12h20"/>',
     grid: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
   };
-  var NAV = [
+  var NAV_LK = [
+    { id: "today", icon: "calendar", key: "navToday", real: true },
+    { id: "bank", icon: "book", key: "navPlans", real: true },
+    { id: "create", icon: "plus", key: "navCreate", real: true },
+    { id: "term", icon: "wheel", key: "tabTerm", real: true },
+    { id: "feedback", icon: "message", key: "tabFeedback", real: true, badge: true },
+    { id: "settings", icon: "settings", key: "navSettings", real: true }
+  ];
+  var NAV_FVK = [
     { id: "cover", icon: "users", key: "navCover", real: true },
     // One door for the add-on. The bank and the feedback queue are two views of
     // the same thing, and a second sidebar entry made it look like two features.
@@ -1180,9 +577,13 @@
     { id: "dash", icon: "grid", key: "navDashboard" },
     { id: "set", icon: "settings", key: "navSettings" }
   ];
+  var NAV = SHELL === "lk" ? NAV_LK : NAV_FVK;
+  function currentNav() {
+    return SHELL === "lk" && state.screen === "plans" ? state.tab : state.screen;
+  }
   function renderNav() {
     $("nav").innerHTML = NAV.map((n) => {
-      const active = n.id === state.screen;
+      const active = n.id === currentNav();
       const stroke = active ? "#0F71F6" : "rgba(255,255,255,0.45)";
       return '<button data-nav="' + n.id + '"' + (active ? ' class="on"' : "") + '><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="' + stroke + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n.icon] + '</svg><span class="lbl">' + esc(t(n.key)) + "</span>" + (n.badge && state.pending ? '<span class="chip chip-warn" style="font-size:10px;padding:1px 6px">' + state.pending + "</span>" : "") + (n.addon && !(n.badge && state.pending) ? '<span class="chip chip-blue" style="font-size:10px;padding:1px 6px">' + esc(t("addon")) + "</span>" : "") + "</button>";
     }).join("");
@@ -1520,7 +921,7 @@
     renderSettings();
   }
   function renderSettings() {
-    const box = maybe$("fbsettings");
+    const box = maybe$("settings-page") || maybe$("fbsettings");
     if (!box) return;
     box.innerHTML = "<h4>" + esc(t("capTitle")) + '</h4><p class="hint">' + esc(t("capNote")) + '</p><div class="covrow">' + [[5, "5"], [20, "20"], [-1, t("capUnlimited")]].map(([v, lbl]) => '<button data-cap="' + v + '"' + (state.cap === v ? ' class="on"' : "") + ">" + esc(lbl) + "</button>").join("") + "</div>" + // Only once the database knows the setting; an older one would just error.
     (state.shareAi === void 0 ? "" : '<h4 style="margin-top:18px">' + esc(t("shareAiTitle")) + '</h4><p class="hint">' + esc(t("shareAiNote")) + '</p><div class="covrow"><button data-shareai="1"' + (state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOn")) + '</button><button data-shareai="0"' + (!state.shareAi ? ' class="on"' : "") + ">" + esc(t("shareAiOff")) + "</button></div>") + fvkLinkCard();
@@ -1829,6 +1230,749 @@
     return h;
   }
 
+  // app-src/lk-panel.ts
+  async function usePlan(id, row = null) {
+    const seq = nextPanel();
+    const { data, error } = await sb.rpc("lk_plan", { p_id: id });
+    if (!panelIs(seq)) return false;
+    if (error || !data) {
+      toast(t("errOpen"));
+      return false;
+    }
+    state.view = "coordinator";
+    const bodies = { [data.language || "sv"]: data.body };
+    if (data.body_alt && data.language_alt) bodies[data.language_alt] = data.body_alt;
+    state.bodies = bodies;
+    state.plan = pickBody();
+    state.planId = data.id;
+    applyApproval(data);
+    state.pshare = data.origin ? {
+      origin: data.origin,
+      author: data.author_name || null,
+      allowed: !!data.share_allowed,
+      choice: data.share_choice ?? null,
+      mine: !!data.mine,
+      shared: !!data.shared
+    } : null;
+    state.shareToken = data.share_token;
+    state.model = data.model || null;
+    state.row = row || { id: "", raw: "", subject: data.subject, year: data.year_group, group: "", mins: data.minutes, time: "", start: "", end: "", room: "", teacher: "", cover: null };
+    $("overlay").hidden = false;
+    document.body.style.overflow = "hidden";
+    if (data.check_result && state.checks[data.id] === void 0) {
+      state.checks[data.id] = data.check_result;
+    }
+    showPlan();
+    checkPlan(data.id).then(() => {
+      if (state.planId === data.id) showPlan();
+    }).catch(() => {
+    });
+    return true;
+  }
+  function showPlan() {
+    const r = state.row, p = state.plan;
+    if (!r || !p) return;
+    $("seam-state").textContent = state.approved ? t("seamApproved") : t("seamWaiting");
+    const fallbackNote = bodyIsFallback() ? '<div class="flag" style="background:var(--warn-bg);color:#7c4a02"><span>!</span><div>' + esc(t("onlyInOther")) + "</div></div>" : "";
+    const simNote = state.model === "canned" ? '<div class="flag sim"><span>\u26A0</span><div><b>' + esc(t("simTitle")) + "</b> " + esc(t("simBody")) + "</div></div>" : "";
+    const fbRow = state.view === "coordinator" ? fbRowForOpenPlan() : null;
+    const fbBox = fbRow ? '<div class="fx fbbox"><h4>' + esc(t("fbThisPlan")) + "</h4>" + fbBody(fbRow) + "</div>" : "";
+    const head = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title" class="plan-title">' + esc(p.title) + '</h2><div class="plan-meta">' + esc([
+      subjectLabel(r.subject),
+      yearLabel(r.year),
+      r.group,
+      r.start ? r.start + "\u2013" + r.end : ""
+    ].filter(Boolean).join(" \xB7 ")) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="viewtog"><button class="' + (state.view === "coordinator" ? "on" : "") + '" data-view="coordinator">' + esc(t("viewCoord")) + '</button><button class="' + (state.view === "vikarie" ? "on" : "") + '" data-view="vikarie">' + esc(t("viewSub")) + "</button></div>" + // The sidebar toggle sits behind this overlay, so the plan carries its own.
+    (state.bodies && Object.keys(state.bodies).length > 1 ? '<div class="viewtog">' + ["sv", "en"].filter((c) => state.bodies?.[c]).map((c) => '<button class="' + (c === LANG ? "on" : "") + '" data-planlang="' + c + '">' + (c === "sv" ? "SV" : "EN") + "</button>").join("") + "</div>" : "") + '<span class="hint">' + (state.view === "coordinator" ? esc(t("coordHint")) : esc(t("subHint")) + " " + esc(p.readTime || "")) + "</span></div>";
+    const check = state.planId ? state.checks[state.planId] : null;
+    const checkNote = state.view === "coordinator" ? checkBanner(check) : "";
+    const approveNote = state.view === "coordinator" && state.planId ? approveBar() : "";
+    const staleNote = state.apprStale ? '<div class="flag" style="background:var(--warn-bg)"><span>!</span><div>' + esc(t("apprStaleWarn")) + "</div></div>" : "";
+    $("addin-content").innerHTML = head + checkNote + staleNote + approveNote + simNote + fallbackNote + fbBox + (state.view === "coordinator" ? coordView(p, r) : vikarieView(p, r)) + "</div>";
+  }
+  function minDiff(a, b) {
+    const [h1 = 0, m1 = 0] = a.split(":").map(Number), [h2 = 0, m2 = 0] = b.split(":").map(Number);
+    return h2 * 60 + m2 - (h1 * 60 + m1);
+  }
+  function coordView(p, r) {
+    const phases = p.phases || [];
+    const sum = phases.reduce((a, ph) => {
+      const m = String(ph.t || "").split("\u2013");
+      return a + (m.length === 2 ? minDiff(m[0], m[1]) : 0);
+    }, 0);
+    const lt = subLinkToken();
+    const link = lt ? planUrl(lt) : null;
+    return '<div class="plan"><div class="ps" style="border:0;padding-top:4px"><h4>' + esc(t("whatItIs")) + "</h4><p>" + esc(p.summary) + '</p></div><div class="twocol"><div class="callout"><strong>' + esc(t("goal")) + "</strong>" + esc(p.goal) + '</div><div class="callout"><strong>' + esc(t("curriculum")) + '</strong><span style="font-size:12.5px">' + esc(p.curriculum) + '</span></div></div><div class="ps"><h4>' + esc(t("toCheck")) + "</h4><ul><li>" + esc(t("phasesSum")) + " <b>" + sum + " " + esc(t("min")) + "</b> \u2014 " + esc(t("lessonIs")) + " " + r.mins + " " + esc(t("min")) + ". " + (sum === r.mins ? '<span class="chip chip-ok">' + esc(t("matches")) + "</span>" : '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>") + "</li>" + // From the check, not assumed: a plan with blockers is not "all written".
+    (() => {
+      const ck = state.planId ? state.checks[state.planId] : null;
+      return "<li>" + esc(t("allWritten")) + " " + (!ck ? '<span class="chip chip-neutral">' + esc(t("allWrittenUnknown")) + "</span>" : ck.blockers || 0 ? '<span class="chip chip-warn">' + esc(t("checkIt")) + "</span>" : '<span class="chip chip-ok">' + esc(t("ok")) + "</span>") + "</li>";
+    })() + "<li>" + esc(t("requires")) + " " + esc(p.equipment?.need || "\u2014") + "</li></ul></div>" + (state.approved ? '<div class="flag" style="background:var(--ok-bg);color:#14532d"><span>\u2713</span><div><b>' + esc(t("approvedTitle")) + "</b> " + apprSignedLine() + " " + (link ? esc(t("subLink")) + ' <button type="button" class="linkchip mono" data-copylink="' + esc(lt) + '" title="' + esc(t("copyLink")) + '">' + CHK + '<span class="cl-label">' + esc(link) + "</span></button>" : "") + "</div></div>" : "") + shareTick() + '<div class="foot">' + (state.approved ? '<span class="spacer"></span><button class="btn btn-ghost" data-view="vikarie">' + esc(t("seeSubView")) + "</button>" + (link ? '<button class="btn btn-ghost" data-copymail="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyMail")) + "</span></button>" : "") + (link ? '<button class="btn btn-primary" data-copylink="' + esc(lt) + '">' + CHK + '<span class="cl-label">' + esc(t("copyLink")) + "</span></button>" : "") : '<span class="hint">' + esc(t("nothingBefore")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-frompool>' + esc(t("fromPool")) + '</button><button class="btn btn-ghost" data-regen>' + esc(t("regen")) + "</button>" + (state.planId ? apprButtons(0) : "")) + "</div></div>";
+  }
+  function shareTick() {
+    const s = state.pshare;
+    if (!s || !s.mine) return "";
+    const hint = s.origin === "teacher" ? t("shareHintTeacher") : fillT("shareHintAi", { s: t(state.shareAi === false ? "setOff" : "setOn") });
+    const now = !s.allowed ? t("shareOff") : s.shared ? t("shareNow") : t("shareWaits");
+    return '<label class="sharetick"><input type="checkbox" data-shareplan' + (s.allowed ? " checked" : "") + "><span><b>" + esc(t("shareTitle")) + '</b> <span class="orig ' + (s.origin === "teacher" ? "tch" : "ai") + '">' + esc(t(s.origin === "teacher" ? "origTeacher" : "origAi")) + '</span><br><span class="hint">' + esc(now) + " " + esc(hint) + "</span></span></label>";
+  }
+
+  // app-src/lk-wait.ts
+  var waitTimer;
+  var WAIT_EXPECT = 120;
+  var OWL_SVG = '<svg class="owl" viewBox="0 0 140 130" aria-hidden="true"><ellipse cx="70" cy="122" rx="44" ry="5" fill="rgba(13,35,64,.12)"/><g class="owl-bob"><ellipse cx="70" cy="72" rx="36" ry="40" fill="#1b4776"/><path d="M40 62 Q30 80 38 100 Q46 90 46 72Z" fill="#153a62"/><path d="M100 62 Q110 80 102 100 Q94 90 94 72Z" fill="#153a62"/><ellipse cx="70" cy="84" rx="23" ry="26" fill="#e8f0fb"/><path d="M58 80 q4 4 8 0 M70 88 q4 4 8 0 M58 96 q4 4 8 0 M74 78 q3 3 6 0" stroke="#b8c9dc" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="56" cy="56" r="14" fill="#fff"/><circle cx="84" cy="56" r="14" fill="#fff"/><g class="owl-eyes"><circle cx="56" cy="59" r="6" fill="#0d2340"/><circle cx="84" cy="59" r="6" fill="#0d2340"/><circle cx="58" cy="57" r="2" fill="#fff"/><circle cx="86" cy="57" r="2" fill="#fff"/></g><g class="owl-lids"><ellipse cx="56" cy="56" rx="15" ry="15" fill="#1b4776"/><ellipse cx="84" cy="56" rx="15" ry="15" fill="#1b4776"/></g><path d="M65 66 L75 66 L70 75Z" fill="#f5a524"/><path d="M40 34 L70 22 L100 34 L70 46Z" fill="#0d2340"/><path d="M52 40 L52 48 Q70 56 88 48 L88 40 L70 46Z" fill="#0d2340"/><path class="owl-tassel" d="M100 34 L100 50" stroke="#f5a524" stroke-width="2.5" stroke-linecap="round"/></g><path d="M30 104 Q50 96 70 104 Q90 96 110 104 L110 120 Q90 112 70 120 Q50 112 30 120Z" fill="#fff" stroke="#1b4776" stroke-width="2"/><line x1="70" y1="104" x2="70" y2="120" stroke="#1b4776" stroke-width="1.5"/><g class="owl-ink" stroke="#1b4776" stroke-width="1.6" stroke-linecap="round"><line class="l1" x1="38" y1="106" x2="62" y2="104"/><line class="l2" x1="38" y1="111" x2="60" y2="109"/><line class="l3" x1="78" y1="104" x2="102" y2="106"/><line class="l4" x1="78" y1="109" x2="98" y2="111"/></g><g class="owl-pencil"><rect x="0" y="-2" width="22" height="5" rx="1" fill="#f5a524" transform="rotate(-35)"/><path d="M0 -2 L-5 0.5 L0 3Z" fill="#0d2340" transform="rotate(-35)"/></g></svg>';
+  function waitHtml(what) {
+    return '<div class="gen wait">' + OWL_SVG + '<div class="genstep" id="wait-what">' + esc(what) + '</div><div class="bar"><i id="wait-bar" style="width:3%"></i></div><div class="waitrow"><span id="wait-time" class="mono">0:00</span><span>\xB7</span><span>' + esc(t("waitUpTo")) + '</span></div><p class="hint waittip" id="wait-tip">' + esc(t("waitTip1")) + "</p></div>";
+  }
+  function startWait() {
+    stopWait();
+    const t0 = Date.now();
+    const tips = ["waitTip1", "waitTip2", "waitTip3", "waitTip4", "waitTip5", "waitTip6"];
+    waitTimer = window.setInterval(() => {
+      const sec = Math.floor((Date.now() - t0) / 1e3);
+      const tm = maybe$("wait-time");
+      if (!tm) {
+        stopWait();
+        return;
+      }
+      tm.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0");
+      const pct = 3 + 92 * (1 - Math.exp(-sec / (WAIT_EXPECT * 0.6)));
+      const bar = maybe$("wait-bar");
+      if (bar) bar.style.width = pct.toFixed(1) + "%";
+      const tip = maybe$("wait-tip");
+      if (tip) tip.textContent = sec > WAIT_EXPECT ? t("waitLong") : t(tips[Math.floor(sec / 8) % tips.length]);
+    }, 1e3);
+  }
+  function stopWait() {
+    if (waitTimer) {
+      clearInterval(waitTimer);
+      waitTimer = void 0;
+    }
+  }
+  function waitSay(what) {
+    const el = maybe$("wait-what");
+    if (el) el.textContent = what;
+  }
+
+  // app-src/lk-generate.ts
+  function showRequest() {
+    const r = state.row;
+    if (!r) return;
+    $("seam-state").textContent = "lk:init";
+    const matches = state.bank.filter((b) => canonSubject(b.subject) === canonSubject(r.subject) && canonYear(b.year_group) === canonYear(r.year) && b.approved);
+    $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("planFor")) + " " + esc(r.group) + '</h2><div class="plan-meta">' + esc(r.teacher) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.room) + (r.cover ? " \xB7 " + esc(r.cover) : " \xB7 " + esc(t("uncovered").toLowerCase())) + '</div></div><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="derived"><div><dt>' + esc(t("subjectLbl")) + "</dt><dd>" + esc(subjectLabel(r.subject)) + '</dd><div class="from">' + esc(t("fromCode")) + ' "' + esc(r.raw) + '"</div></div><div><dt>' + esc(t("yearLbl")) + "</dt><dd>" + esc(yearLabel(r.year)) + '</dd><div class="from">' + esc(t("derivedFrom")) + ' "' + esc(r.group) + '"</div></div><div><dt>' + esc(t("lengthLbl")) + "</dt><dd>" + r.mins + " " + esc(t("min")) + '</dd><div class="from">' + esc(r.start) + "\u2013" + esc(r.end) + "</div></div></div>" + (r.practical ? '<div class="flag"><span>\u26A0</span><div><b>' + esc(t("practicalWarn")) + "</b> " + esc(t("practicalBody")) + "</div></div>" : "") + (matches.length ? '<div><div class="sect-h">' + esc(t("fromBank")) + " \u2014 " + matches.length + " " + esc(matches.length === 1 ? t("bankApproved") : t("bankApprovedPl")) + '</div><div class="bankrow">' + matches.map((b) => {
+      const had = usesOf(b.id, r.group);
+      return '<button class="bankcard' + (had.length ? " hadit" : "") + '" data-usebank="' + b.id + '"><div style="flex:1;min-width:0"><div class="t">' + esc(rowTitle(b)) + '</div><div class="m">' + b.minutes + " " + esc(t("min")) + " \xB7 " + b.rating_count + " " + esc(t("ratings")) + (b.shared ? " \xB7 " + esc(t("sharedTag")) : "") + "</div>" + (had.length ? '<div class="hadwarn">\u26A0 ' + esc(fillT("hadIt", { g: r.group, d: fmtDate(had[0].used_on) })) + "</div>" : "") + '</div><span class="stars">' + stars(b.rating) + '</span><span class="btn btn-soft btn-sm">' + esc(t("use")) + "</span></button>";
+    }).join("") + "</div></div>" : '<div><div class="sect-h">' + esc(t("fromBank")) + '</div><p class="hint">' + esc(t("bankNone")) + " " + esc(subjectLabel(r.subject)) + " " + esc(yearLabel(r.year)) + " " + esc(t("bankNoneTail")) + (EMBED ? "" : ' <button class="btn btn-ghost btn-sm" data-poolgo>' + esc(t("poolBrowse")) + " \u2192</button>") + "</p></div>") + (matches.length ? '<details class="steerbox"><summary>' + esc(t("noFit")) + "</summary>" : "") + '<div><div class="sect-h">' + esc(t("steer")) + '</div><div class="steer"><label class="f full">' + esc(t("fTopic")) + '<input id="s-topic" placeholder="' + esc(t("fTopicPh")) + '"></label><label class="f full">' + esc(t("fNotes")) + '<textarea id="s-notes" rows="2" placeholder="' + esc(t("fNotesPh")) + '"></textarea></label><label class="f">' + esc(t("fType")) + '<select id="s-type">' + (r.practical ? ["typeTheory", "typeContinue", "typePractical"] : ["typeRevision", "typeDeep", "typeQuiet"]).map((k) => "<option>" + esc(t(k)) + "</option>").join("") + '</select></label><p class="hint full" style="margin:2px 0 0">' + esc(t("fTypeHint")) + '</p><div class="full"><div class="sect-h" style="margin-bottom:6px">' + esc(t("fRes")) + '</div><div class="chips">' + ["resWhiteboard", "resProjector", "resComputers", "resBooks", "resMini"].map((k, i) => '<button class="tog' + (i === 0 ? " on" : "") + '" data-res>' + esc(t(k)) + "</button>").join("") + "</div></div></div></div>" + (matches.length ? "</details>" : "") + '<div class="foot"><span class="hint">' + esc(t("privacyNote")) + '</span><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn ' + (matches.length ? "btn-ghost" : "btn-primary") + '" data-generate>' + esc(t("create")) + "</button></div></div>";
+  }
+  function gatherRequest() {
+    const r = state.row;
+    if (!r) throw new Error("no lesson selected");
+    return {
+      absence_ref: r.id,
+      subject: r.subject,
+      year_group: r.year,
+      group_name: r.group,
+      room: r.room,
+      starts_at: r.start,
+      ends_at: r.end,
+      minutes: r.mins,
+      topic: maybe$("s-topic")?.value || "",
+      notes: maybe$("s-notes")?.value || "",
+      lesson_type: maybe$("s-type")?.value || "",
+      // Always both languages: lk-generate writes one and translates it, so the
+      // plan carries sv and en and the reader toggles.
+      language: "sv",
+      resources: [...document.querySelectorAll("[data-res].on")].map((b) => b.textContent)
+    };
+  }
+  async function invokeGen(body) {
+    const r = await sb.functions.invoke("lk-generate", { body });
+    if (r.error && !r.data) {
+      try {
+        const ctx = r.error.context;
+        if (ctx && typeof ctx.json === "function") return { data: await ctx.json(), error: r.error };
+      } catch {
+      }
+    }
+    return r;
+  }
+  function genErrText(data, error) {
+    const code = String(data?.error || "");
+    if (code === "no_model") return t("errNoModel");
+    if (code === "quota") return fillT("errQuota", { n: data?.limit ?? "" });
+    if (code === "bad_output") return t("errBadOutput");
+    if (code === "no_school") return t("errNoSchool");
+    if (code === "too_large") return t("errTooLarge");
+    if (code || error) console.warn("lk-generate", code, data?.detail, error);
+    return t("errUnknown");
+  }
+  async function generate() {
+    const req = gatherRequest();
+    const seq = nextPanel(), row = state.row;
+    const stillHere = () => panelIs(seq) && state.row === row;
+    $("seam-state").textContent = t("seamGenerating");
+    $("addin-content").innerHTML = waitHtml(t("genCalling"));
+    startWait();
+    const other = req.language === "en" ? "sv" : "en";
+    const main = await invokeGen({ request: req });
+    let alt = { error: new Error("skipped") };
+    if (!main.error && !main.data?.error) {
+      waitSay(t("genTranslating"));
+      alt = await invokeGen({ request: { ...req, language: other }, translate: main.data.source === "model" ? main.data.plan : void 0 });
+    }
+    if (!stillHere()) return;
+    stopWait();
+    if (main.error || main.data?.error) {
+      const msg = genErrText(main.data, main.error);
+      $("addin-content").innerHTML = '<div class="addin-body"><div class="addin-head"><h2>' + esc(t("failed")) + '</h2><button class="x" data-close aria-label="' + esc(t("close")) + '">\u2715</button></div><div class="alert error">' + esc(msg) + '</div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-close>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-generate>' + esc(t("retry")) + "</button></div></div>";
+      return;
+    }
+    const altPlan = !alt.error && !alt.data?.error ? alt.data.plan : null;
+    const { data: pid, error: saveErr } = await sb.rpc("lk_save_plan", {
+      p_request: req,
+      p_plan: main.data.plan,
+      p_model: main.data.model || null,
+      p_plan_alt: altPlan,
+      p_language_alt: altPlan ? other : null
+    });
+    if (saveErr) toast(t("saveFailed") + " " + saveErr.message);
+    if (!stillHere()) {
+      loadBank();
+      return;
+    }
+    const bodies = { [req.language]: main.data.plan };
+    if (altPlan) bodies[other] = altPlan;
+    state.bodies = bodies;
+    state.plan = pickBody();
+    state.planId = pid || null;
+    state.approved = false;
+    applyApproval({});
+    state.shareToken = null;
+    state.pshare = null;
+    state.view = "coordinator";
+    state.model = main.data.model || null;
+    showPlan();
+    loadBank();
+  }
+  function pickBody() {
+    const b = state.bodies || {};
+    return b[LANG] || b.sv || b.en || Object.values(b)[0] || null;
+  }
+  function bodyIsFallback() {
+    return !!(state.bodies && !state.bodies[LANG]);
+  }
+  function applyApproval(d) {
+    state.approved = !!d.approved;
+    state.apprRank = Number(d.approval_rank) || 0;
+    state.apprBy = d.approved_name || null;
+    state.apprSubject = d.approved_subject || null;
+    state.apprStale = !!d.approval_stale;
+  }
+
+  // app-src/lk-embed.ts
+  function planUrl(token) {
+    const base = location.origin + location.pathname.replace(/[^/]*$/, "") + "plan.html?";
+    return String(token).startsWith("r:") ? base + "r=" + String(token).slice(2) : base + "t=" + token;
+  }
+  function subLinkToken() {
+    const g = state.row?.group;
+    const u = g && g !== "\u2014" && state.planId ? usesOf(state.planId, g)[0] : null;
+    return u && u.run_token ? "r:" + u.run_token : state.shareToken;
+  }
+  var EMBED = (() => {
+    const q = new URLSearchParams(location.search);
+    if (q.get("embed") !== "1") return null;
+    const num = (k, d) => {
+      const n = parseInt(q.get(k) || "", 10);
+      return Number.isFinite(n) ? n : d;
+    };
+    return {
+      row: {
+        id: q.get("ref") || "",
+        subject: q.get("subject") || "\u2014",
+        year: q.get("year") || "",
+        group: q.get("group") || "",
+        raw: q.get("code") || q.get("subject") || "",
+        mins: num("mins", 45),
+        start: q.get("start") || "",
+        end: q.get("end") || "",
+        time: [q.get("start"), q.get("end")].filter(Boolean).join("\u2013"),
+        room: q.get("room") || "\u2014",
+        teacher: q.get("teacher") || "\u2014",
+        cover: q.get("cover") || null,
+        practical: q.get("practical") === "1",
+        plannable: true
+      }
+    };
+  })();
+  function toParent(type, payload) {
+    if (!EMBED || window.parent === window) return;
+    try {
+      window.parent.postMessage({ source: "lektionskollen", type, ...payload }, "*");
+    } catch {
+    }
+  }
+  function openEmbed() {
+    if (!EMBED) return;
+    document.body.classList.add("embed");
+    state.row = EMBED.row;
+    state.plan = null;
+    state.planId = null;
+    state.view = "coordinator";
+    $("overlay").hidden = false;
+    const seq = nextPanel();
+    bankReady.then(() => {
+      if (panelIs(seq) && !state.planId) showRequest();
+    });
+    toParent("lk:ready", { ref: EMBED.row.id });
+  }
+  function openAddin(id) {
+    nextPanel();
+    state.row = ROWS.find((x) => x.id === id) || null;
+    state.plan = null;
+    state.planId = null;
+    state.view = "coordinator";
+    state.pshare = null;
+    if (state.row) {
+      state.pool.sub = canonSubject(state.row.subject);
+      state.pool.yr = canonYear(state.row.year);
+      savePoolPick();
+    }
+    $("overlay").hidden = false;
+    document.body.style.overflow = "hidden";
+    showRequest();
+  }
+  function closeAddin() {
+    stopWait();
+    nextPanel();
+    state.cr = null;
+    if (EMBED) {
+      toParent("lk:close", {});
+      return;
+    }
+    state.row = null;
+    $("overlay").hidden = true;
+    document.body.style.overflow = "";
+    document.body.classList.remove("panelmode");
+    if (state.screen === "cover" || state.screen === "today") loadCoverPlans().then(renderRows).catch(() => {
+    });
+    if (state.screen === "create") showScreen("bank");
+  }
+
+  // app-src/lk-link.ts
+  async function checkPlan(id) {
+    if (state.checks[id] !== void 0) return state.checks[id];
+    try {
+      const { data, error } = await sb.functions.invoke("lk-verify", { body: { plan_id: id } });
+      state.checks[id] = error ? null : data;
+    } catch {
+      state.checks[id] = null;
+    }
+    return state.checks[id];
+  }
+  function checkBanner(v) {
+    if (!v) return "";
+    if (v.ok && !v.warnings) {
+      return '<div class="flag chk ok"><span>\u2713</span><div>' + esc(t("chkClean")) + (v.subject_checked ? " " + esc(t("chkSubject")) : "") + "</div></div>";
+    }
+    const lines = (v.problems || []).map((p) => '<li class="' + (p.level === "blocker" ? "bad" : "warn") + '"><b>' + esc(p.where) + "</b> \u2014 " + esc(p.detail) + "</li>").join("");
+    return '<div class="flag chk ' + (v.ok ? "warn" : "bad") + '"><span>' + (v.ok ? "!" : "\u2715") + "</span><div><b>" + esc(v.ok ? fillT("chkWarnings", { n: v.warnings }) : fillT("chkBlockers", { n: v.blockers })) + "</b> " + esc(v.ok ? t("chkWarnBody") : t("chkBlockBody")) + '<ul class="chklist">' + lines + "</ul></div></div>";
+  }
+  function planRow(r, p) {
+    if (!p) {
+      return '<div class="planrow"><span class="plbl">' + esc(t("cvMakePlan")) + '</span><button class="plopt" data-planopen="' + esc(r.id) + '">' + esc(t("cvPlMake")) + '</button><button class="plopt" data-planlink="' + esc(r.id) + '">' + esc(t("cvPlLink")) + '</button><button class="plopt quiet" data-plannot="' + esc(r.id) + '">' + esc(t("cvPlNot")) + "</button></div>";
+    }
+    if (p.kind === "not_needed") {
+      return '<div class="planrow done"><span class="plbl">' + esc(t("cvPlNotSet")) + '</span><button class="plopt quiet" data-planclear="' + esc(r.id) + '">' + esc(t("cvPlUndo")) + "</button></div>";
+    }
+    if (p.kind === "generated") {
+      return '<button class="planbtn ' + (p.approved ? "done" : "draft") + '" data-planopen="' + esc(r.id) + '"><span>' + (p.approved ? "\u2713" : "\u{1F4C4}") + "</span>" + esc(p.approved ? t("cvOpenPlan") : t("cvPlReview")) + "</button>";
+    }
+    const what = p.label || (p.kind === "note" ? t("cvPlNoteKind") : hostOf(p.url) || t("cvPlLinkKind"));
+    const expLine = p.expires_at ? '<div class="planrow"><span class="plbl">' + esc(p.expired ? t("cvPlExpired") : t("cvPlUntil") + " " + new Date(new Date(p.expires_at).getTime() - 1e3).toLocaleDateString(LANG === "sv" ? "sv-SE" : "en-GB", { day: "numeric", month: "short" })) + "</span>" + (p.expired ? "" : '<button class="plopt quiet" data-planextend="' + esc(r.id) + '">' + esc(t("cvPlExtend")) + "</button>") + "</div>" : "";
+    return '<button class="planbtn linked" data-planopen="' + esc(r.id) + '"><span>\u{1F517}</span>' + esc(t("cvPlTeachers")) + " \u2014 " + esc(what) + "</button>" + expLine + '<div class="planrow"><button class="plopt quiet" data-planlink="' + esc(r.id) + '">' + esc(t("cvPlChange")) + '</button><button class="plopt quiet" data-planclear="' + esc(r.id) + '">' + esc(t("cvPlRemove")) + "</button></div>";
+  }
+  function hostOf(url) {
+    try {
+      return new URL(url || "").hostname.replace(/^www\./, "");
+    } catch {
+      return null;
+    }
+  }
+  function openLinkBox(ref) {
+    const r = ROWS.find((b) => b.id === ref);
+    if (!r) return;
+    const p = planFor(ref) || {};
+    closePop();
+    $("linkbox").innerHTML = '<div class="lbx"><h3>' + esc(t("cvPlLinkTitle")) + '</h3><p class="hint">' + esc(blockTitle(r)) + " \xB7 " + esc(r.time) + " \xB7 " + esc(r.teacher) + '</p><label class="f full">' + esc(t("cvPlUrl")) + '<input id="lb-url" type="url" placeholder="https://\u2026" value="' + esc(p.url || "") + '"></label><p class="linkstate" id="lb-state" hidden></p><label class="f full">' + esc(t("cvPlNoteLbl")) + '<textarea id="lb-note" rows="3" placeholder="' + esc(t("cvPlNotePh")) + '">' + esc(p.note || "") + '</textarea></label><label class="f full">' + esc(t("cvPlLabel")) + '<input id="lb-label" maxlength="60" placeholder="' + esc(t("cvPlLabelPh")) + '" value="' + esc(p.label || "") + '"></label><p class="hint">' + esc(t("cvPlWrapNote")) + '</p><div class="lbxfoot"><button class="btn btn-ghost btn-sm" data-lbcancel>' + esc(t("cancel")) + '</button><button class="btn btn-primary btn-sm" data-lbsave="' + esc(ref) + '">' + esc(t("save")) + "</button></div></div>";
+    $("linkbox").hidden = false;
+    const urlField = $("lb-url");
+    urlField.addEventListener("blur", () => checkLink(urlField.value));
+    if (p.url) checkLink(p.url);
+  }
+  async function checkLink(url) {
+    const box = maybe$("lb-state");
+    if (!box) return;
+    const u = (url || "").trim();
+    if (!u) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    box.className = "linkstate busy";
+    box.textContent = t("lkChecking");
+    let r;
+    try {
+      const { data, error } = await sb.functions.invoke("lk-checklink", { body: { url: u } });
+      r = error ? { status: "unreachable" } : data;
+    } catch {
+      r = { status: "unreachable" };
+    }
+    const map = {
+      ok: ["ok", "lkOk"],
+      missing: ["bad", "lkMissing"],
+      private: ["warn", "lkPrivate"],
+      slow: ["warn", "lkSlow"],
+      unreachable: ["warn", "lkUnreachable"],
+      bad: ["bad", r && r.reason === "not_http" ? "lkNotHttp" : r && r.reason === "private_address" ? "lkPrivateAddr" : "lkNotUrl"]
+    };
+    const m = map[r && r.status || "unreachable"] || map.unreachable;
+    box.className = "linkstate " + m[0];
+    box.textContent = t(m[1]);
+  }
+  async function saveLink(ref) {
+    const url = $("lb-url").value.trim();
+    const note = $("lb-note").value.trim();
+    const label = $("lb-label").value.trim();
+    if (!url && !note) {
+      toast(t("cvPlNeedOne"));
+      return;
+    }
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast(t("cvPlNeedHttp"));
+      return;
+    }
+    const { error } = await sb.rpc("lk_set_cover_plan", {
+      p_absence_ref: ref,
+      p_kind: url ? "linked" : "note",
+      p_url: url || null,
+      p_note: note || null,
+      p_label: label || null
+    });
+    if (error) {
+      toast(error.message);
+      return;
+    }
+    $("linkbox").hidden = true;
+    await loadCoverPlans();
+    renderRows();
+    toast(t("cvPlSaved"));
+  }
+  function openPlanPanel(ref) {
+    const r = ROWS.find((b) => b.id === ref);
+    if (!r) return;
+    const p = planFor(ref);
+    if (p && (p.kind === "linked" || p.kind === "note")) {
+      closePop();
+      window.open(planUrl(p.share_token), "_blank", "noopener");
+      return;
+    }
+    closePop();
+    document.body.classList.add("panelmode");
+    if (p && p.kind === "generated" && p.plan_id) {
+      usePlan(p.plan_id, r);
+      return;
+    }
+    openAddin(ref);
+  }
+
+  // app-src/lk-cover.ts
+  var ROWS = [
+    {
+      id: "abs-1",
+      time: "08:20\u201309:20",
+      start: "08:20",
+      end: "09:20",
+      mins: 60,
+      teacher: "Anna Lindqvist",
+      group: "Tb7a",
+      raw: "Ma",
+      subject: "Matematik",
+      year: "\xC5k 7",
+      room: "A101",
+      cover: "Erik Sandberg",
+      plannable: true
+    },
+    {
+      id: "abs-2",
+      time: "09:40\u201310:40",
+      start: "09:40",
+      end: "10:40",
+      mins: 60,
+      teacher: "Anna Lindqvist",
+      group: "Tb7b",
+      raw: "Ma",
+      subject: "Matematik",
+      year: "\xC5k 7",
+      room: "A101",
+      cover: null,
+      plannable: true
+    },
+    {
+      id: "abs-3",
+      time: "10:00\u201310:45",
+      start: "10:00",
+      end: "10:45",
+      mins: 45,
+      teacher: "Johan Berg",
+      group: "",
+      raw: "Rast",
+      subject: "\u2014",
+      year: "",
+      room: "Korridor B",
+      cover: "Sara Nilsson",
+      plannable: false,
+      whyKey: "whyRast"
+    },
+    {
+      id: "abs-4",
+      time: "11:00\u201311:45",
+      start: "11:00",
+      end: "11:45",
+      mins: 45,
+      teacher: "Johan Berg",
+      group: "Tb5c",
+      raw: "Sv",
+      subject: "Svenska",
+      year: "\xC5k 5",
+      room: "B204",
+      cover: "Sara Nilsson",
+      plannable: true
+    },
+    {
+      id: "abs-5",
+      time: "13:00\u201314:00",
+      start: "13:00",
+      end: "14:00",
+      mins: 60,
+      teacher: "Johan Berg",
+      group: "Tb9a",
+      raw: "En",
+      subject: "Engelska",
+      year: "\xC5k 9",
+      room: "B204",
+      cover: null,
+      plannable: true
+    },
+    {
+      id: "abs-6",
+      time: "07:30\u201315:30",
+      start: "07:30",
+      end: "15:30",
+      mins: 480,
+      teacher: "Leila Haddad",
+      group: "",
+      raw: "Arbetstid",
+      subject: "\u2014",
+      year: "",
+      room: "",
+      cover: null,
+      plannable: false,
+      whyKey: "whyArbetstid"
+    },
+    {
+      id: "abs-7",
+      time: "14:15\u201315:35",
+      start: "14:15",
+      end: "15:35",
+      mins: 80,
+      teacher: "Leila Haddad",
+      group: "Tb8b:SltmHT",
+      raw: "Sl",
+      subject: "Sl\xF6jd",
+      year: "\xC5k 8",
+      room: "Sl\xF6jdsal 2",
+      cover: "Mats Ek",
+      plannable: true,
+      practical: true
+    }
+  ];
+  var LOUD = (() => {
+    try {
+      return localStorage.getItem("lk.loud") || "marked";
+    } catch {
+      return "marked";
+    }
+  })();
+  function setLoud(v) {
+    LOUD = v;
+    try {
+      localStorage.setItem("lk.loud", v);
+    } catch {
+    }
+    renderRows();
+    renderLoudPicker();
+  }
+  function renderLoudPicker() {
+    const el = maybe$("cv-loud");
+    if (!el) return;
+    el.innerHTML = '<span class="lbl">' + esc(t("cvHow")) + "</span>" + [["quiet", "cvQuiet"], ["marked", "cvMarked"], ["nudge", "cvNudge"]].map(([v, k]) => '<button class="' + (LOUD === v ? "on" : "") + '" data-loud="' + v + '">' + esc(t(k)) + "</button>").join("") + '<span class="hint">' + esc(t("cvHowNote")) + "</span>";
+  }
+  var PLANS = {};
+  function planFor(ref) {
+    return PLANS[ref] || null;
+  }
+  function planSettled(ref) {
+    const p = planFor(ref);
+    return !!p;
+  }
+  async function loadCoverPlans() {
+    const { data } = await sb.rpc("lk_cover_plans");
+    PLANS = data || {};
+  }
+  var POP = null;
+  function closePop() {
+    POP = null;
+    $("cv-pop").hidden = true;
+  }
+  function openPop(ref, x, y) {
+    const r = ROWS.find((b) => b.id === ref);
+    if (!r) return;
+    POP = ref;
+    const plan = planFor(ref);
+    const el = $("cv-pop");
+    const planBtn = r.plannable ? planRow(r, plan) : '<p class="pnote">' + esc(t(r.whyKey || "whyRast")) + "</p>";
+    el.innerHTML = '<div class="pophead"><p class="ph">' + esc([r.group, r.subject].filter(Boolean).join(" ") || r.raw) + (r.room ? '<span class="rm">' + esc(r.room) + "</span>" : "") + '</p><p class="pm">' + esc(t("cvWas")) + ": " + esc(r.teacher) + " \u2022 " + esc(r.time) + " \u2022 " + r.mins + " min</p></div>" + (r.cover ? '<div class="poprow"><span class="covpill">\u2713 ' + esc(r.cover) + '</span><span class="popicons"><button disabled title="' + esc(t("cvNotify")) + '">\u2709</button><button disabled title="' + esc(t("cvRemove")) + '">\xD7</button></span></div>' : '<div class="poprow"><select disabled><option>' + esc(t("cvAssign")) + "</option></select></div>") + planBtn;
+    el.hidden = false;
+    if (window.innerWidth < 640) {
+      el.style.left = "";
+      el.style.top = "";
+      return;
+    }
+    const w = 300, hGuess = 190;
+    el.style.left = Math.min(x, window.innerWidth - w - 12) + "px";
+    el.style.top = Math.min(y, window.innerHeight - hGuess - 12) + "px";
+  }
+
+  // app-src/lk-today.ts
+  var KEY = "lk.today";
+  var dayKey = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  var formOpen = false;
+  function loadOwn() {
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY) || "{}");
+      return v.day === dayKey() && Array.isArray(v.rows) ? v.rows : [];
+    } catch {
+      return [];
+    }
+  }
+  function saveOwn(rows) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ day: dayKey(), rows }));
+    } catch {
+    }
+  }
+  function loadTodayRows() {
+    for (const r of loadOwn()) if (!ROWS.some((x) => x.id === r.id)) ROWS.push(r);
+  }
+  var isOwn = (r) => r.id.startsWith("own-");
+  var lessons = () => ROWS.filter((r) => r.plannable).sort((a, b) => a.start.localeCompare(b.start));
+  function status(r) {
+    const p = planFor(r.id);
+    if (!p) return ["warn", t("tdNeeds")];
+    if (p.kind === "not_needed") return ["neutral", t("tdNotNeeded")];
+    if (p.kind === "generated") return p.approved ? ["ok", t("tdReady")] : ["draft", t("tdDraft")];
+    return ["ok", t("tdTeacherOwn")];
+  }
+  function lessonCard(r) {
+    const [cls, word] = status(r);
+    const what = [r.group, subjectLabel(r.subject), yearLabel(r.year)].filter(Boolean).join(" \xB7 ");
+    return '<article class="tdcard"><div class="tdtime mono">' + esc(r.start) + "<span>" + esc(r.end) + '</span></div><div class="tdmain"><div class="tdtop"><b>' + esc(what) + '</b><span class="tdst ' + cls + '">' + esc(word) + '</span></div><p class="tdmeta">' + [
+      r.room ? esc(r.room) : "",
+      r.teacher ? esc(t("tdFor")) + " " + esc(r.teacher) : "",
+      r.cover ? '<span class="covpill">\u2713 ' + esc(r.cover) + "</span>" : '<span class="tdnosub">' + esc(t("tdNoSub")) + "</span>",
+      isOwn(r) ? '<span class="tdown">' + esc(t("tdOwn")) + "</span>" : ""
+    ].filter(Boolean).join(" \xB7 ") + '</p><div class="tdplan">' + planRow(r, planFor(r.id)) + "</div></div>" + (isOwn(r) ? '<button class="x tdremove" data-tdremove="' + esc(r.id) + '" title="' + esc(t("tdRemove")) + '" aria-label="' + esc(t("tdRemove")) + '">\u2715</button>' : "") + "</article>";
+  }
+  function addForm() {
+    const opt = (v, lbl, on = false) => '<option value="' + esc(v) + '"' + (on ? " selected" : "") + ">" + esc(lbl) + "</option>";
+    return '<div class="bcard fx tdform"><h3>' + esc(t("tdAddTitle")) + '</h3><div class="tdgrid"><label class="f">' + esc(t("tdSubject")) + '<select id="td-subject">' + CATALOG_SUBJECTS.map((s) => opt(s, subjectLabel(s))).join("") + '</select></label><label class="f">' + esc(t("tdYear")) + '<select id="td-year">' + CATALOG_YEARS.map((y) => opt(y, yearLabel(y), y === "\xC5k 7")).join("") + '</select></label><label class="f">' + esc(t("tdClass")) + '<input id="td-class" maxlength="40" placeholder="7B"></label><label class="f">' + esc(t("tdStart")) + '<input id="td-start" type="time" value="08:20"></label><label class="f">' + esc(t("tdEnd")) + '<input id="td-end" type="time" value="09:20"></label><label class="f">' + esc(t("tdRoom")) + '<input id="td-room" maxlength="40"></label><label class="f">' + esc(t("tdTeacher")) + '<input id="td-teacher" maxlength="80"></label><label class="f">' + esc(t("tdSub")) + '<input id="td-sub" maxlength="80"></label></div><div class="foot"><span class="spacer"></span><button class="btn btn-ghost" data-tdcancel>' + esc(t("cancel")) + '</button><button class="btn btn-primary" data-tdsave>' + esc(t("tdSave")) + "</button></div></div>";
+  }
+  function renderToday() {
+    const host = maybe$("today-page");
+    if (!host) return;
+    const list = lessons();
+    const done = list.filter((r) => planFor(r.id)).length;
+    const pct = list.length ? Math.round(100 * done / list.length) : 100;
+    const day = (/* @__PURE__ */ new Date()).toLocaleDateString(LANG === "sv" ? "sv-SE" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
+    host.innerHTML = '<div class="tdhead card-elevated"><div class="tdsum"><p class="tdkicker">' + esc(day) + "</p><h2>" + esc(list.length ? fillT("tdSummary", { n: done, m: list.length }) : t("tdNone")) + '</h2><div class="tdbar"><i style="width:' + pct + '%"></i></div></div><div class="tdactions">' + (done < list.length ? '<button class="btn btn-primary" data-tdnext>' + esc(t("tdNext")) + "</button>" : "") + '<button class="btn btn-ghost" data-tdadd>' + esc(t("tdAdd")) + "</button></div></div>" + (formOpen ? addForm() : "") + '<div class="tdlist">' + list.map(lessonCard).join("") + '</div><p class="note">' + esc(t("tdSample")) + "</p>";
+  }
+  function saveForm() {
+    const v = (id) => (maybe$(id)?.value || "").trim();
+    const start = v("td-start"), end = v("td-end");
+    const toMin = (s) => {
+      const [h = 0, m = 0] = s.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const mins = toMin(end) - toMin(start);
+    if (!start || !end || mins <= 0) {
+      toast(t("tdBadTime"));
+      return;
+    }
+    const subject = v("td-subject"), year = v("td-year");
+    const row = {
+      id: "own-" + Date.now().toString(36),
+      start,
+      end,
+      time: start + "\u2013" + end,
+      mins,
+      teacher: v("td-teacher"),
+      group: v("td-class"),
+      raw: subject,
+      subject,
+      year,
+      room: v("td-room"),
+      cover: v("td-sub") || null,
+      plannable: true
+    };
+    ROWS.push(row);
+    saveOwn([...loadOwn(), row]);
+    formOpen = false;
+    renderToday();
+  }
+  function todayClick(tg) {
+    if (tg.closest("[data-tdadd]")) {
+      formOpen = !formOpen;
+      renderToday();
+      if (formOpen) maybe$("td-class")?.focus();
+      return true;
+    }
+    if (tg.closest("[data-tdcancel]")) {
+      formOpen = false;
+      renderToday();
+      return true;
+    }
+    if (tg.closest("[data-tdsave]")) {
+      saveForm();
+      return true;
+    }
+    const rm = tg.closest("[data-tdremove]");
+    if (rm) {
+      const id = rm.getAttribute("data-tdremove");
+      const i = ROWS.findIndex((r) => r.id === id);
+      if (i >= 0) ROWS.splice(i, 1);
+      saveOwn(loadOwn().filter((r) => r.id !== id));
+      renderToday();
+      return true;
+    }
+    if (tg.closest("[data-tdnext]")) {
+      const next = lessons().find((r) => !planFor(r.id));
+      if (next) openPlanPanel(next.id);
+      return true;
+    }
+    return false;
+  }
+
   // app-src/lk-create.ts
   var CR_KEY = "lk.creator";
   var CR_RANK = { coordinator: 1, teacher: 2, qualified: 3 };
@@ -1869,6 +2013,11 @@
     state.row = null;
     state.plan = null;
     state.planId = null;
+    if (SHELL === "lk") {
+      showScreen("create");
+      if (state.cr.step === 2) crLoadTerm();
+      return;
+    }
     $("overlay").hidden = false;
     document.body.style.overflow = "hidden";
     $("seam-state").textContent = "create";
@@ -1881,7 +2030,8 @@
     if (!c) return;
     const steps = '<ol class="crsteps">' + CR_STEPS.map((k, i) => '<li class="' + (i + 1 === c.step ? "on" : i + 1 < c.step ? "done" : "") + '"><span>' + (i + 1) + "</span>" + esc(t(k)) + "</li>").join("") + "</ol>";
     const body = c.busy ? crBusy() : c.step === 1 ? crYou() : c.step === 2 ? crLesson() : c.step === 3 ? crHow() : c.step === 4 ? crWrite() : crSave();
-    $("addin-content").innerHTML = '<div class="addin-body crwiz"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("crTitle")) + '</h2><div class="plan-meta">' + (c.step > 1 ? esc(c.name + " \xB7 " + t("crRole_" + c.role)) : esc(t("crLead"))) + (c.step > 2 ? " \xB7 " + esc(subjectLabel(c.subject) + " \xB7 " + yearLabel(c.year) + " \xB7 " + c.minutes + " " + t("min")) : "") + '</div></div><button class="x" data-close aria-label="\u2715">\u2715</button></div>' + steps + body + "</div>";
+    const host = SHELL === "lk" && maybe$("create-page") || $("addin-content");
+    host.innerHTML = '<div class="addin-body crwiz"><div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t("crTitle")) + '</h2><div class="plan-meta">' + (c.step > 1 ? esc(c.name + " \xB7 " + t("crRole_" + c.role)) : esc(t("crLead"))) + (c.step > 2 ? " \xB7 " + esc(subjectLabel(c.subject) + " \xB7 " + yearLabel(c.year) + " \xB7 " + c.minutes + " " + t("min")) : "") + '</div></div><button class="x" data-close aria-label="\u2715">\u2715</button></div>' + steps + body + "</div>";
   }
   function crBusy() {
     return waitHtml(state.cr.busy);
@@ -2342,10 +2492,11 @@
     setTitles();
     if (state.bodies) state.plan = pickBody();
     if (!$("overlay").hidden) {
-      if (state.cr) renderCreate();
+      if (state.cr && state.screen !== "create") renderCreate();
       else if (state.plan) showPlan();
       else if (state.row) showRequest();
     }
+    if (state.screen === "create") renderCreate();
   }
   function boot() {
     document.documentElement.lang = LANG;
@@ -2354,8 +2505,9 @@
       showSignIn();
       return;
     }
+    loadTodayRows();
     renderNav();
-    enterApp().then(() => Promise.all([loadFeedback(), loadUses()])).then(() => EMBED ? openEmbed() : loadCoverPlans().then(renderRows)).catch(() => {
+    enterApp().then(() => Promise.all([loadFeedback(), loadUses()])).then(() => EMBED ? openEmbed() : void 0).catch(() => {
     });
   }
   $("signout").addEventListener("click", () => {
@@ -2376,6 +2528,7 @@
       return;
     }
     state.me = data;
+    if (!EMBED) showScreen(SHELL === "lk" ? "bank" : "cover");
     $("app").hidden = false;
     $("schoolname").textContent = data.school;
     $("username").textContent = data.role === "demo" ? t("demoRole") : data.role;
@@ -2418,6 +2571,7 @@
       return openPop(blk.getAttribute("data-blk"), r.right + 6, r.top);
     }
     if (await crClick(tg)) return;
+    if (todayClick(tg)) return;
     const fbf = tg.closest("[data-fbfix]");
     if (fbf) return draftFix(Number(fbf.getAttribute("data-fbfix")));
     const fbu = tg.closest("[data-fbuse]");
@@ -2729,14 +2883,26 @@
   ["f-scope", "f-approval", "f-origin"].forEach((id) => $(id).addEventListener("change", loadBank));
   wireTerm();
   wireCreate();
-  function showScreen(which) {
+  function showScreen(id) {
+    let which = id;
+    if (id === "bank" || id === "term" || id === "feedback") {
+      state.tab = id;
+      which = "plans";
+    }
+    if (which === "create" && !state.cr) {
+      openCreate();
+      return;
+    }
     state.screen = which;
-    const onPlans = which === "plans";
-    $("screen-cover").hidden = which !== "cover";
-    $("screen-plans").hidden = !onPlans;
-    if (onPlans) showPlansTab(state.tab);
+    for (const s of ["cover", "plans", "today", "create", "settings"]) {
+      const el = maybe$("screen-" + s);
+      if (el) el.hidden = s !== which;
+    }
+    if (which === "plans") showPlansTab(state.tab);
+    if (which === "create") renderCreate();
+    if (which === "settings") renderSettings();
     renderNav();
-    if (which === "cover") loadCoverPlans().then(renderRows).catch(() => {
+    if (which === "cover" || which === "today") loadCoverPlans().then(renderRows).catch(() => {
     });
     setTitles();
     window.scrollTo(0, 0);

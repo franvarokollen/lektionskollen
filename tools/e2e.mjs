@@ -24,17 +24,19 @@ const ok = (name, pass, detail = '') => {
   if (!pass) bad++;
 };
 
-async function page(lang = 'en') {
+async function page(lang = 'en', file = 'fvk-demo.html') {
   const p = await b.newPage({ viewport: { width: 1300, height: 950 }, ignoreHTTPSErrors: true });
   p.errors = [];
   p.on('pageerror', (e) => p.errors.push(e.message));
-  await p.goto(base + 'index.html?lang=' + lang);
+  await p.goto(base + file + '?lang=' + lang);
   await p.waitForTimeout(1000);
   if (await p.$('[data-signin="demo"]')) { await p.click('[data-signin="demo"]'); await p.waitForTimeout(2500); }
+  // The FVK test page opens on its cover table; these flows start there.
+  if (file === 'fvk-demo.html') { await p.click('[data-nav="cover"]').catch(() => {}); await p.waitForTimeout(1500); }
   return p;
 }
 
-// ── Coordinator app ─────────────────────────────────────
+// ── Coordinator app, inside the copy of FVK (fvk-demo.html) ──
 {
   const p = await page('en');
 
@@ -83,6 +85,39 @@ async function page(lang = 'en') {
   await p.click('[data-close]');
 
   ok('coordinator app: no script errors', p.errors.length === 0, p.errors.join(' | '));
+  await p.close();
+}
+
+// ── Lektionskollen on its own (index.html) ──────────────
+{
+  const p = await page('en', 'index.html');
+  const vis = (sel) => p.isVisible(sel).catch(() => false);
+  ok('LK opens on the lesson plans, with no FVK screens', (await vis('#tab-bank')) && !(await p.$('#screen-cover')));
+
+  // Cover today: a lesson added by hand gets the same actions as one from FVK.
+  await p.click('[data-nav="today"]'); await p.waitForTimeout(2000);
+  const before = (await p.$$('.tdcard')).length;
+  await p.click('[data-tdadd]'); await p.fill('#td-class', 'E2E'); await p.fill('#td-start', '15:00'); await p.fill('#td-end', '15:40');
+  await p.click('[data-tdsave]'); await p.waitForTimeout(400);
+  const added = await p.$('.tdcard:has(.tdown)');
+  ok('cover today: an added lesson appears with its plan actions', (await p.$$('.tdcard')).length === before + 1 && !!(added && await added.$('[data-planopen]')));
+  await p.click('[data-tdadd]'); await p.fill('#td-start', '10:00'); await p.fill('#td-end', '09:00'); await p.click('[data-tdsave]');
+  ok('cover today: an end before the start is refused', (await p.$$('.tdcard')).length === before + 1);
+  await p.click('[data-tdcancel]');
+  if (added) { await p.click('.tdcard:has(.tdown) [data-tdremove]'); await p.waitForTimeout(300); }
+  ok('cover today: an added lesson can be removed', (await p.$$('.tdcard')).length === before);
+
+  // The wizard is a page, and closing it goes back to the bank.
+  await p.click('[data-nav="create"]'); await p.waitForTimeout(600);
+  ok('create a plan opens as a page', (await vis('#create-page .crwiz')) && !(await vis('#overlay')));
+  await p.click('#create-page [data-close]'); await p.waitForTimeout(800);
+  ok('closing the wizard goes back to the bank', await vis('#tab-bank'));
+
+  for (const [nav, sel] of [['term', '#tab-term'], ['feedback', '#tab-feedback'], ['settings', '#settings-page [data-cap]']]) {
+    await p.click(`[data-nav="${nav}"]`); await p.waitForTimeout(1500);
+    ok(`sidebar opens ${nav}`, await vis(sel));
+  }
+  ok('Lektionskollen: no script errors', p.errors.length === 0, p.errors.join(' | '));
   await p.close();
 }
 

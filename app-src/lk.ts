@@ -1,11 +1,12 @@
 /* Lektionskollen — the coordinator app: sign-in, the cover table, the plan
    panel, and the page's event wiring. The rest lives in lk-*.ts. */
+import { loadTodayRows, todayClick } from './lk-today';
 import { APPROVER_KEY, APPR_ERR, apprNameValue } from './lk-approve';
 import { previewAssist } from './lk-assist';
 import { canonSubject, canonYear } from './lk-catalog';
-import { $, LANG, Lang, Row, esc, maybe$, sb, setLangValue, state, t, toast } from './lk-core';
+import { $, LANG, Lang, Row, SHELL, esc, maybe$, sb, setLangValue, state, t, toast } from './lk-core';
 import { POP, ROWS, closePop, loadCoverPlans, openPop, planFor, setLoud } from './lk-cover';
-import { crClick, renderCreate, wireCreate } from './lk-create';
+import { crClick, openCreate, renderCreate, wireCreate } from './lk-create';
 import { renderRows } from './lk-daily';
 import { EMBED, closeAddin, openEmbed, planUrl, subLinkToken, toParent } from './lk-embed';
 import { attention, draftFix, loadFeedback, renderFeedback, renderSettings, showPlansTab, useFix } from './lk-feedback';
@@ -40,10 +41,12 @@ function setLang(l: Lang) {
   setTitles();
   if (state.bodies) state.plan = pickBody();
   if (!$('overlay').hidden) {
-    if (state.cr) renderCreate();
+    if (state.cr && state.screen !== 'create') renderCreate();
     else if (state.plan) showPlan();
     else if (state.row) showRequest();
   }
+  // In LK the wizard is a page, not something over one.
+  if (state.screen === 'create') renderCreate();
 }
 
 /* ── No login in the test env ───────────────────────
@@ -54,10 +57,11 @@ export function boot() {
   document.documentElement.lang = LANG;
   applyStatic();
   if (!mockAuth()) { showSignIn(); return; }
+  loadTodayRows();
   renderNav();
   enterApp()
     .then(() => Promise.all([loadFeedback(), loadUses()]))
-    .then(() => (EMBED ? openEmbed() : loadCoverPlans().then(renderRows)))
+    .then(() => (EMBED ? openEmbed() : undefined))
     .catch(() => {});
 }
 
@@ -80,6 +84,10 @@ async function enterApp() {
   }
 
   state.me = data;
+  // LK opens on its own lesson plans; the FVK test page on FVK's cover table.
+  // Chosen before the app is shown, so the wrong page never flashes up first.
+  // Embedded in FVK, the panel opens on the lesson it was opened for.
+  if (!EMBED) showScreen(SHELL === 'lk' ? 'bank' : 'cover');
   $('app').hidden = false;
   $('schoolname').textContent = data.school;
   $('username').textContent = (data.role === 'demo' ? t('demoRole') : data.role);
@@ -122,6 +130,7 @@ document.addEventListener('click', async (e) => {
   const blk = tg.closest<HTMLElement>('[data-blk]');
   if (blk) { const r = blk.getBoundingClientRect(); return openPop(blk.getAttribute('data-blk')!, r.right + 6, r.top); }
   if (await crClick(tg)) return;
+  if (todayClick(tg)) return;
   const fbf = tg.closest<HTMLElement>('[data-fbfix]');
   if (fbf) return draftFix(Number(fbf.getAttribute('data-fbfix')));
   const fbu = tg.closest<HTMLElement>('[data-fbuse]');
@@ -357,14 +366,23 @@ $('overlay').addEventListener('mousedown', (e) => { if ((e.target as HTMLElement
 
 wireTerm();
 wireCreate();
-function showScreen(which: string) {
+/** Show one page. In LK the bank, year planning and feedback are pages of
+ *  their own (they are tabs of one page inside FVK), so those ids open the
+ *  plans page on that tab. */
+export function showScreen(id: string) {
+  let which = id;
+  if (id === 'bank' || id === 'term' || id === 'feedback') { state.tab = id; which = 'plans'; }
+  // The wizard is a page in LK; opening it sets it up and comes back here.
+  if (which === 'create' && !state.cr) { openCreate(); return; }
   state.screen = which;
-  const onPlans = which === 'plans';
-  $('screen-cover').hidden = which !== 'cover';
-  $('screen-plans').hidden = !onPlans;
-  if (onPlans) showPlansTab(state.tab);
+  for (const s of ['cover', 'plans', 'today', 'create', 'settings']) {
+    const el = maybe$('screen-' + s); if (el) el.hidden = s !== which;
+  }
+  if (which === 'plans') showPlansTab(state.tab);
+  if (which === 'create') renderCreate();
+  if (which === 'settings') renderSettings();
   renderNav();
-  if (which === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
+  if (which === 'cover' || which === 'today') loadCoverPlans().then(renderRows).catch(() => {});
   setTitles();
   window.scrollTo(0, 0);
 }

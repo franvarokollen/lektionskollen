@@ -9,7 +9,8 @@
    The add-on adds nothing to this screen. A lesson block is 22-60px tall
    and has no room for a button, so the plan lives one click deep, in the
    popover the coordinator already opens to assign cover. */
-import { $, CoverPlan, LANG, Row, esc, fillT, t } from './lk-core';
+import { renderToday } from './lk-today';
+import { $, CoverPlan, LANG, Row, SHELL, esc, fillT, t } from './lk-core';
 import { LOUD, ROWS, planFor, planSettled, renderLoudPicker } from './lk-cover';
 
 const GRID = { gutter: 54, colMin: 150, pxPerHour: 76 };
@@ -66,6 +67,8 @@ function donut(pct: number) {
 }
 
 export function renderRows() {
+  // On its own, LK lists the day's cover lessons; the grid is FVK's screen.
+  if (SHELL === 'lk') return renderToday();
   const st = coverageStats();
   const d = new Date('2026-10-21T12:00:00');
   const loc = LANG === 'sv' ? 'sv-SE' : 'en-GB';

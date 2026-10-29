@@ -26,7 +26,7 @@ in somewhere, so LK keeps its own; linking is the bridge, not the requirement.
 
 | Piece | Where | State |
 |---|---|---|
-| Sign-in screen (Google, Microsoft, email link, demo) | `app/index.html` `#signin`, `mockSignIn()` | **Mocked** — every option opens the demo school |
+| Sign-in screen (Google, Microsoft, email link, demo) | `app/index.html` (and `app/fvk-demo.html`) `#signin`, `mockSignIn()` | **Mocked** — every option opens the demo school |
 | Real calls | marked in `mockSignIn()` | to do |
 | Members / roles (coordinator, teacher, admin) | `lektionskollen.members`, `lk_me()` | exists; anon falls back to demo school |
 | Turn off demo fallback | revoke anon grants on `lk_*` | to do, at go-live |

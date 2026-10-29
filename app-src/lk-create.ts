@@ -16,9 +16,10 @@
    or AI-made, the name, and the rung.
 
    One screen per step, nothing on a screen that is not needed for that step. */
+import { showScreen } from './lk';
 import { APPROVER_KEY, APPR_ERR } from './lk-approve';
 import { CATALOG_SUBJECTS, CATALOG_YEARS, subjectLabel, yearLabel } from './lk-catalog';
-import { $, Lang, TermRow, Verdict, esc, fillT, maybe$, sb, state, t, toast } from './lk-core';
+import { $, Lang, SHELL, TermRow, Verdict, esc, fillT, maybe$, sb, state, t, toast } from './lk-core';
 import { genErrText, invokeGen } from './lk-generate';
 import { usePlan } from './lk-panel';
 import { apprLevelName, apprStars, loadBank } from './lk-pool';
@@ -46,7 +47,7 @@ function crLoadWho(): { name: string; role: CrRole } {
   } catch { return { name: '', role: 'teacher' }; }
 }
 
-function openCreate(subject?: string, year?: string) {
+export function openCreate(subject?: string, year?: string) {
   const who = crLoadWho();
   state.cr = {
     step: who.name ? 2 : 1, name: who.name, role: who.role,
@@ -55,6 +56,8 @@ function openCreate(subject?: string, year?: string) {
     model: null, check: null, share: false, approve: true, busy: '', term: null,
   };
   state.row = null; state.plan = null; state.planId = null;
+  // In LK it is a page of its own; on the FVK test page it opens over the screen.
+  if (SHELL === 'lk') { showScreen('create'); if (state.cr.step === 2) crLoadTerm(); return; }
   $('overlay').hidden = false;
   document.body.style.overflow = 'hidden';
   $('seam-state').textContent = 'create';
@@ -71,7 +74,8 @@ export function renderCreate() {
     '<li class="' + (i + 1 === c.step ? 'on' : i + 1 < c.step ? 'done' : '') + '"><span>' + (i + 1) + '</span>' + esc(t(k)) + '</li>').join('') + '</ol>';
   const body = c.busy ? crBusy() : c.step === 1 ? crYou() : c.step === 2 ? crLesson() : c.step === 3 ? crHow()
     : c.step === 4 ? crWrite() : crSave();
-  $('addin-content').innerHTML =
+  const host = (SHELL === 'lk' && maybe$('create-page')) || $('addin-content');
+  host.innerHTML =
     '<div class="addin-body crwiz">' +
       '<div class="addin-head"><div style="flex:1;min-width:0"><h2 id="addin-title">' + esc(t('crTitle')) + '</h2>' +
         '<div class="plan-meta">' + (c.step > 1 ? esc(c.name + ' · ' + t('crRole_' + c.role)) : esc(t('crLead'))) +

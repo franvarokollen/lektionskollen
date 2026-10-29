@@ -33,7 +33,7 @@ async function loadSettings() {
 }
 
 export function renderSettings() {
-  const box = maybe$('fbsettings');
+  const box = maybe$('settings-page') || maybe$('fbsettings');
   if (!box) return;
   box.innerHTML = '<h4>' + esc(t('capTitle')) + '</h4><p class="hint">' + esc(t('capNote')) + '</p>' +
     '<div class="covrow">' + ([[5, '5'], [20, '20'], [-1, t('capUnlimited')]] as [number, string][]).map(([v, lbl]) =>
