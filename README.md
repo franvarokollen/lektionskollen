@@ -10,6 +10,7 @@ Live: `https://franvarobot.github.io/lektionskollen/` (redirects to `app/`). Eve
 |------|------------|
 | `app/` | **What Pages serves.** `index.html` (coordinator app), `plan.html` (the substitute's page), `lk.css`, and the built `*.js`. |
 | `app-src/` | The TypeScript the `app/*.js` files are built from. **Edit here, never `app/*.js`.** |
+| `app-src/lk*.ts` | The coordinator app, bundled into `app/lk.js`: `lk.ts` (sign-in, cover table, plan panel, events), `lk-core.ts` (database client, strings, state), `lk-catalog.ts` (subjects and years), `lk-pool.ts` (bank and pool), `lk-wait.ts`, `lk-feedback.ts`, `lk-term.ts` (year planning), `lk-create.ts` (the create wizard). |
 | `supabase/migrations/` | Database schema and every `lk_*` function, in order. |
 | `supabase/functions/` | Edge functions: `lk-generate` (write, translate, convert, fix a plan), `lk-assist` (live help for the substitute), `lk-verify`, `lk-import` (year plans), `lk-checklink`. |
 | `fvk-integration/` | Drop-in files for FVK's own codebase (not built here). |
