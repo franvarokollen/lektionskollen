@@ -58,8 +58,8 @@ for (const lang of ['sv', 'en']) {
     if (await p.$('[data-projdeck]')) { await p.click('[data-projdeck]'); await p.waitForTimeout(900); await snap(p, `plan.${lang}.projector`); }
   });
   // the coordinator's app
-  await open(`app.${lang}`, `/index.html?lang=${lang}`, lang, async (p) => {
-    await snap(p, `app.${lang}.cover`);
+  await open(`app.${lang}`, `/fvk-demo.html?lang=${lang}`, lang, async (p) => {
+    await snap(p, `app.${lang}.start`);
     for (const which of ['plans', 'cover']) {
       const nav = await p.$(`[data-nav="${which}"]`);
       if (nav) { await nav.click(); await p.waitForTimeout(1500); await snap(p, `app.${lang}.${which}`); }

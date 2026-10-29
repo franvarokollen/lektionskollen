@@ -96,6 +96,13 @@ export let LANG: Lang = (() => {
 const TT = window.LK_T as Record<Lang, StrMap>;
 export const t = (k: string): string => (TT[LANG] && TT[LANG][k]) || TT.sv[k] || k;
 
+/** Which product the page is. 'lk' is Lektionskollen on its own (index.html):
+ *  its own sidebar, a Cover today page, lesson plans first. 'fvk' is the test
+ *  page that shows LK inside a copy of Frånvarokollen (fvk-demo.html), so the
+ *  integration can still be judged. Same code, same features; only the shell
+ *  around them differs. */
+export const SHELL: 'lk' | 'fvk' = document.body.dataset.shell === 'fvk' ? 'fvk' : 'lk';
+
 /** Only setLang (lk.ts) changes the language; it also redraws the page. */
 export function setLangValue(l: Lang) { LANG = l; }
 export function fillT(k: string, o: Record<string, string | number | null | undefined>): string { return t(k).replace(/\{(\w+)\}/g, (_m, x: string) => String(o[x])); }
@@ -113,7 +120,7 @@ export function toast(msg: string, ms = 4000) {
 export const state = {
   me: null as Me | null, row: null as Row | null, plan: null as Plan | null,
   bodies: null as Partial<Record<Lang, Plan>> | null, planId: null as string | null,
-  view: 'coordinator', bank: [] as BankRow[], screen: 'cover', fb: [] as FbPlan[], pending: 0,
+  view: 'coordinator', bank: [] as BankRow[], screen: (SHELL === 'fvk' ? 'cover' : 'plans') as string, fb: [] as FbPlan[], pending: 0,
   queue: [] as QueueItem[], extras: [] as QueueItem[], attn: [] as Attn[], fixes: {} as Record<string, { busy?: boolean; before?: Plan; after?: Plan; err?: string }>, model: null as string | null, cap: 20, uses: [] as UseRow[],
   termCoverage: [] as TermCover[], tab: 'bank', checks: {} as Record<string, Verdict | null>,
   // Which shelf of the pool is open, remembered between visits.

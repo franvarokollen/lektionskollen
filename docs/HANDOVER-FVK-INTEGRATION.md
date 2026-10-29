@@ -219,6 +219,7 @@ Kept current by the LK sessions as decisions land. Newest first. Each entry says
 
 | Date | Change | FVK impact |
 |---|---|---|
+| 2026-10-29 | The LK demo is now **standalone**: `index.html` is LK with its own sidebar (Cover today, Lesson plans, Create, Year planning, Feedback, Settings). The copy of FVK moved to `fvk-demo.html`, a test page for the integration (LK #199) | **None to the contract**: the panel URL is still `index.html?embed=1&…` and the messages are unchanged. Embed mode now shows only the panel (the page behind it used to render above it inside the iframe) |
 | 2026-10-28 | LK's scope stated: **create lesson plans + keep a bank of them**, tied into FVK only if a school wants it. New *Create a lesson plan* wizard (AI / upload / write yourself, self-approval by role) — LK #165 | None: it lives in LK's own Lesson plans screen, not in the FVK popover |
 | 2026-10-28 | LK becomes a **standalone product** with its own sign-in; FVK link is an optional bridge (LK #159, `docs/AUTH.md`) | Auth work is still only the bridge (§4.1); FVK no longer acts as gatekeeper for LK users. New question: which sign-in provider FVK uses |
 | 2026-10-28 | **Plan sharing local by default**, AI-made / Teacher-made labels (LK #158) | None |

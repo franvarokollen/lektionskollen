@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="./lk.css">
-<meta name="lk-build" content="cc46f2c118fd">
+<meta name="lk-build" content="bf24f252f7b5">
 <script>
 // ── Is this page the one we deployed? ─────────────────────
 // GitHub Pages serves HTML with cache-control: max-age=600 and gives us no way
@@ -46,7 +46,7 @@
 })();
 </script>
 </head>
-<body>
+<body data-shell="lk">
 
 <!-- Sign-in (mocked). Lektionskollen's own sign-in for schools without
      Frånvarokollen; inside FVK this never shows. See docs/AUTH.md. -->
@@ -75,7 +75,10 @@
 <div class="shell" id="app">
   <aside class="sidebar">
     <div class="sb-top">
-      <img src="./logo-white.svg" alt="FrånvaroKollen" class="sb-logo">
+      <div class="lkbrand">
+        <svg class="lkmark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff" fill-opacity=".12"/><circle cx="12" cy="14" r="4.2" fill="#fff"/><circle cx="20" cy="14" r="4.2" fill="#fff"/><circle cx="12" cy="14" r="1.8" fill="#0d2340"/><circle cx="20" cy="14" r="1.8" fill="#0d2340"/><path d="M14.5 20.5 16 23l1.5-2.5z" fill="#fbbf24"/></svg>
+        <div><p class="lkname">Lektionskollen</p><p class="lktag" data-t="lkTag">Lektionsplaner för vikarier</p></div>
+      </div>
       <p class="sb-school" id="schoolname">…</p>
     </div>
 
@@ -112,58 +115,8 @@
     </header>
 
     <div class="wrap">
-      <section id="screen-cover">
-        <div class="demo-tip">
-          <span>▶</span>
-          <div><b data-t="demoTipTitle">Delad testmiljö — ingen inloggning.</b> <span data-t="demoTipBody"></span></div>
-        </div>
-        <div class="tabs">
-          <button class="on" data-t="tabDaily">Daglig vikarie</button>
-          <button disabled data-t="tabSubs">Vikarier</button>
-          <button disabled data-t="tabLongTerm">Långtidsfrånvaro</button>
-        </div>
-        <!-- Cover header: date, coverage donut, counts, day actions -->
-        <div class="cvhead">
-          <div class="cvdate">
-            <p class="cvkicker" id="cv-kicker">IDAG · VECKA 43</p>
-            <h1 id="cv-day"></h1>
-          </div>
-          <div class="cvright">
-            <div class="cvstats">
-              <svg id="cv-donut" width="72" height="72" viewBox="0 0 72 72"></svg>
-              <div>
-                <p class="cvneed" id="cv-need"></p>
-                <p class="cvcounts" id="cv-counts"></p>
-              </div>
-            </div>
-            <div class="cvacts">
-              <button class="btn btn-ghost btn-sm" disabled data-t="cvAddAbsence">Lägg till frånvaro</button>
-              <button class="btn btn-cta btn-sm" disabled data-t="cvCoverExt">Täck allt externt</button>
-              <button class="btn btn-ghost btn-sm" disabled data-t="cvDayNotes">Dagsanteckningar</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Covered lessons with no plan — the loudest of the three placements -->
-        <div class="nudge" id="cv-nudge" hidden></div>
-
-        <!-- Absent staff chips -->
-        <div class="chipstrip" id="cv-chips"></div>
-
-        <!-- View toggle -->
-        <div class="cvtoggle">
-          <button class="on" data-t="cvTimeline">Tidslinje</button>
-          <button disabled data-t="cvByTeacher">Per lärare</button>
-          <span class="spacer"></span>
-          <button class="addlesson" disabled>+ <span data-t="cvAddLesson">Lägg till lektion</span></button>
-        </div>
-
-        <!-- Timeline grid: one column per absent teacher -->
-        <div class="gridwrap card-elevated"><div class="gridinner" id="cv-grid"></div></div>
-        <p class="note" data-t="cvGridNote"></p>
-
-        <!-- Not part of Frånvarokollen: the design question this replica asks -->
-        <div class="loudpick" id="cv-loud"></div>
+      <section id="screen-today" hidden>
+        <div id="today-page"></div>
       </section>
 
       <section id="screen-plans" hidden>
@@ -197,7 +150,6 @@
         <div class="grid" id="fbqueue"></div>
         <details class="fbmore"><summary data-t="plansTitle">Planer och vad vikarierna sa</summary><div class="grid" id="fbplans"></div></details>
         <details class="fbmore"><summary id="fbautoH"></summary><div class="grid" id="fbauto"></div></details>
-        <div class="bcard fx" id="fbsettings" style="margin-top:22px;max-width:520px"></div>
       </div>
 
       <!-- The department's own year planning. Not a plan, not a document: the
@@ -225,6 +177,14 @@
         <div id="tp-preview"></div>
         <div id="tp-stored" style="margin-top:22px"></div>
       </div>
+      </section>
+
+      <section id="screen-create" hidden>
+        <div class="bcard fx crpage" id="create-page"></div>
+      </section>
+
+      <section id="screen-settings" hidden>
+        <div class="bcard fx" id="settings-page" style="max-width:560px"></div>
       </section>
     </div>
   </div>
@@ -260,7 +220,7 @@
 <!-- Linking a plan the school already has -->
 <div class="linkbox" id="linkbox" hidden></div>
 
-<!-- Frånvarokollen's lesson popover -->
+<!-- Frånvarokollen's lesson popover; unused here, kept for the shared code -->
 <div class="cvpop" id="cv-pop" hidden></div>
 
 </body>

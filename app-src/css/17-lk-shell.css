@@ -1,0 +1,52 @@
+/* ── Lektionskollen on its own (index.html, body[data-shell="lk"]) ──
+   Same suite as Frånvarokollen — the navy sidebar, the warm work surface —
+   but LK's own name and mark, and LK's own pages. */
+body[data-shell="lk"] .sidebar{background:var(--lk-grad)}
+.lkbrand{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.lkmark{width:34px;height:34px;flex:none}
+.lkname{margin:0;color:#fff;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.lktag{margin:1px 0 0;color:rgba(255,255,255,.5);font-size:11px}
+
+/* The bank, year planning and feedback are pages of their own here, so the
+   tab bar FVK needs is not shown. */
+body[data-shell="lk"] .plantabs{display:none}
+
+/* The strip that marks the add-on's edge inside FVK has no edge to mark here. */
+body[data-shell="lk"] .seam{display:none}
+
+/* The create wizard as a page rather than a panel over one. */
+.crpage{max-width:880px;padding:0}
+.crpage .addin-body{padding:24px}
+
+/* ── Cover today ── */
+.tdhead{max-width:880px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:20px 22px;margin-bottom:16px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
+.tdsum{flex:1;min-width:240px}
+.tdkicker{margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-faint)}
+.tdhead h2{font-size:19px;margin:0 0 10px;letter-spacing:-.01em}
+.tdbar{height:6px;border-radius:6px;background:var(--line-soft);overflow:hidden;max-width:420px}
+.tdbar i{display:block;height:100%;background:var(--blue);border-radius:6px;transition:width .3s}
+.tdactions{display:flex;gap:8px;flex-wrap:wrap}
+.tdform{margin-bottom:16px;max-width:880px}
+.tdform h3{font-size:15px;margin:0 0 4px}
+.tdgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.tdgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tdlist{display:flex;flex-direction:column;gap:10px;max-width:880px}
+.tdcard{position:relative;display:flex;gap:16px;align-items:flex-start;padding:14px 16px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
+.tdtime{flex:none;width:52px;font-size:14px;font-weight:600;color:var(--ink);display:flex;flex-direction:column}
+.tdtime span{font-weight:400;color:var(--ink-faint);font-size:12px}
+.tdmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.tdtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tdtop b{font-size:15px}
+.tdst{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px}
+.tdst.warn{background:var(--warn-bg);color:#92400e}
+.tdst.draft{background:#eef2ff;color:#4338ca}
+.tdst.ok{background:var(--ok-bg);color:#166534}
+.tdst.neutral{background:var(--line-soft);color:var(--ink-soft)}
+.tdmeta{margin:0;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tdnosub{color:#b45309}
+.tdown{font-style:italic;color:var(--ink-faint)}
+.tdplan{max-width:520px}
+.tdremove{position:absolute;top:10px;right:10px}
+@media (max-width:640px){.tdcard{flex-direction:column;gap:8px}.tdtime{flex-direction:row;gap:6px;width:auto}}

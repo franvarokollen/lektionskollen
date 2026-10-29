@@ -1,4 +1,5 @@
 /* ── Add-in ────────────────────────────────────────── */
+import { showScreen } from './lk';
 import { canonSubject, canonYear } from './lk-catalog';
 import { $, Row, nextPanel, panelIs, state } from './lk-core';
 import { ROWS, loadCoverPlans } from './lk-cover';
@@ -108,5 +109,7 @@ export function closeAddin() {
   $('overlay').hidden = true;
   document.body.style.overflow = '';
   document.body.classList.remove('panelmode');
-  if (state.screen === 'cover') loadCoverPlans().then(renderRows).catch(() => {});
+  if (state.screen === 'cover' || state.screen === 'today') loadCoverPlans().then(renderRows).catch(() => {});
+  // Leaving the wizard page (cancelled, or the saved plan closed): back to the bank.
+  if (state.screen === 'create') showScreen('bank');
 }
