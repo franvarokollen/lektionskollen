@@ -207,7 +207,7 @@ Manual, with the flag **on**, against a test school and test user:
 The work is broken into FVK issues in `docs/FVK-ISSUES-lektionskollen.md` (one epic, eight issues).
 
 LK issues live in `franvarokollen/lektionskollen`: **#137** (FVK integration), **#159** (standalone sign-in + FVK bridge, replaces the auth decision in #137), **#158** (sharing model, no FVK impact), **#148** (teacher-note translation, unrelated).
-Reference commits: LK `main` `b00927c`. LK repo paths cited here: `fvk-integration/`, `app-src/lk.ts` (strict TypeScript; embed mode `EMBED` / `toParent` / `openEmbed`, lines ~1045–1090; built to `app/lk.js`, never edit the build output), `supabase/migrations/20261021i_plan_for_cover.sql`.
+Reference commits: LK `main` `b00927c`. LK repo paths cited here: `fvk-integration/`, `app-src/lk.ts` (strict TypeScript; embed mode `EMBED` / `toParent` / `openEmbed`, lines ~1045–1090; built to `app/lk.js`, never edit the build output), `supabase/migrations-archive/20261021i_plan_for_cover.sql` (now part of `supabase/migrations/20261029000000_lk_baseline.sql`).
 
 Note for FVK reviewers: the LK screens (coordinator app, substitute page, plan renderer) are strict TypeScript in `app-src/`, built with esbuild into `app/*.js`. `npm run check:app` runs typecheck, build-freshness, i18n and projector-answer checks.
 
