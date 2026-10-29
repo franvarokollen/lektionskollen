@@ -49,7 +49,21 @@ body[data-shell="lk"] .seam{display:none}
 .tdpicker .btn.on{background:var(--navy,#16325c);color:#fff;border-color:transparent}
 .tdtitle{margin:0;font-size:14px;color:var(--ink)}
 .tdstock{color:var(--ink-faint)}
-.tdopen{flex:none;align-self:center}
+.tdopen{flex:none}
+.tdcardact{flex:none;align-self:center;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tdrm.sure{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+/* Report a problem: sidebar link, dialog, substitute page footer */
+.sb-report{padding:0 18px 10px}
+.reportbtn{background:none;border:0;padding:4px 0;font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.reportbtn:hover{color:rgba(255,255,255,.85)}
+.reportdlg{border:0;border-radius:14px;padding:20px 22px;width:min(460px,92vw);box-shadow:0 20px 50px rgba(13,35,64,.25)}
+.reportdlg::backdrop{background:rgba(13,35,64,.35)}
+.reportdlg h3{margin:0 0 4px;font-size:16px}
+.reportdlg textarea{width:100%;box-sizing:border-box;margin:10px 0 4px;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;resize:vertical}
+.reportdlg .foot{display:flex;gap:8px;margin-top:10px}
+.reportdlg .spacer{flex:1}
+.reportline{text-align:center;margin:28px 0 90px}
+.linkbtn{background:none;border:0;color:var(--ink-faint);font-size:12.5px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .tdopen,.tdpick a{text-decoration:none}
 /* Plan a lesson: the picks under the form */
 .tdres{margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:8px}

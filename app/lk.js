@@ -2396,6 +2396,8 @@
   var ask = null;
   var found = false;
   var busy = false;
+  var skip = "";
+  var sure = "";
   async function loadPlans() {
     const { data } = await sb.rpc("lk_pool", { p_subject: null, p_year: null, p_scope: "all", p_approval: "any" });
     all = data || [];
@@ -2412,7 +2414,8 @@
   function unused(subject, year, group) {
     const g = group.trim();
     const ok = all.filter((p) => p.approved && !p.approval_stale && p.subject === subject && p.year_group === year && !(g && usesOf(p.id, g).length));
-    return [...ok.filter((p) => p.origin === "teacher"), ...ok.filter((p) => p.origin !== "teacher")];
+    const fresh = ok.filter((p) => p.id !== skip);
+    return [...fresh.filter((p) => p.origin === "teacher"), ...fresh.filter((p) => p.origin !== "teacher")];
   }
   var originChip = (p) => p.origin === "teacher" ? '<span class="tdst ok">' + esc(t("origTeacher")) + (p.author_name ? " \xB7 " + esc(p.author_name) : "") + "</span>" : '<span class="tdst draft">' + esc(t("origAi")) + "</span>";
   function stockChip(subject, year, group) {
@@ -2429,7 +2432,8 @@
     return '<article class="tdcard"><div class="tdtime mono">' + esc(start || "\u2014") + "<span>" + esc(end) + '</span></div><div class="tdmain"><div class="tdtop"><b>' + esc(what) + "</b>" + (p ? originChip(p) : "") + '</div><p class="tdtitle">' + esc(title) + '</p><p class="tdmeta">' + [
       u.substitute ? esc(t("tdSubName")) + ": " + esc(u.substitute) : "",
       p ? stockChip(p.subject, p.year_group, u.group_name) : ""
-    ].filter(Boolean).join(" \xB7 ") + "</p></div>" + (link ? '<a class="btn btn-ghost btn-sm tdopen" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(t("tdOpen")) + "</a>" : "") + "</article>";
+    ].filter(Boolean).join(" \xB7 ") + '</p></div><div class="tdcardact">' + (link ? '<a class="btn btn-ghost btn-sm tdopen" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(t("tdOpen")) + "</a>" : "") + // Only a lesson still ahead can be changed; one that happened stays on record.
+    (u.run_token && u.used_on >= today() ? '<button class="btn btn-ghost btn-sm" data-tdswap="' + esc(u.run_token) + '">' + esc(t("tdSwap")) + '</button><button class="btn btn-ghost btn-sm tdrm' + (sure === u.run_token ? " sure" : "") + '" data-tdrm="' + esc(u.run_token) + '">' + esc(t(sure === u.run_token ? "tdRemoveSure" : "tdRemove")) + "</button>" : "") + "</div></article>";
   }
   function opt(v, lbl, on) {
     return '<option value="' + esc(v) + '"' + (on ? " selected" : "") + ">" + esc(lbl) + "</option>";
@@ -2506,12 +2510,36 @@
       toast(fillT("tdUsed", { g: a.group, d: fmtDay(a.date, false) }));
       ask = null;
       found = false;
+      skip = "";
       day = a.date;
       await loadUses();
     } finally {
       busy = false;
       renderToday();
     }
+  }
+  async function unplan(run) {
+    const { data, error } = await sb.rpc("lk_unlog_run", { p_run_token: run });
+    if (error || data !== true) {
+      toast(t("tdCantRemove"));
+      return false;
+    }
+    await loadUses();
+    return true;
+  }
+  async function swap(run) {
+    const u = state.uses.find((x) => x.run_token === run);
+    const p = u && plans.get(u.plan_id);
+    if (!u || !p || !await unplan(run)) {
+      renderToday();
+      return;
+    }
+    const [start = "", end = ""] = (u.lesson_time || "").split("\u2013");
+    ask = { subject: p.subject, year: p.year_group, group: u.group_name, date: u.used_on, start, end, sub: u.substitute || "" };
+    skip = p.id;
+    found = true;
+    day = u.used_on;
+    renderToday();
   }
   function todayClick(tg) {
     if (tg.closest("[data-tdplan]")) {
@@ -2522,6 +2550,32 @@
       maybe$("td-class")?.focus();
       return true;
     }
+    const rm = tg.closest("[data-tdrm]");
+    if (rm) {
+      const run = rm.getAttribute("data-tdrm");
+      if (sure !== run) {
+        sure = run;
+        renderToday();
+        setTimeout(() => {
+          if (sure === run) {
+            sure = "";
+            renderToday();
+          }
+        }, 4e3);
+        return true;
+      }
+      sure = "";
+      unplan(run).then((ok) => {
+        if (ok) toast(t("tdRemoved"));
+        renderToday();
+      });
+      return true;
+    }
+    const sw = tg.closest("[data-tdswap]");
+    if (sw) {
+      swap(sw.getAttribute("data-tdswap"));
+      return true;
+    }
     const dd = tg.closest("[data-tdday]");
     if (dd) {
       setDay(dd.getAttribute("data-tdday"));
@@ -2530,6 +2584,7 @@
     if (tg.closest("[data-tdcancel]")) {
       ask = null;
       found = false;
+      skip = "";
       renderToday();
       return true;
     }
@@ -2570,6 +2625,86 @@
     if (el && el.id === "td-day" && el.value) setDay(el.value);
   });
 
+  // app-src/report.ts
+  var MAX_ERRORS = 5;
+  var sent = 0;
+  var seen = /* @__PURE__ */ new Set();
+  var build = () => document.querySelector('meta[name="lk-build"]')?.content || "";
+  function send(sb2, kind, message, page, detail) {
+    try {
+      return Promise.resolve(sb2.rpc("lk_report", {
+        p_kind: kind,
+        p_message: message,
+        p_page: page,
+        p_build: build(),
+        p_detail: detail
+      })).then((r) => !r.error && r.data === true, () => false);
+    } catch {
+      return Promise.resolve(false);
+    }
+  }
+  function watchErrors(sb2, where) {
+    const once = (msg, detail) => {
+      msg = msg.trim().slice(0, 1e3);
+      if (!msg || /ResizeObserver loop|^Script error\.?$/i.test(msg)) return;
+      if (sent >= MAX_ERRORS || seen.has(msg)) return;
+      seen.add(msg);
+      sent++;
+      send(sb2, "error", msg, where(), { ...detail, ua: navigator.userAgent, lang: document.documentElement.lang });
+    };
+    window.addEventListener("error", (e) => {
+      if (e.filename && !e.filename.startsWith(location.origin)) return;
+      once(String(e.message || "error"), {
+        src: (e.filename || "").replace(location.origin, ""),
+        line: e.lineno,
+        col: e.colno,
+        stack: String(e.error?.stack || "").slice(0, 4e3)
+      });
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      const r = e.reason;
+      const msg = typeof r === "string" ? r : r?.message || String(r);
+      once(msg, { stack: typeof r === "object" ? String(r?.stack || "").slice(0, 4e3) : "" });
+    });
+  }
+  function openReport(sb2, where, txt, toast2) {
+    document.getElementById("lk-report")?.remove();
+    const d = document.createElement("dialog");
+    d.id = "lk-report";
+    d.className = "reportdlg";
+    d.innerHTML = '<form method="dialog"><h3></h3><p class="hint"></p><textarea maxlength="2000" rows="5"></textarea><div class="foot"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-rcancel></button><button type="submit" class="btn btn-primary" data-rsend></button></div></form>';
+    d.querySelector("h3").textContent = txt.title;
+    d.querySelector(".hint").textContent = txt.hint;
+    const ta = d.querySelector("textarea");
+    ta.placeholder = txt.placeholder;
+    const ok = d.querySelector("[data-rsend]");
+    ok.textContent = txt.send;
+    d.querySelector("[data-rcancel]").textContent = txt.cancel;
+    d.querySelector("[data-rcancel]").addEventListener("click", () => d.close());
+    d.addEventListener("close", () => d.remove());
+    d.querySelector("form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const msg = ta.value.trim();
+      if (!msg) {
+        ta.focus();
+        return;
+      }
+      ok.disabled = true;
+      send(sb2, "user", msg, where(), { ua: navigator.userAgent, lang: document.documentElement.lang, w: innerWidth, h: innerHeight }).then((done) => {
+        if (done) {
+          d.close();
+          toast2(txt.thanks);
+        } else {
+          ok.disabled = false;
+          toast2(txt.fail);
+        }
+      });
+    });
+    document.body.appendChild(d);
+    d.showModal();
+    ta.focus();
+  }
+
   // app-src/lk.ts
   state.pool = loadPoolPick();
   function setLang(l) {
@@ -2601,6 +2736,7 @@
     if (state.screen === "create") renderCreate();
   }
   function boot() {
+    watchErrors(sb, () => SHELL + ":" + state.screen + (EMBED ? ":embed" : ""));
     document.documentElement.lang = LANG;
     applyStatic();
     if (!mockAuth()) {
@@ -2726,6 +2862,18 @@
       renderSettings();
       toast(t("shareSaved"));
       loadBank();
+      return;
+    }
+    if (tg.closest("[data-report]")) {
+      openReport(sb, () => SHELL + ":" + state.screen, {
+        title: t("reportTitle"),
+        hint: t("reportHint"),
+        placeholder: t("reportPh"),
+        send: t("reportSend"),
+        cancel: t("cancel"),
+        thanks: t("reportThanks"),
+        fail: t("reportFail")
+      }, toast);
       return;
     }
     if (tg.closest("[data-fvklink]")) {

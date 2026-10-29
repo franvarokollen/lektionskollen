@@ -4,7 +4,7 @@ import { bodies } from './plan-load';
 import { assistRow } from './plan-assist';
 import { clockShift, runBand, shiftT } from './plan-linked';
 import { Labels } from './plan-labels';
-import { $, ASPECTS, L, Lang, P, PROG, PlanRow, esc } from './plan-core';
+import { $, ASPECTS, L, Lang, P, PROG, PlanRow, esc, maybe$ } from './plan-core';
 import { studentParts } from './plan-depth';
 export function render(d: PlanRow, keepScroll?: boolean) {
   const y = keepScroll ? window.scrollY : 0;
@@ -168,6 +168,8 @@ export function render(d: PlanRow, keepScroll?: boolean) {
   $('out').innerHTML = h;
   $('barlbl').textContent = l.barLbl;
   $('fbjump').textContent = l.fbJump;
+  const rb = maybe$('reportbtn');
+  if (rb) rb.textContent = l.reportBtn;
   $('bar').hidden = false;
   if (keepScroll) window.scrollTo(0, y);
 }

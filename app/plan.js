@@ -73,6 +73,14 @@
     ifWrong: "Om n\xE5got g\xE5r snett",
     afterH: "Efter lektionen",
     recallWhy: "Bygger p\xE5",
+    reportBtn: "Rapportera ett problem",
+    reportTitle: "Rapportera ett problem",
+    reportHint: "Vad gick fel? Skriv inga elevnamn.",
+    reportPh: "Till exempel: utskriften saknar elevbladet",
+    reportSend: "Skicka",
+    reportCancel: "Avbryt",
+    reportThanks: "Tack \u2014 skickat.",
+    reportFail: "Kunde inte skickas. F\xF6rs\xF6k igen.",
     modelWrite: "Skriv p\xE5 tavlan",
     modelSay: "S\xE4g medan du skriver",
     modelAns: "Svar",
@@ -262,6 +270,14 @@
     ifWrong: "If something goes wrong",
     afterH: "After the lesson",
     recallWhy: "Builds on",
+    reportBtn: "Report a problem",
+    reportTitle: "Report a problem",
+    reportHint: "What went wrong? Please write no pupil names.",
+    reportPh: "For example: the print-out is missing the pupil sheet",
+    reportSend: "Send",
+    reportCancel: "Cancel",
+    reportThanks: "Thanks \u2014 sent.",
+    reportFail: "Could not send. Please try again.",
     modelWrite: "Write on the board",
     modelSay: "Say while you write",
     modelAns: "Answer",
@@ -835,6 +851,8 @@
     $("out").innerHTML = h;
     $("barlbl").textContent = l.barLbl;
     $("fbjump").textContent = l.fbJump;
+    const rb = maybe$("reportbtn");
+    if (rb) rb.textContent = l.reportBtn;
     $("bar").hidden = false;
     if (keepScroll) window.scrollTo(0, y);
   }
@@ -920,6 +938,86 @@
       out.push(sl);
     });
     return out;
+  }
+
+  // app-src/report.ts
+  var MAX_ERRORS = 5;
+  var sent = 0;
+  var seen = /* @__PURE__ */ new Set();
+  var build = () => document.querySelector('meta[name="lk-build"]')?.content || "";
+  function send(sb2, kind, message, page, detail) {
+    try {
+      return Promise.resolve(sb2.rpc("lk_report", {
+        p_kind: kind,
+        p_message: message,
+        p_page: page,
+        p_build: build(),
+        p_detail: detail
+      })).then((r) => !r.error && r.data === true, () => false);
+    } catch {
+      return Promise.resolve(false);
+    }
+  }
+  function watchErrors(sb2, where) {
+    const once = (msg, detail) => {
+      msg = msg.trim().slice(0, 1e3);
+      if (!msg || /ResizeObserver loop|^Script error\.?$/i.test(msg)) return;
+      if (sent >= MAX_ERRORS || seen.has(msg)) return;
+      seen.add(msg);
+      sent++;
+      send(sb2, "error", msg, where(), { ...detail, ua: navigator.userAgent, lang: document.documentElement.lang });
+    };
+    window.addEventListener("error", (e) => {
+      if (e.filename && !e.filename.startsWith(location.origin)) return;
+      once(String(e.message || "error"), {
+        src: (e.filename || "").replace(location.origin, ""),
+        line: e.lineno,
+        col: e.colno,
+        stack: String(e.error?.stack || "").slice(0, 4e3)
+      });
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      const r = e.reason;
+      const msg = typeof r === "string" ? r : r?.message || String(r);
+      once(msg, { stack: typeof r === "object" ? String(r?.stack || "").slice(0, 4e3) : "" });
+    });
+  }
+  function openReport(sb2, where, txt, toast) {
+    document.getElementById("lk-report")?.remove();
+    const d = document.createElement("dialog");
+    d.id = "lk-report";
+    d.className = "reportdlg";
+    d.innerHTML = '<form method="dialog"><h3></h3><p class="hint"></p><textarea maxlength="2000" rows="5"></textarea><div class="foot"><span class="spacer"></span><button type="button" class="btn btn-ghost" data-rcancel></button><button type="submit" class="btn btn-primary" data-rsend></button></div></form>';
+    d.querySelector("h3").textContent = txt.title;
+    d.querySelector(".hint").textContent = txt.hint;
+    const ta = d.querySelector("textarea");
+    ta.placeholder = txt.placeholder;
+    const ok = d.querySelector("[data-rsend]");
+    ok.textContent = txt.send;
+    d.querySelector("[data-rcancel]").textContent = txt.cancel;
+    d.querySelector("[data-rcancel]").addEventListener("click", () => d.close());
+    d.addEventListener("close", () => d.remove());
+    d.querySelector("form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const msg = ta.value.trim();
+      if (!msg) {
+        ta.focus();
+        return;
+      }
+      ok.disabled = true;
+      send(sb2, "user", msg, where(), { ua: navigator.userAgent, lang: document.documentElement.lang, w: innerWidth, h: innerHeight }).then((done) => {
+        if (done) {
+          d.close();
+          toast(txt.thanks);
+        } else {
+          ok.disabled = false;
+          toast(txt.fail);
+        }
+      });
+    });
+    document.body.appendChild(d);
+    d.showModal();
+    ta.focus();
   }
 
   // app-src/plan.ts
@@ -1017,6 +1115,26 @@
   document.addEventListener("click", async (e) => {
     const l = L();
     const tg = e.target;
+    if (tg.closest("[data-report]")) {
+      const btn = maybe$("reportbtn");
+      const say = (s) => {
+        if (!btn) return;
+        btn.textContent = s;
+        setTimeout(() => {
+          btn.textContent = L().reportBtn;
+        }, 3e3);
+      };
+      openReport(sb, () => "plan" + (P.token ? ":" + String(P.token).slice(0, 6) : ""), {
+        title: l.reportTitle,
+        hint: l.reportHint,
+        placeholder: l.reportPh,
+        send: l.reportSend,
+        cancel: l.reportCancel,
+        thanks: l.reportThanks,
+        fail: l.reportFail
+      }, say);
+      return;
+    }
     const sti = tg.closest("[data-stier]");
     if (sti) {
       P.STIER = sti.getAttribute("data-stier");
@@ -1380,5 +1498,6 @@
       return;
     }
   });
+  watchErrors(sb, () => "plan" + (P.token ? ":" + String(P.token).slice(0, 6) : ""));
   load();
 })();

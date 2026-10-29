@@ -38,6 +38,8 @@ let all: BankRow[] = [];                  // the same, in lk_pool's ranked order
 let ask: Ask | null = null;               // the Plan a lesson form, when open
 let found = false;                        // the form has been searched
 let busy = false;
+let skip = '';                            // during a swap: the plan being swapped out
+let sure = '';                            // the run whose Remove has been clicked once
 
 /** Every plan the school may use, from its own bank and the shared pool. */
 async function loadPlans() {
@@ -61,7 +63,8 @@ function unused(subject: string, year: string, group: string) {
   const g = group.trim();
   const ok = all.filter((p) => p.approved && !p.approval_stale && p.subject === subject && p.year_group === year &&
     !(g && usesOf(p.id, g).length));
-  return [...ok.filter((p) => p.origin === 'teacher'), ...ok.filter((p) => p.origin !== 'teacher')];
+  const fresh = ok.filter((p) => p.id !== skip);
+  return [...fresh.filter((p) => p.origin === 'teacher'), ...fresh.filter((p) => p.origin !== 'teacher')];
 }
 
 const originChip = (p: BankRow) => p.origin === 'teacher'
@@ -91,7 +94,15 @@ function useCard(u: UseRow) {
         p ? stockChip(p.subject, p.year_group, u.group_name) : '',
       ].filter(Boolean).join(' · ') + '</p>' +
     '</div>' +
-    (link ? '<a class="btn btn-ghost btn-sm tdopen" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(t('tdOpen')) + '</a>' : '') +
+    '<div class="tdcardact">' +
+      (link ? '<a class="btn btn-ghost btn-sm tdopen" href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(t('tdOpen')) + '</a>' : '') +
+      // Only a lesson still ahead can be changed; one that happened stays on record.
+      (u.run_token && u.used_on >= today()
+        ? '<button class="btn btn-ghost btn-sm" data-tdswap="' + esc(u.run_token) + '">' + esc(t('tdSwap')) + '</button>' +
+          '<button class="btn btn-ghost btn-sm tdrm' + (sure === u.run_token ? ' sure' : '') + '" data-tdrm="' + esc(u.run_token) + '">' +
+            esc(t(sure === u.run_token ? 'tdRemoveSure' : 'tdRemove')) + '</button>'
+        : '') +
+    '</div>' +
   '</article>';
 }
 
@@ -199,9 +210,29 @@ async function use(planId: string) {
     });
     if (error || !data) { toast(error?.message || t('tdUseFail')); return; }
     toast(fillT('tdUsed', { g: a.group, d: fmtDay(a.date, false) }));
-    ask = null; found = false; day = a.date;   // show the day it went to
+    ask = null; found = false; skip = ''; day = a.date;   // show the day it went to
     await loadUses();
   } finally { busy = false; renderToday(); }
+}
+
+/** Take a planned lesson back. False when the database keeps it (feedback given, or past). */
+async function unplan(run: string) {
+  const { data, error } = await sb.rpc('lk_unlog_run', { p_run_token: run });
+  if (error || data !== true) { toast(t('tdCantRemove')); return false; }
+  await loadUses();
+  return true;
+}
+
+/** Swap: take the lesson back and open Plan a lesson for the same class and
+ *  time, without offering the plan that was just swapped out. */
+async function swap(run: string) {
+  const u = state.uses.find((x) => x.run_token === run);
+  const p = u && plans.get(u.plan_id);
+  if (!u || !p || !(await unplan(run))) { renderToday(); return; }
+  const [start = '', end = ''] = (u.lesson_time || '').split('–');
+  ask = { subject: p.subject, year: p.year_group, group: u.group_name, date: u.used_on, start, end, sub: u.substitute || '' };
+  skip = p.id; found = true; day = u.used_on;
+  renderToday();
 }
 
 /** Clicks on the Today page. Returns true when it handled one. */
@@ -212,9 +243,20 @@ export function todayClick(tg: HTMLElement): boolean {
     found = false; renderToday(); maybe$('td-class')?.focus();
     return true;
   }
+  const rm = tg.closest<HTMLElement>('[data-tdrm]');
+  if (rm) {
+    const run = rm.getAttribute('data-tdrm')!;
+    // Two clicks: the first asks, the second removes.
+    if (sure !== run) { sure = run; renderToday(); setTimeout(() => { if (sure === run) { sure = ''; renderToday(); } }, 4000); return true; }
+    sure = '';
+    unplan(run).then((ok) => { if (ok) toast(t('tdRemoved')); renderToday(); });
+    return true;
+  }
+  const sw = tg.closest<HTMLElement>('[data-tdswap]');
+  if (sw) { swap(sw.getAttribute('data-tdswap')!); return true; }
   const dd = tg.closest<HTMLElement>('[data-tdday]');
   if (dd) { setDay(dd.getAttribute('data-tdday')!); return true; }
-  if (tg.closest('[data-tdcancel]')) { ask = null; found = false; renderToday(); return true; }
+  if (tg.closest('[data-tdcancel]')) { ask = null; found = false; skip = ''; renderToday(); return true; }
   if (tg.closest('[data-tdfind]')) {
     const a = readForm();
     if (a && valid(a)) { ask = a; found = true; renderToday(); }

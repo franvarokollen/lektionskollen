@@ -8,6 +8,7 @@ import { Slide, deckAll, deckScope } from './deck';
 import { Labels } from './plan-labels';
 import { $, ASPECTS, L, Lang, P, PROG, SESSION, esc, maybe$, saveProg, sb } from './plan-core';
 import { Plan } from './types';
+import { openReport, watchErrors } from './report';
 /* ── Events ──────────────────────────────────────────── */
 // One Escape closes one layer, the top one: help sheet, pupil sheet,
 // projector, then teach mode (through its own button, so it lands on the
@@ -108,6 +109,17 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('click', async (e) => {
   const l = L();
   const tg = e.target as HTMLElement;
+
+  if (tg.closest('[data-report]')) {
+    const btn = maybe$('reportbtn');
+    // No toast on this page: the button itself says how it went, briefly.
+    const say = (s: string) => { if (!btn) return; btn.textContent = s; setTimeout(() => { btn.textContent = L().reportBtn; }, 3000); };
+    openReport(sb, () => 'plan' + (P.token ? ':' + String(P.token).slice(0, 6) : ''), {
+      title: l.reportTitle, hint: l.reportHint, placeholder: l.reportPh, send: l.reportSend,
+      cancel: l.reportCancel, thanks: l.reportThanks, fail: l.reportFail,
+    }, say);
+    return;
+  }
 
   const sti = tg.closest<HTMLElement>('[data-stier]');
   if (sti) { P.STIER = sti.getAttribute('data-stier')!; openStudent('lesson'); return; }
@@ -390,5 +402,7 @@ document.addEventListener('click', async (e) => {
 
 });
 
+// What breaks on a substitute's phone is otherwise never seen.
+watchErrors(sb, () => 'plan' + (P.token ? ':' + String(P.token).slice(0, 6) : ''));
 load();
 export {};
