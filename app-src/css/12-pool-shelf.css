@@ -1,0 +1,64 @@
+/* ── The pool: one shelf at a time ───────────────────────
+   Subjects in a rail on the left, year groups as chips above the cards. Below
+   860px the rail turns into a scrolling row so the cards keep the width. */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:6px 12px;font:inherit;font-size:13px;color:var(--ink-soft);cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--navy);color:#fff;font-weight:600}
+.poolwrap{display:grid;grid-template-columns:210px minmax(0,1fr);gap:18px;align-items:start}
+.poolrail{display:flex;flex-direction:column;gap:2px;position:sticky;top:12px;
+  max-height:calc(100vh - 24px);overflow-y:auto;padding-right:4px}
+.poolrail button{display:flex;align-items:center;gap:8px;border:0;background:none;text-align:left;
+  padding:7px 10px;border-radius:8px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+.poolrail button:hover{background:var(--line-soft)}
+.poolrail button.on{background:#fff;box-shadow:inset 3px 0 0 var(--acc),0 0 0 1px var(--line);font-weight:600}
+.poolrail .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--acc)}
+.poolrail .l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.poolrail .n,.yrchips .n{font-size:11px;color:var(--ink-faint);font-variant-numeric:tabular-nums;font-weight:500}
+.poolmain > h3{margin-bottom:10px}
+.yrchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.yrchips button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 11px;
+  font:inherit;font-size:12.5px;color:var(--ink);cursor:pointer}
+.yrchips button:hover{border-color:var(--acc)}
+.yrchips button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.yrchips button.on .n{color:rgba(255,255,255,.85)}
+@media (max-width:860px){
+  .poolwrap{grid-template-columns:1fr;gap:10px}
+  .poolrail{flex-direction:row;position:static;max-height:none;overflow-x:auto;padding:0 0 4px}
+  .poolrail button{flex:none}
+}
+
+/* Coverage: the catalogue as a grid, so the gaps show. */
+.poolcov{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:6px 8px}
+.poolcov{display:inline-block;max-width:100%}
+.poolcov table{border-collapse:separate;border-spacing:3px;min-width:0;width:auto}
+.poolcov th{font-size:11.5px;font-weight:600;color:var(--ink-soft);padding:2px 6px;text-align:center;white-space:nowrap;
+  text-transform:none;letter-spacing:0;background:none;border:0}
+.poolcov tr > th:first-child{text-align:left;color:var(--ink);font-weight:500;padding-right:12px}
+.poolcov td{padding:0;border:0;background:none}
+.poolcov tr:hover > th:first-child{color:var(--navy)}
+.cv{display:inline-grid;place-items:center;width:34px;height:26px;border-radius:6px;font:inherit;font-size:12px;
+  font-weight:600;font-variant-numeric:tabular-nums;border:1px solid transparent}
+button.cv{cursor:pointer}
+button.cv:hover{outline:2px solid var(--navy);outline-offset:1px}
+.cv.full{background:#15803d;color:#fff}
+.cv.some{background:#dcfce7;color:#15803d;border-color:#bbe5c8}
+.cv.unappr{background:var(--warn-bg);color:#9a4d00;border-color:#f3d68a}
+.cv.empty{background:var(--line-soft);color:var(--ink-faint);font-weight:400}
+.cvlegend{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft);margin:8px 0 0}
+.cvlegend .cv{width:24px;height:20px;font-size:11px;margin-left:8px}
+.cvlegend .cv:first-child{margin-left:0}
+.pc-yr{font-weight:600;color:var(--acc,var(--ink))}
+
+/* ── Where a plan came from, and whether it may leave the school ── */
+.pc-orig{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0;font-size:11px}
+.orig{display:inline-flex;align-items:center;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid}
+.orig.ai{color:#5b21b6;background:#f5f3ff;border-color:#ddd6fe}
+.orig.tch{color:#0f766e;background:#f0fdfa;border-color:#99f6e4}
+.orig.loc{color:var(--ink-soft);background:var(--line-soft);border-color:var(--line)}
+.sharetick{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:10px 12px;margin:12px 0 0;cursor:pointer}
+.sharetick input{margin-top:3px;width:16px;height:16px;accent-color:var(--navy);flex:none}
+.sharetick .hint{font-size:12.5px}
+.userauth{margin:0;font-size:11px;color:rgba(232,237,242,.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+

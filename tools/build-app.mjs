@@ -8,7 +8,7 @@
 // build step. They are generated: edit app-src/, never app/*.js. --check is how
 // that stays true, and it is cheap enough to run on every commit.
 import { build } from 'esbuild';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 
 const ENTRIES = {
   'app/i18n.js': 'app-src/i18n.entry.ts',
@@ -33,6 +33,23 @@ for (const [outfile, entry] of Object.entries(ENTRIES)) {
   } else {
     writeFileSync(outfile, text);
     console.log(`${outfile}  ←  ${entry}  (${text.length} bytes)`);
+  }
+}
+// One stylesheet for both pages, from one file per screen in app-src/css/.
+// The number in each name is its place in the cascade: later rules win ties,
+// so the order is part of the design, not an accident of the file listing.
+{
+  const dir = 'app-src/css';
+  const parts = readdirSync(dir).filter((f) => f.endsWith('.css')).sort();
+  const text = '/* GENERATED from app-src/css/*.css by tools/build-app.mjs. Edit those files, not this one. */\n' +
+    parts.map((f) => readFileSync(`${dir}/${f}`, 'utf8')).join('');
+  const outfile = 'app/lk.css';
+  if (only) {
+    const now = existsSync(outfile) ? readFileSync(outfile, 'utf8') : '';
+    if (now !== text) { console.error(`${outfile}: out of date with ${dir}/. Run: node tools/build-app.mjs`); stale++; }
+  } else {
+    writeFileSync(outfile, text);
+    console.log(`${outfile}  ←  ${dir}/ (${parts.length} files, ${text.length} bytes)`);
   }
 }
 process.exit(stale ? 1 : 0);
