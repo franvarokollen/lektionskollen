@@ -5,10 +5,9 @@ files are the source of truth; redeploy after changing them.
 
 | File | What it is |
 |---|---|
-| `index.ts` | Entry point. Picks the model path or the written library by env. |
+| `index.ts` | Entry point: allowance, model call, quality gate. |
 | `prompt.ts` | The prompt rules carried over from Vikarieplaneringen. |
-| `repair.ts` | Coercion and truncation repair for model output. |
-| `library.ts` | Written plans in sv and en, served while no model is set. |
+| `../_shared/` | Shared by every function: `http.ts` (CORS, JSON), `model.ts` (temperature, thinking budget), `repair.ts` (reading imperfect model JSON). Deployed with each function that imports it. |
 
 ## Switching on a real model
 

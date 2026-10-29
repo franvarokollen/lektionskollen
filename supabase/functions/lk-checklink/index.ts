@@ -10,16 +10,7 @@
 // never means "the substitute will be able to read it". The only thing this
 // rules out with confidence is a dead or mistyped address.
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  });
+import { cors, json } from '../_shared/http.ts'
 
 /** Private, loopback and link-local addresses, so this cannot be pointed inward. */
 function isPrivateIp(ip: string): boolean {
@@ -65,7 +56,7 @@ function looksLikeSignIn(finalUrl: string): boolean {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
   let url = '';
   try {

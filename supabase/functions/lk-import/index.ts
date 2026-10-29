@@ -18,30 +18,12 @@
 // planning that quietly imported itself wrong would poison every plan built
 // on it, and nobody would know where the wrongness came from.
 
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-const json = (b: unknown, s = 200) =>
-  new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } })
+import { cors, json } from '../_shared/http.ts'
+import { temperature, thinking } from '../_shared/model.ts'
 
 // Long enough for a full year of planning with notes, short enough that a
 // pasted-in whole document cannot run up a bill.
 const MAX_CHARS = 20_000
-
-const AI_TEMP = Deno.env.get('AI_TEMPERATURE')
-const temperature = () => (AI_TEMP ? { temperature: Number(AI_TEMP) } : {})
-
-const AI_THINK = Deno.env.get('AI_THINKING_BUDGET')
-const IS_ANTHROPIC = /api\.anthropic\.com/i.test(Deno.env.get('AI_BASE_URL') ?? '')
-const thinking = () => {
-  const budget = AI_THINK !== undefined ? Number(AI_THINK) : IS_ANTHROPIC ? 2000 : NaN
-  if (!Number.isFinite(budget)) return {}
-  return budget > 0
-    ? { thinking: { type: 'enabled', budget_tokens: budget } }
-    : { thinking: { type: 'disabled' } }
-}
 
 const SYSTEM = [
   'You convert a school department\'s year planning into rows. Nothing else.',
@@ -121,7 +103,7 @@ Deno.serve(async (req) => {
             ].filter(Boolean).join('\n') },
         ],
         ...temperature(),
-        ...thinking(),
+        ...thinking(2000),
         max_tokens: Number(Deno.env.get('AI_IMPORT_MAX_TOKENS') ?? 8000),
         stream: false,
       }),

@@ -9,41 +9,11 @@
 // board. The response says which path produced it so the UI can say so too.
 
 import { buildMessages } from './prompt.ts'
-import { parseModelJson } from './repair.ts'
+import { parseModelJson } from '../_shared/repair.ts'
 import { writtenPair } from './library.ts'
 import type { AssistReq, Extra, ExtraPair } from './types.ts'
-
-// Temperature is omitted unless AI_TEMPERATURE is set. Anthropic's OpenAI
-// compatibility layer returns 400 for any value below 1 on current models, and
-// every call here used to pin it low — so every call would have failed the
-// moment a Claude key was connected. Providers that do accept it (OpenAI,
-// Gemini, OpenRouter) can have it back by setting the variable.
-const AI_TEMP = Deno.env.get('AI_TEMPERATURE');
-const temperature = () => (AI_TEMP ? { temperature: Number(AI_TEMP) } : {});
-
-// Thinking is on by default on Claude 5 models and is billed against the same
-// max_tokens as the answer. An extra is short — 2600 tokens — so without a cap
-// the reasoning used the whole budget and every call came back empty, which the
-// substitute saw as the written fallback rather than as an error. Worth knowing:
-// this failed quietly and looked like it was working.
-const AI_THINK = Deno.env.get('AI_THINKING_BUDGET');
-const IS_ANTHROPIC = /api\.anthropic\.com/i.test(Deno.env.get('AI_BASE_URL') ?? '');
-const thinking = () => {
-  const budget = AI_THINK !== undefined ? Number(AI_THINK) : IS_ANTHROPIC ? 1024 : NaN;
-  if (!Number.isFinite(budget)) return {};
-  return budget > 0
-    ? { thinking: { type: 'enabled', budget_tokens: budget } }
-    : { thinking: { type: 'disabled' } };
-};
-
-
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-const json = (b: unknown, s = 200) =>
-  new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } })
+import { cors, json } from '../_shared/http.ts'
+import { temperature, thinking } from '../_shared/model.ts'
 
 const KINDS = ['explain', 'exercise', 'level', 'filler']
 
@@ -162,7 +132,7 @@ Deno.serve(async (req) => {
         model,
         messages: buildMessages(body),
         ...temperature(),
-        ...thinking(),
+        ...thinking(1024),
         // Both languages in one response, plus room for the thinking budget
         // above it.
         max_tokens: Number(Deno.env.get('AI_ASSIST_MAX_TOKENS') ?? 5000),
