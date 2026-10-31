@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Bank ──────────────────────────────────────────── */
 import { CATALOG_SUBJECTS, CATALOG_YEARS, canonSubject, canonYear, subjectLabel, yearLabel } from './lk-catalog';
 import { $, BankRow, CHK, LANG, PoolPick, UseRow, esc, fillT, maybe$, sb, state, t } from './lk-core';

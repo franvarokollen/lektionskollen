@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* The substitute's page (plan.html): event wiring and start-up. The rest
    lives in plan-*.ts. */
 import { render } from './plan-render';

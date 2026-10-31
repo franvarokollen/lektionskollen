@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── How much is written out ─────────────────────────────
    Substitutes are not interchangeable. One is eighteen and has never stood in
    front of a class; another taught the subject for twenty years and needs the

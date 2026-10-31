@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Sign-in: mocked (option A) ──────────────────────
    Lektionskollen is its own product with its own sign-in, and can be linked
    to Frånvarokollen. The plan (docs/AUTH.md):

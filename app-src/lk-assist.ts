@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Live assist (coordinator preview) ──────────────────
    The coordinator sees exactly what the substitute gets, and can judge the
    quality of it, but nothing here is saved: the heat map that tells us which

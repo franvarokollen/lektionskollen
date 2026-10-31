@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 import type { Plan, Task } from './types';
 
 /* ── The lesson, as slides ─────────────────────────────

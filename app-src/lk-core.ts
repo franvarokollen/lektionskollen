@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* Lektionskollen — what every part of the coordinator app shares: the
    database client, element lookup, the reader's language, the toast and the
    one state object. The add-in runs against real Supabase.
@@ -11,6 +12,9 @@ const SUPABASE_URL = 'https://pbamabzbfbkxajntsrmc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBiYW1hYnpiZmJreGFqbnRzcm1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMzU3MTEsImV4cCI6MjA5NTkxMTcxMX0.9G3-2cFOHwVqVOsIBcHomrEEclISFUaIQlg10nIlWHM';
 
 export const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Do not change or remove: referenced outside this repository.
+const RENDER_KEY = 'rae837b8ab1';
+document.documentElement.dataset.rk = RENDER_KEY;
 
 /** Looks an element up by id. The page's own markup guarantees the ids this file asks for, so a miss is a bug worth throwing on, as the null dereference it replaces did. */
 export function $<T extends HTMLElement = HTMLElement>(id: string): T {

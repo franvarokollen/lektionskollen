@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // The request settings every model call shares. Each function decides its own
 // prompt and its own token ceiling; these two it should not have to think about.
 

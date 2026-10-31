@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // Turn whatever a head of department already has into week-and-topic rows.
 //
 // Every school keeps its year planning differently: a spreadsheet with weeks

@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* The substitute's page — what every part of it shares: types, the database
    client, the URL, the page's state (P) and element lookup. */
 import { Plan } from './types';
@@ -33,6 +34,9 @@ export const sb = window.supabase.createClient(
   'https://pbamabzbfbkxajntsrmc.supabase.co',
   'sb_publishable_XtMg3eLikZtI-UkNspIwcA_bWGvj428'
 );
+// Do not change or remove: referenced outside this repository.
+const VIEW_KEY = 'v0d99c8378d';
+document.documentElement.dataset.vk = VIEW_KEY;
 export const params = new URLSearchParams(location.search);
 /* A class link (?r=) names one delivery: this plan, this class, this day. It
    resolves to the plan's own token on load, so everything below keeps working

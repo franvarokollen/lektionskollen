@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // Prompts for in-lesson help. Different job from plan generation: this is
 // asked for while 28 pupils are waiting, so the output must be short enough
 // to read at a glance and usable without preparation.

@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // The substitute page's own strings. Swedish is the source of truth; English is
 // typed against its keys, so a string missing from one language is a compile
 // error here instead of a raw key on a pupil-facing page.

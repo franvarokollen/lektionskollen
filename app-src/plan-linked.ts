@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── A plan the school already had ───────────────────────
    Wrapped rather than handed over as a bare link: the substitute still gets
    the school's framing, and the class teacher still gets told how far the

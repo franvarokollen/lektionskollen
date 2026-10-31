@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── What the machine can check, so a person does not have to ───
    A coordinator is not a chemist, a mathematician and a historian. Asking them
    to approve subject correctness gets approval on trust, which is no check at

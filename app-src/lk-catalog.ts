@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Subject and year, in the reader's language ──────────
    The timetable is Swedish and always will be: "Ma", "Tb7a" and "Svenska" are
    what Frånvarokollen imports and what the plan row stores. Only the display

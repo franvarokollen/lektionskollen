@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // Check a plan before a human is asked to approve it.
 //
 // Two passes, in order of cost and certainty.

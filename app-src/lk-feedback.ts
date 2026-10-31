@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Feedback tab: what substitutes did and said ───── */
 import { subjectLabel, yearLabel } from './lk-catalog';
 import { $, Attn, Extra, FbPlan, Heat, LANG, QueueItem, RunFb, SHELL, SecFb, StrMap, esc, fillT, maybe$, sb, state, t, toast } from './lk-core';

@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Daily Cover ─────────────────────────────────────────
    A replica of Frånvarokollen's cover screen, close enough to judge the
    add-on inside it: the coverage donut, the absent-staff chips, and the

@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── What the class teacher sees ─────────────────────────
    They are the only person in the chain who can tell whether the content was
    correct and whether it suited this particular class. The coordinator cannot

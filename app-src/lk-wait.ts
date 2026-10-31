@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── While the AI writes ──────────────────────────────────
    A real plan takes a minute or two. The old bar reached 90 % in four
    seconds and then sat there, which reads as a hang. So the wait now says

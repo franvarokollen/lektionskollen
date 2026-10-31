@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // The plan, rendered once.
 //
 // There used to be two of these: the substitute's own page built one layout and

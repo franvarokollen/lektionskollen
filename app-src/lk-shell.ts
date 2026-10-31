@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /** Everything marked data-t in the HTML. */
 import { $, ADDON, LANG, SHELL, StrMap, esc, state, t } from './lk-core';
 export function applyStatic() {

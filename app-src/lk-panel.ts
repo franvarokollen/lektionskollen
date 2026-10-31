@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /** Open a plan. `row` is the lesson it is being opened FOR — an absence —
  *  or null when it is opened on its own (bank, feedback, a new plan), in which
  *  case the plan stands alone and no class, time or substitute is implied. */

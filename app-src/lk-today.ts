@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Today (Lektionskollen on its own) ───────────────────
    Not a cover list: Lektionskollen on its own knows nothing about absences.
    This page shows which lesson plans are in use today, class by class, so

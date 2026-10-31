@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // Written in-lesson help, served while no model is configured.
 //
 // An honest limit: without a model this cannot invent subject content, so it

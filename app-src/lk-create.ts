@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Create a lesson plan ─────────────────────────────────
    Lektionskollen does two things: it makes lesson plans, and it keeps a bank
    of them. This is the first half for a person, not for an absence: a

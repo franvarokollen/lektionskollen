@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* Lektionskollen — the coordinator app: sign-in, the cover table, the plan
    panel, and the page's event wiring. The rest lives in lk-*.ts. */
 import { loadToday, todayClick } from './lk-today';

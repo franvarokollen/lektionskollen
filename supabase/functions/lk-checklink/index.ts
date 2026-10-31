@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // Check a teacher's plan link at the moment it is pasted.
 //
 // The person who can fix a bad URL is the coordinator typing it, not the
