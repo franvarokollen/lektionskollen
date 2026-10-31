@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Render ──────────────────────────────────────────── */
 import { RenderOpts } from './plan-view';
 import { bodies } from './plan-load';

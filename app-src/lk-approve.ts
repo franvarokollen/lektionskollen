@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /** The name is saved with the approval. Remembered on this device so the
  *  second plan of the morning does not ask again. */
 import { subjectLabel } from './lk-catalog';

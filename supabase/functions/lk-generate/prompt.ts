@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // The prompt rules carried over from Vikarieplaneringen. These are the part
 // that took eighteen months to get right; change them deliberately.
 

@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Problems, reported to the database ──────────────────
    Shared by the coordinator app and the substitute page. Two sources, one
    table (problem_reports, through lk_report):

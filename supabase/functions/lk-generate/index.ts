@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // Lektionskollen — plan generation.
 //
 // Needs AI_BASE_URL, AI_MODEL and AI_API_KEY as function secrets. See

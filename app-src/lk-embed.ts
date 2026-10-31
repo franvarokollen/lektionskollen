@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Add-in ────────────────────────────────────────── */
 import { showScreen } from './lk';
 import { canonSubject, canonYear } from './lk-catalog';

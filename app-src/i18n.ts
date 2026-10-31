@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* UI strings. The plan itself is generated in its own language and is not
    translated here — only the chrome around it. */
 

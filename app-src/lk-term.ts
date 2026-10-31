@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── The department's year planning ──────────────────────
    Every plan this system writes without a topic is a guess from the
    curriculum: a competent lesson that may be three weeks ahead of where the

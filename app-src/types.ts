@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // The shapes the app passes around. The plan is the one that matters: it is what
 // the model writes, what the bank stores, and what both hosts render.
 //

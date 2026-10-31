@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // One thing a substitute pulled out of the plan mid-lesson.
 export type Extra = {
   title: string

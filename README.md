@@ -2,7 +2,9 @@
 
 Lesson plans for Swedish schools: **create** them (with AI, from your own document, or by hand) and keep a **bank** of them, shared between schools when a plan has earned it. A standalone product that can be linked into Frånvarokollen (FVK) when a school has both.
 
-Live: `https://franvarobot.github.io/lektionskollen/` (redirects to `app/`). Every push to `main` is served as-is by GitHub Pages. The old app stays at `/legacy/`.
+**Proprietary and confidential** — © 2026 Frånvarokollen Sverige AB, all rights reserved (see `LICENSE`, `docs/TERMS-OF-USE.md`).
+
+Hosting: the repo is private since 2026-10-31, so GitHub Pages no longer serves it; see `docs/HOSTING.md` (Cloudflare Pages). The served files are `app/` as committed; the old app stays at `/legacy/`. Shipped bundles are minified; `node tools/build-app.mjs --sourcemap` writes local source maps for reading an error report.
 
 ## What is where
 

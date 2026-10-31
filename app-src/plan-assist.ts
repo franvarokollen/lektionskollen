@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Live assist ─────────────────────────────────────── */
 import { bodies } from './plan-load';
 import { render } from './plan-render';

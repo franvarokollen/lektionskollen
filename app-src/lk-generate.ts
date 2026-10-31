@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 import { canonSubject, canonYear, subjectLabel, yearLabel } from './lk-catalog';
 import { $, LANG, Lang, esc, fillT, maybe$, nextPanel, panelIs, sb, state, t, toast } from './lk-core';
 import { EMBED } from './lk-embed';

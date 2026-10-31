@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Stand-in for FVK's cover feed ──────────────────
    Shape mirrors cover_assignments. When FVK is wired up these arrive
    in the lk:init message instead. */

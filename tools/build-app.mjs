@@ -17,16 +17,24 @@ const ENTRIES = {
   'app/plan.js': 'app-src/plan.ts',
 };
 const only = process.argv.includes('--check');
+const NOTICE = '© 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential; copying, scraping or reverse engineering is prohibited.';
 let stale = 0;
 
 for (const [outfile, entry] of Object.entries(ENTRIES)) {
   if (!existsSync(entry)) continue;
   const r = await build({
     entryPoints: [entry], bundle: true, format: 'iife', target: 'es2020',
+    // Minified: what ships to a browser can always be read, but it should not
+    // be a readable copy of the source. Error reports carry line and column;
+    // rebuild the same commit with --sourcemap to map them back.
+    minify: true, sourcemap: process.argv.includes('--sourcemap') ? 'external' : false,
     legalComments: 'none', write: false, outfile, logLevel: 'warning',
-    banner: { js: `/* GENERATED from ${entry} by tools/build-app.mjs. Edit the TypeScript, not this file. */` },
+    banner: { js: `/*! ${NOTICE} Generated from ${entry}. */` },
   });
-  const text = r.outputFiles[0].text;
+  const out = r.outputFiles.find((f) => f.path.endsWith('.js'));
+  const text = out.text;
+  // Source maps are for debugging an error report locally, never committed.
+  for (const f of r.outputFiles) if (f.path.endsWith('.map') && !only) writeFileSync(f.path, f.text);
   if (only) {
     const now = existsSync(outfile) ? readFileSync(outfile, 'utf8') : '';
     if (now !== text) { console.error(`${outfile}: out of date with ${entry}. Run: node tools/build-app.mjs`); stale++; }
@@ -41,7 +49,7 @@ for (const [outfile, entry] of Object.entries(ENTRIES)) {
 {
   const dir = 'app-src/css';
   const parts = readdirSync(dir).filter((f) => f.endsWith('.css')).sort();
-  const text = '/* GENERATED from app-src/css/*.css by tools/build-app.mjs. Edit those files, not this one. */\n' +
+  const text = `/*! ${NOTICE} Generated from app-src/css/. */\n` +
     parts.map((f) => readFileSync(`${dir}/${f}`, 'utf8')).join('');
   const outfile = 'app/lk.css';
   if (only) {

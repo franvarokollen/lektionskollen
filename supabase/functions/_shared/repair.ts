@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // Defensive handling of model output. Local models fence their JSON, emit
 // <think> blocks, leave trailing commas and get cut off at the token limit.
 

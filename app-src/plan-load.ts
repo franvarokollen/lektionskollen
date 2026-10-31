@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 /* ── Loading ─────────────────────────────────────────── */
 import { renderTeacher } from './plan-teacher';
 import { renderLinked, runDate } from './plan-linked';

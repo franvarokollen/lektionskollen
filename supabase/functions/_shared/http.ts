@@ -1,3 +1,4 @@
+// © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential: see LICENSE.
 // What every Lektionskollen function answers with: CORS for the browser, and
 // JSON bodies.
 

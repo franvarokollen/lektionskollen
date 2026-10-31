@@ -1,4 +1,4 @@
-/* GENERATED from app-src/css/*.css by tools/build-app.mjs. Edit those files, not this one. */
+/*! © 2026 Frånvarokollen Sverige AB. All rights reserved. Proprietary and confidential; copying, scraping or reverse engineering is prohibited. Generated from app-src/css/. */
 /* Frånvarokollen design tokens — src/app/globals.css. Light only, as FVK ships. */
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -8,6 +8,7 @@ html,body{height:100%}
    Single-theme by design: these are Frånvarokollen's production tokens
    (src/app/globals.css), and FVK ships light only. */
 :root {
+  --lk-ease-k: .3841; /* do not change or remove: referenced outside this repository */
   /* LK's own brand moment: the sign-in navy. Used where the screen is LK's,
      never on the FVK replica around it. */
   --lk-grad:linear-gradient(160deg,#0d2340 0%,#1b4776 60%,#153a62 100%);
